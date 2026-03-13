@@ -4,6 +4,7 @@ const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
 const MIN_PREVIEW_SCALE = 50;
 const MAX_PREVIEW_SCALE = 1000;
+const DEFAULT_LINE_STRENGTH = 30;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -63,7 +64,6 @@ function getPixelDarkness(imageData, width, x, y) {
 }
 
 function App() {
-  const [imageUrl, setImageUrl] = useState('');
   const [imageName, setImageName] = useState('');
   const [imageSize, setImageSize] = useState(null);
   const [cropToCircle, setCropToCircle] = useState(true);
@@ -73,9 +73,11 @@ function App() {
   const [lineFrom, setLineFrom] = useState('1');
   const [lineTo, setLineTo] = useState('1');
   const [highlightRange, setHighlightRange] = useState('15');
-  const [lineStrength, setLineStrength] = useState('30');
+  const [lineStrength, setLineStrength] = useState(String(DEFAULT_LINE_STRENGTH));
   const [savedNailSequence, setSavedNailSequence] = useState([]);
   const [isArtMode, setIsArtMode] = useState(false);
+  const [isPerformingSteps, setIsPerformingSteps] = useState(false);
+  const [hiddenPreviewLineKey, setHiddenPreviewLineKey] = useState(null);
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -87,14 +89,48 @@ function App() {
   const imageRef = useRef(null);
   const imageCanvasRef = useRef(null);
   const sourceUrlRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const pauseRequestedRef = useRef(false);
+  const previewSize = previewRef.current?.clientWidth ?? 0;
+  const hasLoadedImage = Boolean(imageCanvasRef.current && imageSize);
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     return () => {
+      isMountedRef.current = false;
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
       if (sourceUrlRef.current) {
         URL.revokeObjectURL(sourceUrlRef.current);
       }
     };
   }, []);
+
+  useEffect(() => {
+    setHiddenPreviewLineKey(null);
+  }, [lineFrom, lineTo]);
+
+  const syncVisibleCanvas = () => {
+    if (!imageRef.current || !imageCanvasRef.current || !imageSize) {
+      return;
+    }
+
+    const visibleContext = imageRef.current.getContext('2d');
+    if (!visibleContext) {
+      return;
+    }
+
+    visibleContext.clearRect(0, 0, imageSize.width, imageSize.height);
+    visibleContext.drawImage(imageCanvasRef.current, 0, 0);
+  };
+
+  useEffect(() => {
+    syncVisibleCanvas();
+  }, [imageSize, isArtMode]);
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
@@ -109,11 +145,11 @@ function App() {
 
     const nextUrl = URL.createObjectURL(file);
     sourceUrlRef.current = nextUrl;
-    setImageUrl('');
     setImageName(file.name);
     setImageOffset({ x: 0, y: 0 });
     setPreviewOffset({ x: 0, y: 0 });
     setHoveredPixel(null);
+    setHiddenPreviewLineKey(null);
 
     const img = new Image();
     img.onload = () => {
@@ -132,7 +168,6 @@ function App() {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       context?.drawImage(img, 0, 0);
       imageCanvasRef.current = canvas;
-      setImageUrl(canvas.toDataURL());
 
       if (sourceUrlRef.current) {
         URL.revokeObjectURL(sourceUrlRef.current);
@@ -143,7 +178,7 @@ function App() {
   };
 
   const updateHoveredPixel = (event) => {
-    if (isArtMode || !imageUrl || !imageSize || !imageCanvasRef.current) {
+    if (isArtMode || !hasLoadedImage) {
       setHoveredPixel(null);
       return;
     }
@@ -201,7 +236,7 @@ function App() {
   };
 
   const handlePointerDown = (event) => {
-    if (!imageUrl) {
+    if (!hasLoadedImage) {
       return;
     }
 
@@ -273,7 +308,7 @@ function App() {
       );
       const previewRatio = nextPreviewScale / previewScale;
 
-      if (!imageRect || !imageUrl) {
+      if (!imageRect || !hasLoadedImage) {
         const previewCenterX = previewRect.left + previewRect.width / 2;
         const previewCenterY = previewRect.top + previewRect.height / 2;
 
@@ -310,7 +345,7 @@ function App() {
       return;
     }
 
-    if (!imageUrl) {
+    if (!hasLoadedImage) {
       return;
     }
 
@@ -382,6 +417,84 @@ function App() {
     );
   };
 
+  const getNextNailForImageData = (originIndex, sourceImageData) => {
+    if (
+      !imageSize ||
+      !sourceImageData ||
+      !Number.isInteger(originIndex) ||
+      originIndex < 1 ||
+      originIndex > nailsCount
+    ) {
+      return null;
+    }
+
+    let minimumDarkness = Infinity;
+    let selectedNail = null;
+
+    for (const targetNail of nails) {
+      if (
+        hasHighlightDistance &&
+        getCircularNailDistance(targetNail.number, originIndex, nailsCount) <= highlightDistance
+      ) {
+        continue;
+      }
+
+      const pixels = getLinePixelsForIndexes(originIndex, targetNail.number);
+      if (pixels.length === 0) {
+        continue;
+      }
+
+      let darknessSum = 0;
+      for (const pixel of pixels) {
+        darknessSum += getPixelDarkness(
+          sourceImageData,
+          imageSize.width,
+          pixel.x,
+          pixel.y,
+        );
+      }
+
+      const averageDarkness = darknessSum / pixels.length;
+      if (averageDarkness < minimumDarkness) {
+        minimumDarkness = averageDarkness;
+        selectedNail = targetNail.number;
+      }
+    }
+
+    return selectedNail;
+  };
+
+  const applyLineToImageData = (targetImageData, startIndex, endIndex, lineDarknessStep) => {
+    const targetLinePixels = getLinePixelsForIndexes(startIndex, endIndex);
+    if (!imageSize || targetLinePixels.length === 0) {
+      return false;
+    }
+
+    for (const pixel of targetLinePixels) {
+      const index = (pixel.y * imageSize.width + pixel.x) * 4;
+      targetImageData[index] = Math.min(255, targetImageData[index] + lineDarknessStep);
+      targetImageData[index + 1] = Math.min(255, targetImageData[index + 1] + lineDarknessStep);
+      targetImageData[index + 2] = Math.min(255, targetImageData[index + 2] + lineDarknessStep);
+    }
+
+    return true;
+  };
+
+  const getLineDarknessStep = () => {
+    const parsedLineStrength = Number.parseInt(lineStrength, 10);
+    return Number.isFinite(parsedLineStrength) && parsedLineStrength >= 0
+      ? parsedLineStrength
+      : DEFAULT_LINE_STRENGTH;
+  };
+
+  const waitForNextAnimationFrame = () =>
+    new Promise((resolve) => {
+      animationFrameRef.current = window.requestAnimationFrame((timestamp) => {
+        animationFrameRef.current = null;
+        resolve(timestamp);
+      });
+    });
+
   const handleSetNextNail = () => {
     if (nextNailNumber !== null) {
       setLineTo(String(nextNailNumber));
@@ -400,11 +513,7 @@ function App() {
       return;
     }
 
-    const parsedLineStrength = Number.parseInt(lineStrength, 10);
-    const lineDarknessStep =
-      Number.isFinite(parsedLineStrength) && parsedLineStrength >= 0
-        ? parsedLineStrength
-        : 0;
+    const lineDarknessStep = getLineDarknessStep();
     const context = imageCanvasRef.current.getContext('2d', {
       willReadFrequently: true,
     });
@@ -413,15 +522,19 @@ function App() {
     }
 
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
-    for (const pixel of targetLinePixels) {
-      const index = (pixel.y * imageSize.width + pixel.x) * 4;
-      canvasImage.data[index] = Math.min(255, canvasImage.data[index] + lineDarknessStep);
-      canvasImage.data[index + 1] = Math.min(255, canvasImage.data[index + 1] + lineDarknessStep);
-      canvasImage.data[index + 2] = Math.min(255, canvasImage.data[index + 2] + lineDarknessStep);
-    }
+    applyLineToImageData(canvasImage.data, startIndex, endIndex, lineDarknessStep);
 
     context.putImageData(canvasImage, 0, 0);
-    setImageUrl(imageCanvasRef.current.toDataURL());
+    syncVisibleCanvas();
+  };
+
+  const handleMakeCurrentLinePermanent = () => {
+    if (!hasRenderableLine) {
+      return;
+    }
+
+    handleMakeLinePermanent(fromIndex, toIndex);
+    setHiddenPreviewLineKey(`${fromIndex}-${toIndex}`);
   };
 
   const handleAllOfTheAbove = () => {
@@ -436,9 +549,89 @@ function App() {
     setSavedNailSequence((currentSequence) => [...currentSequence, nextNailNumber]);
   };
 
+  const handlePerform9000Steps = async () => {
+    if (isPerformingSteps) {
+      pauseRequestedRef.current = true;
+      return;
+    }
+
+    if (!imageCanvasRef.current || !imageSize || !hasValidFromIndex) {
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    if (!context) {
+      return;
+    }
+
+    const lineDarknessStep = getLineDarknessStep();
+    const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
+    let currentFromIndex = fromIndex;
+    const frameBudgetMs = 12;
+    let stepIndex = 0;
+
+    pauseRequestedRef.current = false;
+    setIsPerformingSteps(true);
+    setHoveredPixel(null);
+
+    try {
+      while (stepIndex < 9000 && isMountedRef.current && !pauseRequestedRef.current) {
+        const frameStart = await waitForNextAnimationFrame();
+        if (!isMountedRef.current) {
+          break;
+        }
+
+        const frameNails = [];
+        while (
+          stepIndex < 9000 &&
+          isMountedRef.current &&
+          !pauseRequestedRef.current &&
+          performance.now() - frameStart < frameBudgetMs
+        ) {
+          const nextNail = getNextNailForImageData(currentFromIndex, canvasImage.data);
+          if (nextNail === null) {
+            stepIndex = 9000;
+            break;
+          }
+
+          const didApplyLine = applyLineToImageData(
+            canvasImage.data,
+            currentFromIndex,
+            nextNail,
+            lineDarknessStep,
+          );
+          if (!didApplyLine) {
+            stepIndex = 9000;
+            break;
+          }
+
+          frameNails.push(nextNail);
+          currentFromIndex = nextNail;
+          stepIndex += 1;
+        }
+
+        if (frameNails.length > 0 && isMountedRef.current) {
+          const latestNail = frameNails[frameNails.length - 1];
+          context.putImageData(canvasImage, 0, 0);
+          syncVisibleCanvas();
+          setLineTo(String(latestNail));
+          setLineFrom(String(latestNail));
+          setSavedNailSequence((currentSequence) => [...currentSequence, ...frameNails]);
+        }
+      }
+    } finally {
+      pauseRequestedRef.current = false;
+      if (isMountedRef.current) {
+        setIsPerformingSteps(false);
+      }
+    }
+  };
+
   const imageStyle = {
     transform: `translate(-50%, -50%) translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${scale})`,
-    cursor: dragState?.mode === 'image' ? 'grabbing' : imageUrl ? 'grab' : 'default',
+    cursor: dragState?.mode === 'image' ? 'grabbing' : hasLoadedImage ? 'grab' : 'default',
     filter: isBlackAndWhite ? 'grayscale(1)' : 'none',
   };
 
@@ -478,7 +671,6 @@ function App() {
   const lineEnd = hasValidLine ? nails[toIndex - 1] : null;
   const hasValidFromIndex =
     Number.isInteger(fromIndex) && fromIndex >= 1 && fromIndex <= nailsCount;
-  const previewSize = previewRef.current?.clientWidth ?? 0;
   const imageData =
     imageCanvasRef.current && imageSize
       ? imageCanvasRef.current
@@ -489,6 +681,13 @@ function App() {
   const linePixels = lineStart && lineEnd
     ? getLinePixelsForIndexes(fromIndex, toIndex)
     : [];
+  const hasRenderableLine = linePixels.length > 1;
+  const currentPreviewLineKey =
+    hasValidLine ? `${fromIndex}-${toIndex}` : null;
+  const shouldShowPreviewLine =
+    lineStart &&
+    lineEnd &&
+    currentPreviewLineKey !== hiddenPreviewLineKey;
 
   let averageLineDarkness = null;
   if (linePixels.length > 0 && imageData && imageSize) {
@@ -700,8 +899,8 @@ function App() {
           <button
             className="action-button"
             type="button"
-            onClick={handleMakeLinePermanent}
-            disabled={linePixels.length === 0}
+            onClick={handleMakeCurrentLinePermanent}
+            disabled={!hasRenderableLine}
           >
             make line permanent
           </button>
@@ -830,10 +1029,29 @@ function App() {
           <button
             className="action-button action-button-secondary"
             type="button"
+            onClick={handlePerform9000Steps}
+            disabled={
+              !isPerformingSteps &&
+              (
+                nextNailNumber === null ||
+                !imageCanvasRef.current ||
+                !imageSize ||
+                !hasValidFromIndex
+              )
+            }
+          >
+            {isPerformingSteps
+              ? `pause at ${savedNailSequence.length}`
+              : 'perform 9000 steps'}
+          </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
             onClick={() => {
               setIsArtMode((currentValue) => !currentValue);
               setHoveredPixel(null);
             }}
+            disabled={isPerformingSteps}
           >
             {isArtMode ? 'switch to algorithm' : 'switch to art'}
           </button>
@@ -923,14 +1141,13 @@ function App() {
                   </svg>
                 )}
               </>
-            ) : imageUrl ? (
+            ) : hasLoadedImage ? (
               <>
-                <img
+                <canvas
                   ref={imageRef}
                   className="preview-image"
-                  src={imageUrl}
-                  alt="Selected preview"
-                  draggable="false"
+                  width={imageSize.width}
+                  height={imageSize.height}
                   style={imageStyle}
                 />
                 {linePixels.length > 0 && (
@@ -963,7 +1180,7 @@ function App() {
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
                   >
-                    {lineStart && lineEnd && (
+                    {shouldShowPreviewLine && (
                       <line
                         className="nail-line"
                         x1={lineStart.cx}
