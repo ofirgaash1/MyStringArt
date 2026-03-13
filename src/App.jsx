@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
+const MIN_PREVIEW_SCALE = 50;
+const MAX_PREVIEW_SCALE = 1000;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -13,6 +15,7 @@ function App() {
   const [imageSize, setImageSize] = useState(null);
   const [cropToCircle, setCropToCircle] = useState(true);
   const [scale, setScale] = useState(1);
+  const [previewScale, setPreviewScale] = useState(100);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState(null);
@@ -122,6 +125,23 @@ function App() {
     cursor: isDragging ? 'grabbing' : imageUrl ? 'grab' : 'default',
   };
 
+  const previewStyle = {
+    transform: `scale(${previewScale / 100})`,
+  };
+
+  const handlePreviewScaleChange = (value, shouldClampToSlider = false) => {
+    const numericValue = Number.parseInt(value, 10);
+    if (Number.isNaN(numericValue)) {
+      return;
+    }
+
+    setPreviewScale(
+      shouldClampToSlider
+        ? clamp(numericValue, MIN_PREVIEW_SCALE, MAX_PREVIEW_SCALE)
+        : Math.max(numericValue, MIN_PREVIEW_SCALE),
+    );
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -136,7 +156,6 @@ function App() {
         </label>
 
         <div className="panel">
-          <h2>Size Options</h2>
           <label className="checkbox-row">
             <input
               type="checkbox"
@@ -144,6 +163,26 @@ function App() {
               onChange={(event) => setCropToCircle(event.target.checked)}
             />
             <span>Crop to a circle</span>
+          </label>
+
+          <label className="scale-control">
+            <span>Circle size</span>
+            <input
+              type="range"
+              min={MIN_PREVIEW_SCALE}
+              max={MAX_PREVIEW_SCALE}
+              value={clamp(previewScale, MIN_PREVIEW_SCALE, MAX_PREVIEW_SCALE)}
+              onChange={(event) => handlePreviewScaleChange(event.target.value, true)}
+            />
+            <div className="percent-input-row">
+              <input
+                type="number"
+                min={MIN_PREVIEW_SCALE}
+                value={previewScale}
+                onChange={(event) => handlePreviewScaleChange(event.target.value)}
+              />
+              <span>%</span>
+            </div>
           </label>
         </div>
 
@@ -160,30 +199,33 @@ function App() {
       </aside>
 
       <main className="workspace">
-        <div
-          ref={previewRef}
-          className={`preview-frame ${cropToCircle ? 'is-circle' : ''}`}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={stopDragging}
-          onPointerLeave={stopDragging}
-          onPointerCancel={stopDragging}
-          onWheel={handleWheel}
-        >
-          {imageUrl ? (
-            <img
-              className="preview-image"
-              src={imageUrl}
-              alt="Selected preview"
-              draggable="false"
-              style={imageStyle}
-            />
-          ) : (
-            <div className="empty-state">
-              <p>Choose an image to start.</p>
-              <p>The preview will appear here.</p>
-            </div>
-          )}
+        <div className="preview-shell">
+          <div
+            ref={previewRef}
+            className={`preview-frame ${cropToCircle ? 'is-circle' : ''}`}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={stopDragging}
+            onPointerLeave={stopDragging}
+            onPointerCancel={stopDragging}
+            onWheel={handleWheel}
+            style={previewStyle}
+          >
+            {imageUrl ? (
+              <img
+                className="preview-image"
+                src={imageUrl}
+                alt="Selected preview"
+                draggable="false"
+                style={imageStyle}
+              />
+            ) : (
+              <div className="empty-state">
+                <p>Choose an image to start.</p>
+                <p>The preview will appear here.</p>
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>

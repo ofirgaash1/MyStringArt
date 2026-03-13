@@ -83,6 +83,35 @@ label {
   align-items: center;
 }
 
+.scale-control {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.scale-control span {
+  font-weight: 600;
+}
+
+.scale-control input[type="range"] {
+  width: 100%;
+}
+
+.percent-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: fit-content;
+}
+
+.percent-input-row input {
+  width: 88px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 10px;
+  background: #fff;
+}
+
 .helper-text {
   color: #475569;
 }
@@ -97,9 +126,16 @@ label {
   padding: 24px;
 }
 
+.preview-shell {
+  display: grid;
+  place-items: center;
+  width: min(80vw, 420px);
+  aspect-ratio: 1;
+}
+
 .preview-frame {
   position: relative;
-  width: min(80vw, 420px);
+  width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
   border-radius: 28px;
@@ -108,6 +144,7 @@ label {
     linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(226, 232, 240, 0.9));
   box-shadow: 0 32px 70px rgba(15, 23, 42, 0.18);
   touch-action: none;
+  transform-origin: center center;
 }
 
 .preview-frame.is-circle {
@@ -121,6 +158,8 @@ label {
   max-width: none;
   user-select: none;
   transform-origin: center center;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .empty-state {
@@ -149,6 +188,10 @@ label {
   }
 
   .preview-frame {
+    width: 100%;
+  }
+
+  .preview-shell {
     width: min(88vw, 420px);
   }
 }
