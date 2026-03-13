@@ -99,6 +99,30 @@ label {
   width: 100%;
 }
 
+.line-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.line-input {
+  display: grid;
+  gap: 6px;
+}
+
+.line-input span {
+  font-weight: 600;
+}
+
+.line-input input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 10px;
+  background: #fff;
+}
+
 .helper-text {
   color: #475569;
 }
@@ -175,6 +199,12 @@ label {
 
 .nail {
   fill: #020617;
+}
+
+.nail-line {
+  stroke: #020617;
+  stroke-width: 0.18;
+  vector-effect: non-scaling-stroke;
 }
 
 .nail-number {

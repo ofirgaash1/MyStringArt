@@ -17,6 +17,8 @@ function App() {
   const [isBlackAndWhite, setIsBlackAndWhite] = useState(false);
   const [showNailNumbers, setShowNailNumbers] = useState(false);
   const [nailsCount, setNailsCount] = useState(0);
+  const [lineFrom, setLineFrom] = useState('');
+  const [lineTo, setLineTo] = useState('');
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -295,6 +297,18 @@ function App() {
     };
   });
 
+  const fromIndex = Number.parseInt(lineFrom, 10);
+  const toIndex = Number.parseInt(lineTo, 10);
+  const hasValidLine =
+    Number.isInteger(fromIndex) &&
+    Number.isInteger(toIndex) &&
+    fromIndex >= 1 &&
+    toIndex >= 1 &&
+    fromIndex <= nailsCount &&
+    toIndex <= nailsCount;
+  const lineStart = hasValidLine ? nails[fromIndex - 1] : null;
+  const lineEnd = hasValidLine ? nails[toIndex - 1] : null;
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -349,6 +363,29 @@ function App() {
               }}
             />
           </label>
+
+          <div className="line-inputs">
+            <label className="line-input">
+              <span>From</span>
+              <input
+                type="number"
+                min="1"
+                max={Math.max(nailsCount, 1)}
+                value={lineFrom}
+                onChange={(event) => setLineFrom(event.target.value)}
+              />
+            </label>
+            <label className="line-input">
+              <span>To</span>
+              <input
+                type="number"
+                min="1"
+                max={Math.max(nailsCount, 1)}
+                value={lineTo}
+                onChange={(event) => setLineTo(event.target.value)}
+              />
+            </label>
+          </div>
         </div>
 
         <div className="panel helper-text">
@@ -422,6 +459,15 @@ function App() {
                     viewBox="0 0 100 100"
                     preserveAspectRatio="none"
                   >
+                    {lineStart && lineEnd && (
+                      <line
+                        className="nail-line"
+                        x1={lineStart.cx}
+                        y1={lineStart.cy}
+                        x2={lineEnd.cx}
+                        y2={lineEnd.cy}
+                      />
+                    )}
                     {nails.map((nail) => (
                       <g key={nail.key}>
                         <circle
