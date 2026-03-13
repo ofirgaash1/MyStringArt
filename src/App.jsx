@@ -456,11 +456,19 @@ function App() {
 
   const graphWidth = 320;
   const graphHeight = 120;
-  const graphPadding = { top: 8, right: 8, bottom: 22, left: 30 };
+  const graphPadding = { top: 0, right: 0, bottom: 0, left: 0 };
   const graphInnerWidth = graphWidth - graphPadding.left - graphPadding.right;
   const graphInnerHeight = graphHeight - graphPadding.top - graphPadding.bottom;
   const barWidth =
     darknessSeries.length > 0 ? graphInnerWidth / darknessSeries.length : 0;
+  const minimumDarkness =
+    darknessSeries.length > 0
+      ? Math.min(...darknessSeries.map((point) => point.darkness))
+      : null;
+  const darkestNails =
+    minimumDarkness === null
+      ? []
+      : darknessSeries.filter((point) => point.darkness === minimumDarkness);
 
   return (
     <div className="app-shell">
@@ -628,6 +636,12 @@ function App() {
                   0
                 </text>
               </svg>
+              {darkestNails.length > 0 && (
+                <p className="chart-minimum">
+                  Minimum darkness: {Math.round(minimumDarkness)} at nail
+                  {darkestNails.length > 1 ? 's' : ''} {darkestNails.map((point) => point.nail).join(', ')}
+                </p>
+              )}
             </div>
           )}
         </div>
