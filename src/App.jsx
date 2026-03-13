@@ -14,6 +14,7 @@ function App() {
   const [imageName, setImageName] = useState('');
   const [imageSize, setImageSize] = useState(null);
   const [cropToCircle, setCropToCircle] = useState(true);
+  const [isBlackAndWhite, setIsBlackAndWhite] = useState(false);
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -265,6 +266,7 @@ function App() {
   const imageStyle = {
     transform: `translate(-50%, -50%) translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${scale})`,
     cursor: dragState?.mode === 'image' ? 'grabbing' : imageUrl ? 'grab' : 'default',
+    filter: isBlackAndWhite ? 'grayscale(1)' : 'none',
   };
 
   const previewStyle = {
@@ -306,6 +308,15 @@ function App() {
               onChange={(event) => setCropToCircle(event.target.checked)}
             />
             <span>Crop to a circle</span>
+          </label>
+
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={isBlackAndWhite}
+              onChange={(event) => setIsBlackAndWhite(event.target.checked)}
+            />
+            <span>B&amp;W</span>
           </label>
 
           <label className="scale-control">
