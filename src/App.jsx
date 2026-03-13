@@ -58,9 +58,9 @@ function App() {
   const [imageName, setImageName] = useState('');
   const [imageSize, setImageSize] = useState(null);
   const [cropToCircle, setCropToCircle] = useState(true);
-  const [isBlackAndWhite, setIsBlackAndWhite] = useState(false);
-  const [showNailNumbers, setShowNailNumbers] = useState(false);
-  const [nailsCount, setNailsCount] = useState(0);
+  const [isBlackAndWhite, setIsBlackAndWhite] = useState(true);
+  const [showNailNumbers, setShowNailNumbers] = useState(true);
+  const [nailsCount, setNailsCount] = useState(300);
   const [lineFrom, setLineFrom] = useState('');
   const [lineTo, setLineTo] = useState('');
   const [scale, setScale] = useState(1);
