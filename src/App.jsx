@@ -4,7 +4,6 @@ const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
 const MIN_PREVIEW_SCALE = 50;
 const MAX_PREVIEW_SCALE = 1000;
-const LINE_DARKNESS_STEP = 30;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -74,6 +73,8 @@ function App() {
   const [lineFrom, setLineFrom] = useState('1');
   const [lineTo, setLineTo] = useState('1');
   const [highlightRange, setHighlightRange] = useState('15');
+  const [lineStrength, setLineStrength] = useState('30');
+  const [, setSavedNailSequence] = useState([]);
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -333,11 +334,76 @@ function App() {
     setScale(nextScale);
   };
 
-  const handleMakeLinePermanent = () => {
-    if (!imageCanvasRef.current || !imageSize || linePixels.length === 0) {
+  const getLinePixelsForIndexes = (startIndex, endIndex) => {
+    if (
+      !imageSize ||
+      previewSize <= 0 ||
+      !Number.isInteger(startIndex) ||
+      !Number.isInteger(endIndex) ||
+      startIndex < 1 ||
+      endIndex < 1 ||
+      startIndex > nailsCount ||
+      endIndex > nailsCount
+    ) {
+      return [];
+    }
+
+    const startNail = nails[startIndex - 1];
+    const endNail = nails[endIndex - 1];
+    if (!startNail || !endNail) {
+      return [];
+    }
+
+    const startPreviewX = (startNail.cx / 100) * previewSize;
+    const startPreviewY = (startNail.cy / 100) * previewSize;
+    const endPreviewX = (endNail.cx / 100) * previewSize;
+    const endPreviewY = (endNail.cy / 100) * previewSize;
+    const startImageX =
+      (startPreviewX - previewSize / 2 - imageOffset.x) / scale +
+      imageSize.width / 2;
+    const startImageY =
+      (startPreviewY - previewSize / 2 - imageOffset.y) / scale +
+      imageSize.height / 2;
+    const endImageX =
+      (endPreviewX - previewSize / 2 - imageOffset.x) / scale +
+      imageSize.width / 2;
+    const endImageY =
+      (endPreviewY - previewSize / 2 - imageOffset.y) / scale +
+      imageSize.height / 2;
+
+    return rasterizeLinePixels(
+      startImageX,
+      startImageY,
+      endImageX,
+      endImageY,
+      imageSize.width,
+      imageSize.height,
+    );
+  };
+
+  const handleSetNextNail = () => {
+    if (nextNailNumber !== null) {
+      setLineTo(String(nextNailNumber));
+    }
+  };
+
+  const handleSetFromCurrentTo = () => {
+    if (lineTo !== '') {
+      setLineFrom(lineTo);
+    }
+  };
+
+  const handleMakeLinePermanent = (startIndex = fromIndex, endIndex = toIndex) => {
+    const targetLinePixels = getLinePixelsForIndexes(startIndex, endIndex);
+    if (!imageCanvasRef.current || !imageSize || targetLinePixels.length === 0) {
       return;
     }
 
+    const parsedLineStrength = Number.parseInt(lineStrength, 10);
+    const lineDarknessStep =
+      Number.isFinite(parsedLineStrength) && parsedLineStrength >= 0
+        ? parsedLineStrength
+        : 0;
     const context = imageCanvasRef.current.getContext('2d', {
       willReadFrequently: true,
     });
@@ -346,15 +412,27 @@ function App() {
     }
 
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
-    for (const pixel of linePixels) {
+    for (const pixel of targetLinePixels) {
       const index = (pixel.y * imageSize.width + pixel.x) * 4;
-      canvasImage.data[index] = Math.min(255, canvasImage.data[index] + LINE_DARKNESS_STEP);
-      canvasImage.data[index + 1] = Math.min(255, canvasImage.data[index + 1] + LINE_DARKNESS_STEP);
-      canvasImage.data[index + 2] = Math.min(255, canvasImage.data[index + 2] + LINE_DARKNESS_STEP);
+      canvasImage.data[index] = Math.min(255, canvasImage.data[index] + lineDarknessStep);
+      canvasImage.data[index + 1] = Math.min(255, canvasImage.data[index + 1] + lineDarknessStep);
+      canvasImage.data[index + 2] = Math.min(255, canvasImage.data[index + 2] + lineDarknessStep);
     }
 
     context.putImageData(canvasImage, 0, 0);
     setImageUrl(imageCanvasRef.current.toDataURL());
+  };
+
+  const handleAllOfTheAbove = () => {
+    if (!Number.isInteger(fromIndex) || nextNailNumber === null) {
+      return;
+    }
+
+    const nextNailValue = String(nextNailNumber);
+    setLineTo(nextNailValue);
+    handleMakeLinePermanent(fromIndex, nextNailNumber);
+    setLineFrom(nextNailValue);
+    setSavedNailSequence((currentSequence) => [...currentSequence, nextNailNumber]);
   };
 
   const imageStyle = {
@@ -407,34 +485,9 @@ function App() {
           ?.getImageData(0, 0, imageSize.width, imageSize.height).data ?? null
       : null;
 
-  let linePixels = [];
-  if (lineStart && lineEnd && imageSize && previewSize > 0) {
-    const startPreviewX = (lineStart.cx / 100) * previewSize;
-    const startPreviewY = (lineStart.cy / 100) * previewSize;
-    const endPreviewX = (lineEnd.cx / 100) * previewSize;
-    const endPreviewY = (lineEnd.cy / 100) * previewSize;
-    const startImageX =
-      (startPreviewX - previewSize / 2 - imageOffset.x) / scale +
-      imageSize.width / 2;
-    const startImageY =
-      (startPreviewY - previewSize / 2 - imageOffset.y) / scale +
-      imageSize.height / 2;
-    const endImageX =
-      (endPreviewX - previewSize / 2 - imageOffset.x) / scale +
-      imageSize.width / 2;
-    const endImageY =
-      (endPreviewY - previewSize / 2 - imageOffset.y) / scale +
-      imageSize.height / 2;
-
-    linePixels = rasterizeLinePixels(
-      startImageX,
-      startImageY,
-      endImageX,
-      endImageY,
-      imageSize.width,
-      imageSize.height,
-    );
-  }
+  const linePixels = lineStart && lineEnd
+    ? getLinePixelsForIndexes(fromIndex, toIndex)
+    : [];
 
   let averageLineDarkness = null;
   if (linePixels.length > 0 && imageData && imageSize) {
@@ -621,11 +674,7 @@ function App() {
           <button
             className="action-button action-button-secondary"
             type="button"
-            onClick={() => {
-              if (nextNailNumber !== null) {
-                setLineTo(String(nextNailNumber));
-              }
-            }}
+            onClick={handleSetNextNail}
             disabled={nextNailNumber === null}
           >
             Set next nail {nextNailNumber ?? '-'}
@@ -641,14 +690,18 @@ function App() {
           <button
             className="action-button action-button-secondary"
             type="button"
-            onClick={() => {
-              if (lineTo !== '') {
-                setLineFrom(lineTo);
-              }
-            }}
+            onClick={handleSetFromCurrentTo}
             disabled={lineTo === ''}
           >
             Set &apos;from&apos; {lineTo || '-'}
+          </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={handleAllOfTheAbove}
+            disabled={nextNailNumber === null}
+          >
+            all of the above
           </button>
           {averageLineDarkness !== null && (
             <p className="line-darkness">
@@ -747,6 +800,15 @@ function App() {
               </label>
             </div>
           )}
+          <label className="chart-range-input">
+            <span>line strength</span>
+            <input
+              type="number"
+              min="0"
+              value={lineStrength}
+              onChange={(event) => setLineStrength(event.target.value)}
+            />
+          </label>
         </div>
 
       </aside>
