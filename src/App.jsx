@@ -4,6 +4,7 @@ const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
 const MIN_PREVIEW_SCALE = 50;
 const MAX_PREVIEW_SCALE = 1000;
+const LINE_DARKNESS_STEP = 30;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -74,14 +75,15 @@ function App() {
   const previewRef = useRef(null);
   const imageRef = useRef(null);
   const imageCanvasRef = useRef(null);
+  const sourceUrlRef = useRef(null);
 
   useEffect(() => {
     return () => {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
+      if (sourceUrlRef.current) {
+        URL.revokeObjectURL(sourceUrlRef.current);
       }
     };
-  }, [imageUrl]);
+  }, []);
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
@@ -89,15 +91,18 @@ function App() {
       return;
     }
 
-    if (imageUrl) {
-      URL.revokeObjectURL(imageUrl);
+    if (sourceUrlRef.current) {
+      URL.revokeObjectURL(sourceUrlRef.current);
+      sourceUrlRef.current = null;
     }
 
     const nextUrl = URL.createObjectURL(file);
-    setImageUrl(nextUrl);
+    sourceUrlRef.current = nextUrl;
+    setImageUrl('');
     setImageName(file.name);
     setImageOffset({ x: 0, y: 0 });
     setPreviewOffset({ x: 0, y: 0 });
+    setHoveredPixel(null);
 
     const img = new Image();
     img.onload = () => {
@@ -116,6 +121,12 @@ function App() {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       context?.drawImage(img, 0, 0);
       imageCanvasRef.current = canvas;
+      setImageUrl(canvas.toDataURL());
+
+      if (sourceUrlRef.current) {
+        URL.revokeObjectURL(sourceUrlRef.current);
+        sourceUrlRef.current = null;
+      }
     };
     img.src = nextUrl;
   };
@@ -311,6 +322,30 @@ function App() {
       y: currentOffset.y + (nextCenterY - imageCenterY) / previewScreenScale,
     }));
     setScale(nextScale);
+  };
+
+  const handleMakeLinePermanent = () => {
+    if (!imageCanvasRef.current || !imageSize || linePixels.length === 0) {
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    if (!context) {
+      return;
+    }
+
+    const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
+    for (const pixel of linePixels) {
+      const index = (pixel.y * imageSize.width + pixel.x) * 4;
+      canvasImage.data[index] = Math.max(0, canvasImage.data[index] - LINE_DARKNESS_STEP);
+      canvasImage.data[index + 1] = Math.max(0, canvasImage.data[index + 1] - LINE_DARKNESS_STEP);
+      canvasImage.data[index + 2] = Math.max(0, canvasImage.data[index + 2] - LINE_DARKNESS_STEP);
+    }
+
+    context.putImageData(canvasImage, 0, 0);
+    setImageUrl(imageCanvasRef.current.toDataURL());
   };
 
   const imageStyle = {
@@ -572,6 +607,14 @@ function App() {
               />
             </label>
           </div>
+          <button
+            className="action-button"
+            type="button"
+            onClick={handleMakeLinePermanent}
+            disabled={linePixels.length === 0}
+          >
+            make line permanent
+          </button>
           {averageLineDarkness !== null && (
             <p className="line-darkness">
               Average darkness: {averageLineDarkness}
