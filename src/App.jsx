@@ -74,7 +74,8 @@ function App() {
   const [lineTo, setLineTo] = useState('1');
   const [highlightRange, setHighlightRange] = useState('15');
   const [lineStrength, setLineStrength] = useState('30');
-  const [, setSavedNailSequence] = useState([]);
+  const [savedNailSequence, setSavedNailSequence] = useState([]);
+  const [isArtMode, setIsArtMode] = useState(false);
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -142,7 +143,7 @@ function App() {
   };
 
   const updateHoveredPixel = (event) => {
-    if (!imageUrl || !imageSize || !imageCanvasRef.current) {
+    if (isArtMode || !imageUrl || !imageSize || !imageCanvasRef.current) {
       setHoveredPixel(null);
       return;
     }
@@ -578,6 +579,23 @@ function App() {
       ? []
       : eligibleDarknessSeries.filter((point) => point.darkness === minimumDarkness);
   const nextNailNumber = darkestNails.length > 0 ? darkestNails[0].nail : null;
+  const artLineSegments = savedNailSequence.reduce((segments, nailNumber, index) => {
+    const startNailNumber = index === 0 ? 1 : savedNailSequence[index - 1];
+    const startNail = nails[startNailNumber - 1];
+    const endNail = nails[nailNumber - 1];
+
+    if (startNail && endNail) {
+      segments.push({
+        key: `art-line-${index}-${startNailNumber}-${nailNumber}`,
+        x1: startNail.cx,
+        y1: startNail.cy,
+        x2: endNail.cx,
+        y2: endNail.cy,
+      });
+    }
+
+    return segments;
+  }, []);
 
   return (
     <div className="app-shell">
@@ -809,6 +827,16 @@ function App() {
               onChange={(event) => setLineStrength(event.target.value)}
             />
           </label>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={() => {
+              setIsArtMode((currentValue) => !currentValue);
+              setHoveredPixel(null);
+            }}
+          >
+            {isArtMode ? 'switch to algorithm' : 'switch to art'}
+          </button>
         </div>
 
       </aside>
@@ -854,7 +882,48 @@ function App() {
             }}
             onWheel={handleWheel}
           >
-            {imageUrl ? (
+            {isArtMode ? (
+              <>
+                {nailsCount > 0 && (
+                  <svg
+                    className="art-lines-layer"
+                    aria-hidden="true"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    {artLineSegments.map((segment) => (
+                      <line
+                        key={segment.key}
+                        className="nail-line"
+                        x1={segment.x1}
+                        y1={segment.y1}
+                        x2={segment.x2}
+                        y2={segment.y2}
+                      />
+                    ))}
+                  </svg>
+                )}
+                {nailsCount > 0 && (
+                  <svg
+                    className="nails-layer"
+                    aria-hidden="true"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    {nails.map((nail) => (
+                      <g key={nail.key}>
+                        <circle
+                          className="nail"
+                          cx={nail.cx}
+                          cy={nail.cy}
+                          r={nailRadius}
+                        />
+                      </g>
+                    ))}
+                  </svg>
+                )}
+              </>
+            ) : imageUrl ? (
               <>
                 <img
                   ref={imageRef}
@@ -925,7 +994,7 @@ function App() {
           </div>
         </div>
       </main>
-      {hoveredPixel && (
+      {hoveredPixel && !isArtMode && (
         <>
           <div
             className="pixel-outline"
