@@ -115,6 +115,10 @@ label {
   font-weight: 600;
 }
 
+.line-input input[type="range"] {
+  width: 100%;
+}
+
 .line-input input {
   width: 100%;
   padding: 8px 10px;
@@ -150,6 +154,10 @@ label {
 
 .chart-bar {
   fill: rgba(15, 23, 42, 0.82);
+}
+
+.chart-bar.is-active {
+  fill: rgba(250, 204, 21, 0.95);
 }
 
 .chart-label {

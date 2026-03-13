@@ -521,6 +521,14 @@ function App() {
             <label className="line-input">
               <span>From</span>
               <input
+                type="range"
+                min="1"
+                max={Math.max(nailsCount, 1)}
+                step="1"
+                value={lineFrom === '' ? 1 : lineFrom}
+                onChange={(event) => setLineFrom(event.target.value)}
+              />
+              <input
                 type="number"
                 min="1"
                 max={Math.max(nailsCount, 1)}
@@ -530,6 +538,14 @@ function App() {
             </label>
             <label className="line-input">
               <span>To</span>
+              <input
+                type="range"
+                min="1"
+                max={Math.max(nailsCount, 1)}
+                step="1"
+                value={lineTo === '' ? 1 : lineTo}
+                onChange={(event) => setLineTo(event.target.value)}
+              />
               <input
                 type="number"
                 min="1"
@@ -573,7 +589,7 @@ function App() {
                   return (
                     <rect
                       key={`bar-${point.nail}`}
-                      className="chart-bar"
+                      className={`chart-bar ${point.nail === toIndex ? 'is-active' : ''}`}
                       x={x}
                       y={y}
                       width={Math.max(barWidth - 0.2, 0.4)}
