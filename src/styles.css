@@ -48,11 +48,6 @@ label {
   margin: 0;
 }
 
-.sidebar h1 {
-  margin-bottom: 24px;
-  font-size: 1.9rem;
-}
-
 .panel,
 .upload-field {
   display: block;
@@ -193,14 +188,6 @@ label {
   border: 1px solid rgba(148, 163, 184, 0.5);
   border-radius: 10px;
   background: #fff;
-}
-
-.helper-text {
-  color: #475569;
-}
-
-.helper-text p + p {
-  margin-top: 8px;
 }
 
 .workspace {

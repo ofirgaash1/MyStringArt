@@ -483,7 +483,6 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <h1>Image Preview</h1>
         <label className="upload-field">
           <span>Choose image</span>
           <input
@@ -672,17 +671,6 @@ function App() {
           )}
         </div>
 
-        <div className="panel helper-text">
-          <p>Drag inside the preview to reposition the image.</p>
-          <p>Use the mouse wheel to zoom in or out.</p>
-          <p>Hold Shift to move or resize the whole circle.</p>
-          {imageName && <p>Loaded: {imageName}</p>}
-          {imageSize && (
-            <p>
-              Original size: {imageSize.width} x {imageSize.height}
-            </p>
-          )}
-        </div>
       </aside>
 
       <main className="workspace">
