@@ -19,8 +19,11 @@ function App() {
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
   const [dragState, setDragState] = useState(null);
+  const [hoveredPixel, setHoveredPixel] = useState(null);
 
   const previewRef = useRef(null);
+  const imageRef = useRef(null);
+  const imageCanvasRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -56,8 +59,72 @@ function App() {
 
       setImageSize({ width: img.width, height: img.height });
       setScale(clamp(fittedScale, MIN_SCALE, MAX_SCALE));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context?.drawImage(img, 0, 0);
+      imageCanvasRef.current = canvas;
     };
     img.src = nextUrl;
+  };
+
+  const updateHoveredPixel = (event) => {
+    if (!imageUrl || !imageSize || !imageCanvasRef.current) {
+      setHoveredPixel(null);
+      return;
+    }
+
+    const imageRect = imageRef.current?.getBoundingClientRect();
+    if (!imageRect) {
+      setHoveredPixel(null);
+      return;
+    }
+
+    const imageX =
+      ((event.clientX - imageRect.left) / imageRect.width) * imageSize.width;
+    const imageY =
+      ((event.clientY - imageRect.top) / imageRect.height) * imageSize.height;
+
+    if (
+      imageX < 0 ||
+      imageY < 0 ||
+      imageX >= imageSize.width ||
+      imageY >= imageSize.height
+    ) {
+      setHoveredPixel(null);
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    const pixelColumn = Math.floor(imageX);
+    const pixelRow = Math.floor(imageY);
+    const pixel = context?.getImageData(
+      pixelColumn,
+      pixelRow,
+      1,
+      1,
+    ).data;
+
+    if (!pixel) {
+      setHoveredPixel(null);
+      return;
+    }
+
+    setHoveredPixel({
+      x: event.clientX,
+      y: event.clientY,
+      left: imageRect.left + (pixelColumn / imageSize.width) * imageRect.width,
+      top: imageRect.top + (pixelRow / imageSize.height) * imageRect.height,
+      width: imageRect.width / imageSize.width,
+      height: imageRect.height / imageSize.height,
+      r: pixel[0],
+      g: pixel[1],
+      b: pixel[2],
+    });
   };
 
   const handlePointerDown = (event) => {
@@ -85,6 +152,7 @@ function App() {
 
   const handlePointerMove = (event) => {
     if (!dragState) {
+      updateHoveredPixel(event);
       return;
     }
 
@@ -95,10 +163,12 @@ function App() {
 
     if (dragState.mode === 'preview') {
       setPreviewOffset(nextOffset);
+      updateHoveredPixel(event);
       return;
     }
 
     setImageOffset(nextOffset);
+    updateHoveredPixel(event);
   };
 
   const stopDragging = (event) => {
@@ -248,12 +318,19 @@ function App() {
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={stopDragging}
-            onPointerLeave={stopDragging}
-            onPointerCancel={stopDragging}
+            onPointerLeave={(event) => {
+              stopDragging(event);
+              setHoveredPixel(null);
+            }}
+            onPointerCancel={(event) => {
+              stopDragging(event);
+              setHoveredPixel(null);
+            }}
             onWheel={handleWheel}
           >
             {imageUrl ? (
               <img
+                ref={imageRef}
                 className="preview-image"
                 src={imageUrl}
                 alt="Selected preview"
@@ -269,6 +346,28 @@ function App() {
           </div>
         </div>
       </main>
+      {hoveredPixel && (
+        <>
+          <div
+            className="pixel-outline"
+            style={{
+              left: hoveredPixel.left,
+              top: hoveredPixel.top,
+              width: hoveredPixel.width,
+              height: hoveredPixel.height,
+            }}
+          />
+          <div
+            className="pixel-hint"
+            style={{
+              left: hoveredPixel.x,
+              top: hoveredPixel.y - 16,
+            }}
+          >
+            RGB({hoveredPixel.r}, {hoveredPixel.g}, {hoveredPixel.b})
+          </div>
+        </>
+      )}
     </div>
   );
 }
