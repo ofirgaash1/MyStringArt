@@ -15,6 +15,7 @@ function App() {
   const [imageSize, setImageSize] = useState(null);
   const [cropToCircle, setCropToCircle] = useState(true);
   const [isBlackAndWhite, setIsBlackAndWhite] = useState(false);
+  const [showNailNumbers, setShowNailNumbers] = useState(false);
   const [nailsCount, setNailsCount] = useState(0);
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
@@ -277,7 +278,9 @@ function App() {
   };
   const inversePreviewScale = 100 / previewScale;
   const nailRadius = 0.8 * inversePreviewScale;
-  const nailOrbitRadius = 50 - nailRadius - 0.75;
+  const nailOrbitRadius = 50 - nailRadius;
+  const nailLabelRadius = 50 + 2.6 * inversePreviewScale;
+  const nailFontSize = 2.2 * inversePreviewScale;
 
   const nails = Array.from({ length: nailsCount }, (_, index) => {
     const angle = (index / nailsCount) * Math.PI * 2 - Math.PI / 2;
@@ -286,6 +289,9 @@ function App() {
       key: `nail-${index}`,
       cx: 50 + Math.cos(angle) * nailOrbitRadius,
       cy: 50 + Math.sin(angle) * nailOrbitRadius,
+      labelX: 50 + Math.cos(angle) * nailLabelRadius,
+      labelY: 50 + Math.sin(angle) * nailLabelRadius,
+      number: index + 1,
     };
   });
 
@@ -321,6 +327,15 @@ function App() {
             <span>B&amp;W</span>
           </label>
 
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={showNailNumbers}
+              onChange={(event) => setShowNailNumbers(event.target.checked)}
+            />
+            <span>Nails numbers</span>
+          </label>
+
           <label className="slider-control">
             <span>Nails: {nailsCount}</span>
             <input
@@ -354,6 +369,26 @@ function App() {
           className="preview-shell"
           style={previewStyle}
         >
+          {nailsCount > 0 && showNailNumbers && (
+            <svg
+              className="nails-labels-layer"
+              aria-hidden="true"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              {nails.map((nail) => (
+                <text
+                  key={`${nail.key}-label`}
+                  className="nail-number"
+                  x={nail.labelX}
+                  y={nail.labelY}
+                  fontSize={nailFontSize}
+                >
+                  {nail.number}
+                </text>
+              ))}
+            </svg>
+          )}
           <div
             ref={previewRef}
             className={`preview-frame ${cropToCircle ? 'is-circle' : ''}`}
@@ -388,13 +423,14 @@ function App() {
                     preserveAspectRatio="none"
                   >
                     {nails.map((nail) => (
-                      <circle
-                        key={nail.key}
-                        className="nail"
-                        cx={nail.cx}
-                        cy={nail.cy}
-                        r={nailRadius}
-                      />
+                      <g key={nail.key}>
+                        <circle
+                          className="nail"
+                          cx={nail.cx}
+                          cy={nail.cy}
+                          r={nailRadius}
+                        />
+                      </g>
                     ))}
                   </svg>
                 )}
