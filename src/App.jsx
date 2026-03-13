@@ -638,6 +638,18 @@ function App() {
           >
             make line permanent
           </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={() => {
+              if (lineTo !== '') {
+                setLineFrom(lineTo);
+              }
+            }}
+            disabled={lineTo === ''}
+          >
+            Set &apos;from&apos; {lineTo || '-'}
+          </button>
           {averageLineDarkness !== null && (
             <p className="line-darkness">
               Average darkness: {averageLineDarkness}
