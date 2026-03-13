@@ -61,8 +61,9 @@ function App() {
   const [isBlackAndWhite, setIsBlackAndWhite] = useState(true);
   const [showNailNumbers, setShowNailNumbers] = useState(true);
   const [nailsCount, setNailsCount] = useState(300);
-  const [lineFrom, setLineFrom] = useState('');
-  const [lineTo, setLineTo] = useState('');
+  const [lineFrom, setLineFrom] = useState('1');
+  const [lineTo, setLineTo] = useState('1');
+  const [highlightRange, setHighlightRange] = useState('15');
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -461,14 +462,23 @@ function App() {
   const graphInnerHeight = graphHeight - graphPadding.top - graphPadding.bottom;
   const barWidth =
     darknessSeries.length > 0 ? graphInnerWidth / darknessSeries.length : 0;
+  const highlightDistance = Number.parseInt(highlightRange, 10);
+  const hasHighlightDistance =
+    Number.isInteger(highlightDistance) && highlightDistance >= 0 && hasValidFromIndex;
+  const eligibleDarknessSeries =
+    hasHighlightDistance
+      ? darknessSeries.filter(
+          (point) => Math.abs(point.nail - fromIndex) > highlightDistance,
+        )
+      : darknessSeries;
   const minimumDarkness =
-    darknessSeries.length > 0
-      ? Math.min(...darknessSeries.map((point) => point.darkness))
+    eligibleDarknessSeries.length > 0
+      ? Math.min(...eligibleDarknessSeries.map((point) => point.darkness))
       : null;
   const darkestNails =
     minimumDarkness === null
       ? []
-      : darknessSeries.filter((point) => point.darkness === minimumDarkness);
+      : eligibleDarknessSeries.filter((point) => point.darkness === minimumDarkness);
 
   return (
     <div className="app-shell">
@@ -597,7 +607,14 @@ function App() {
                   return (
                     <rect
                       key={`bar-${point.nail}`}
-                      className={`chart-bar ${point.nail === toIndex ? 'is-active' : ''}`}
+                      className={[
+                        'chart-bar',
+                        point.nail === toIndex ? 'is-active' : '',
+                        hasHighlightDistance &&
+                        Math.abs(point.nail - fromIndex) <= highlightDistance
+                          ? 'is-range-highlighted'
+                          : '',
+                      ].filter(Boolean).join(' ')}
                       x={x}
                       y={y}
                       width={Math.max(barWidth - 0.2, 0.4)}
@@ -638,10 +655,19 @@ function App() {
               </svg>
               {darkestNails.length > 0 && (
                 <p className="chart-minimum">
-                  Minimum darkness: {Math.round(minimumDarkness)} at nail
+                  Minimum darkness outside of red area: {Math.round(minimumDarkness)} at nail
                   {darkestNails.length > 1 ? 's' : ''} {darkestNails.map((point) => point.nail).join(', ')}
                 </p>
               )}
+              <label className="chart-range-input">
+                <span>min distance</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={highlightRange}
+                  onChange={(event) => setHighlightRange(event.target.value)}
+                />
+              </label>
             </div>
           )}
         </div>
