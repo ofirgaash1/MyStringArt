@@ -125,6 +125,7 @@ function App() {
       r: pixel[0],
       g: pixel[1],
       b: pixel[2],
+      darkness: Math.round((pixel[0] + pixel[1] + pixel[2]) / 3),
     });
   };
 
@@ -318,26 +319,6 @@ function App() {
             />
             <span>B&amp;W</span>
           </label>
-
-          <label className="scale-control">
-            <span>Circle size</span>
-            <input
-              type="range"
-              min={MIN_PREVIEW_SCALE}
-              max={MAX_PREVIEW_SCALE}
-              value={clamp(previewScale, MIN_PREVIEW_SCALE, MAX_PREVIEW_SCALE)}
-              onChange={(event) => handlePreviewScaleChange(event.target.value, true)}
-            />
-            <div className="percent-input-row">
-              <input
-                type="number"
-                min={MIN_PREVIEW_SCALE}
-                value={previewScale}
-                onChange={(event) => handlePreviewScaleChange(event.target.value)}
-              />
-              <span>%</span>
-            </div>
-          </label>
         </div>
 
         <div className="panel helper-text">
@@ -410,7 +391,9 @@ function App() {
               top: hoveredPixel.y - 16,
             }}
           >
-            RGB({hoveredPixel.r}, {hoveredPixel.g}, {hoveredPixel.b})
+            {isBlackAndWhite
+              ? `Darkness ${hoveredPixel.darkness}`
+              : `RGB(${hoveredPixel.r}, ${hoveredPixel.g}, ${hoveredPixel.b})`}
           </div>
         </>
       )}
