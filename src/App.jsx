@@ -15,6 +15,7 @@ function App() {
   const [imageSize, setImageSize] = useState(null);
   const [cropToCircle, setCropToCircle] = useState(true);
   const [isBlackAndWhite, setIsBlackAndWhite] = useState(false);
+  const [nailsCount, setNailsCount] = useState(0);
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -274,19 +275,19 @@ function App() {
     transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewScale / 100})`,
     cursor: dragState?.mode === 'preview' ? 'grabbing' : 'default',
   };
+  const inversePreviewScale = 100 / previewScale;
+  const nailRadius = 0.8 * inversePreviewScale;
+  const nailOrbitRadius = 50 - nailRadius - 0.75;
 
-  const handlePreviewScaleChange = (value, shouldClampToSlider = false) => {
-    const numericValue = Number.parseInt(value, 10);
-    if (Number.isNaN(numericValue)) {
-      return;
-    }
+  const nails = Array.from({ length: nailsCount }, (_, index) => {
+    const angle = (index / nailsCount) * Math.PI * 2 - Math.PI / 2;
 
-    setPreviewScale(
-      shouldClampToSlider
-        ? clamp(numericValue, MIN_PREVIEW_SCALE, MAX_PREVIEW_SCALE)
-        : Math.max(numericValue, MIN_PREVIEW_SCALE),
-    );
-  };
+    return {
+      key: `nail-${index}`,
+      cx: 50 + Math.cos(angle) * nailOrbitRadius,
+      cy: 50 + Math.sin(angle) * nailOrbitRadius,
+    };
+  });
 
   return (
     <div className="app-shell">
@@ -318,6 +319,20 @@ function App() {
               onChange={(event) => setIsBlackAndWhite(event.target.checked)}
             />
             <span>B&amp;W</span>
+          </label>
+
+          <label className="slider-control">
+            <span>Nails: {nailsCount}</span>
+            <input
+              type="range"
+              min="0"
+              max="300"
+              step="1"
+              value={nailsCount}
+              onChange={(event) => {
+                setNailsCount(clamp(Number(event.target.value), 0, 300));
+              }}
+            />
           </label>
         </div>
 
@@ -356,14 +371,34 @@ function App() {
             onWheel={handleWheel}
           >
             {imageUrl ? (
-              <img
-                ref={imageRef}
-                className="preview-image"
-                src={imageUrl}
-                alt="Selected preview"
-                draggable="false"
-                style={imageStyle}
-              />
+              <>
+                <img
+                  ref={imageRef}
+                  className="preview-image"
+                  src={imageUrl}
+                  alt="Selected preview"
+                  draggable="false"
+                  style={imageStyle}
+                />
+                {nailsCount > 0 && (
+                  <svg
+                    className="nails-layer"
+                    aria-hidden="true"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                  >
+                    {nails.map((nail) => (
+                      <circle
+                        key={nail.key}
+                        className="nail"
+                        cx={nail.cx}
+                        cy={nail.cy}
+                        r={nailRadius}
+                      />
+                    ))}
+                  </svg>
+                )}
+              </>
             ) : (
               <div className="empty-state">
                 <p>Choose an image to start.</p>
