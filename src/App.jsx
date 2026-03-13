@@ -16,9 +16,9 @@ function App() {
   const [cropToCircle, setCropToCircle] = useState(true);
   const [scale, setScale] = useState(1);
   const [previewScale, setPreviewScale] = useState(100);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState(null);
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
+  const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
+  const [dragState, setDragState] = useState(null);
 
   const previewRef = useRef(null);
 
@@ -43,7 +43,8 @@ function App() {
     const nextUrl = URL.createObjectURL(file);
     setImageUrl(nextUrl);
     setImageName(file.name);
-    setOffset({ x: 0, y: 0 });
+    setImageOffset({ x: 0, y: 0 });
+    setPreviewOffset({ x: 0, y: 0 });
 
     const img = new Image();
     img.onload = () => {
@@ -66,37 +67,48 @@ function App() {
 
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    setIsDragging(true);
-    setDragStart({
-      x: event.clientX - offset.x,
-      y: event.clientY - offset.y,
+    if (event.shiftKey) {
+      setDragState({
+        mode: 'preview',
+        pointerStart: { x: event.clientX, y: event.clientY },
+        startOffset: previewOffset,
+      });
+      return;
+    }
+
+    setDragState({
+      mode: 'image',
+      pointerStart: { x: event.clientX, y: event.clientY },
+      startOffset: imageOffset,
     });
   };
 
   const handlePointerMove = (event) => {
-    if (!isDragging || !dragStart) {
+    if (!dragState) {
       return;
     }
 
-    setOffset({
-      x: event.clientX - dragStart.x,
-      y: event.clientY - dragStart.y,
-    });
+    const nextOffset = {
+      x: dragState.startOffset.x + event.clientX - dragState.pointerStart.x,
+      y: dragState.startOffset.y + event.clientY - dragState.pointerStart.y,
+    };
+
+    if (dragState.mode === 'preview') {
+      setPreviewOffset(nextOffset);
+      return;
+    }
+
+    setImageOffset(nextOffset);
   };
 
   const stopDragging = (event) => {
     if (event?.currentTarget?.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    setIsDragging(false);
-    setDragStart(null);
+    setDragState(null);
   };
 
   const handleWheel = (event) => {
-    if (!imageUrl) {
-      return;
-    }
-
     event.preventDefault();
     const rect = previewRef.current?.getBoundingClientRect();
     if (!rect) {
@@ -107,11 +119,36 @@ function App() {
     const pointerY = event.clientY - rect.top - rect.height / 2;
     const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
 
+    if (event.shiftKey) {
+      const previewPointerX = event.clientX - rect.left - rect.width / 2;
+      const previewPointerY = event.clientY - rect.top - rect.height / 2;
+
+      setPreviewScale((currentScale) => {
+        const nextScale = Math.max(
+          Math.round(currentScale * zoomFactor),
+          MIN_PREVIEW_SCALE,
+        );
+        const ratio = nextScale / currentScale;
+
+        setPreviewOffset((currentOffset) => ({
+          x: currentOffset.x - previewPointerX * (ratio - 1),
+          y: currentOffset.y - previewPointerY * (ratio - 1),
+        }));
+
+        return nextScale;
+      });
+      return;
+    }
+
+    if (!imageUrl) {
+      return;
+    }
+
     setScale((currentScale) => {
       const nextScale = clamp(currentScale * zoomFactor, MIN_SCALE, MAX_SCALE);
       const ratio = nextScale / currentScale;
 
-      setOffset((currentOffset) => ({
+      setImageOffset((currentOffset) => ({
         x: pointerX - (pointerX - currentOffset.x) * ratio,
         y: pointerY - (pointerY - currentOffset.y) * ratio,
       }));
@@ -121,12 +158,13 @@ function App() {
   };
 
   const imageStyle = {
-    transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-    cursor: isDragging ? 'grabbing' : imageUrl ? 'grab' : 'default',
+    transform: `translate(-50%, -50%) translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${scale})`,
+    cursor: dragState?.mode === 'image' ? 'grabbing' : imageUrl ? 'grab' : 'default',
   };
 
   const previewStyle = {
-    transform: `scale(${previewScale / 100})`,
+    transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewScale / 100})`,
+    cursor: dragState?.mode === 'preview' ? 'grabbing' : 'default',
   };
 
   const handlePreviewScaleChange = (value, shouldClampToSlider = false) => {
@@ -189,6 +227,7 @@ function App() {
         <div className="panel helper-text">
           <p>Drag inside the preview to reposition the image.</p>
           <p>Use the mouse wheel to zoom in or out.</p>
+          <p>Hold Shift to move or resize the whole circle.</p>
           {imageName && <p>Loaded: {imageName}</p>}
           {imageSize && (
             <p>
@@ -199,7 +238,10 @@ function App() {
       </aside>
 
       <main className="workspace">
-        <div className="preview-shell">
+        <div
+          className="preview-shell"
+          style={previewStyle}
+        >
           <div
             ref={previewRef}
             className={`preview-frame ${cropToCircle ? 'is-circle' : ''}`}
@@ -209,7 +251,6 @@ function App() {
             onPointerLeave={stopDragging}
             onPointerCancel={stopDragging}
             onWheel={handleWheel}
-            style={previewStyle}
           >
             {imageUrl ? (
               <img

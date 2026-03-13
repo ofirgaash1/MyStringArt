@@ -34,6 +34,8 @@ label {
 }
 
 .sidebar {
+  position: relative;
+  z-index: 2;
   padding: 32px 24px;
   background: rgba(255, 255, 255, 0.82);
   border-right: 1px solid rgba(148, 163, 184, 0.35);
@@ -121,9 +123,13 @@ label {
 }
 
 .workspace {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: hidden;
 }
 
 .preview-shell {
