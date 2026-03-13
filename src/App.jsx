@@ -120,8 +120,8 @@ function App() {
     const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
 
     if (event.shiftKey) {
-      const previewPointerX = event.clientX - rect.left - rect.width / 2;
-      const previewPointerY = event.clientY - rect.top - rect.height / 2;
+      const previewCenterX = rect.left + rect.width / 2;
+      const previewCenterY = rect.top + rect.height / 2;
 
       setPreviewScale((currentScale) => {
         const nextScale = Math.max(
@@ -131,8 +131,8 @@ function App() {
         const ratio = nextScale / currentScale;
 
         setPreviewOffset((currentOffset) => ({
-          x: currentOffset.x - previewPointerX * (ratio - 1),
-          y: currentOffset.y - previewPointerY * (ratio - 1),
+          x: currentOffset.x + (1 - ratio) * (event.clientX - previewCenterX),
+          y: currentOffset.y + (1 - ratio) * (event.clientY - previewCenterY),
         }));
 
         return nextScale;
