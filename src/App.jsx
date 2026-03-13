@@ -9,6 +9,43 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function rasterizeLinePixels(startX, startY, endX, endY, width, height) {
+  const pixels = [];
+  const x0 = Math.round(startX);
+  const y0 = Math.round(startY);
+  const x1 = Math.round(endX);
+  const y1 = Math.round(endY);
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let error = dx - dy;
+  let x = x0;
+  let y = y0;
+
+  while (true) {
+    if (x >= 0 && x < width && y >= 0 && y < height) {
+      pixels.push({ key: `${x}-${y}`, x, y });
+    }
+
+    if (x === x1 && y === y1) {
+      break;
+    }
+
+    const doubledError = error * 2;
+    if (doubledError > -dy) {
+      error -= dy;
+      x += sx;
+    }
+    if (doubledError < dx) {
+      error += dx;
+      y += sy;
+    }
+  }
+
+  return pixels;
+}
+
 function App() {
   const [imageUrl, setImageUrl] = useState('');
   const [imageName, setImageName] = useState('');
@@ -308,6 +345,36 @@ function App() {
     toIndex <= nailsCount;
   const lineStart = hasValidLine ? nails[fromIndex - 1] : null;
   const lineEnd = hasValidLine ? nails[toIndex - 1] : null;
+  const previewSize = previewRef.current?.clientWidth ?? 0;
+
+  let linePixels = [];
+  if (lineStart && lineEnd && imageSize && previewSize > 0) {
+    const startPreviewX = (lineStart.cx / 100) * previewSize;
+    const startPreviewY = (lineStart.cy / 100) * previewSize;
+    const endPreviewX = (lineEnd.cx / 100) * previewSize;
+    const endPreviewY = (lineEnd.cy / 100) * previewSize;
+    const startImageX =
+      (startPreviewX - previewSize / 2 - imageOffset.x) / scale +
+      imageSize.width / 2;
+    const startImageY =
+      (startPreviewY - previewSize / 2 - imageOffset.y) / scale +
+      imageSize.height / 2;
+    const endImageX =
+      (endPreviewX - previewSize / 2 - imageOffset.x) / scale +
+      imageSize.width / 2;
+    const endImageY =
+      (endPreviewY - previewSize / 2 - imageOffset.y) / scale +
+      imageSize.height / 2;
+
+    linePixels = rasterizeLinePixels(
+      startImageX,
+      startImageY,
+      endImageX,
+      endImageY,
+      imageSize.width,
+      imageSize.height,
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -452,6 +519,29 @@ function App() {
                   draggable="false"
                   style={imageStyle}
                 />
+                {linePixels.length > 0 && (
+                  <svg
+                    className="line-pixels-layer"
+                    aria-hidden="true"
+                    viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
+                    style={{
+                      width: `${imageSize.width}px`,
+                      height: `${imageSize.height}px`,
+                      transform: imageStyle.transform,
+                    }}
+                  >
+                    {linePixels.map((pixel) => (
+                      <rect
+                        key={pixel.key}
+                        className="line-pixel"
+                        x={pixel.x}
+                        y={pixel.y}
+                        width="1"
+                        height="1"
+                      />
+                    ))}
+                  </svg>
+                )}
                 {nailsCount > 0 && (
                   <svg
                     className="nails-layer"

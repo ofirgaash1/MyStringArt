@@ -178,6 +178,23 @@ label {
   image-rendering: crisp-edges;
 }
 
+.line-pixels-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  pointer-events: none;
+  transform-origin: center center;
+  overflow: visible;
+}
+
+.line-pixel {
+  fill: none;
+  stroke: rgba(255, 244, 92, 0.95);
+  stroke-width: 0.18;
+  vector-effect: non-scaling-stroke;
+}
+
 .nails-layer {
   position: absolute;
   inset: 0;
