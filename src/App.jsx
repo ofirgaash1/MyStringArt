@@ -10,6 +10,15 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function getCircularNailDistance(firstNail, secondNail, totalNails) {
+  if (totalNails <= 0) {
+    return 0;
+  }
+
+  const directDistance = Math.abs(firstNail - secondNail);
+  return Math.min(directDistance, totalNails - directDistance);
+}
+
 function rasterizeLinePixels(startX, startY, endX, endY, width, height) {
   const pixels = [];
   const x0 = Math.round(startX);
@@ -503,7 +512,8 @@ function App() {
   const eligibleDarknessSeries =
     hasHighlightDistance
       ? darknessSeries.filter(
-          (point) => Math.abs(point.nail - fromIndex) > highlightDistance,
+          (point) =>
+            getCircularNailDistance(point.nail, fromIndex, nailsCount) > highlightDistance,
         )
       : darknessSeries;
   const minimumDarkness =
@@ -658,6 +668,9 @@ function App() {
                   const x = graphPadding.left + index * barWidth;
                   const y =
                     graphHeight - graphPadding.bottom - barHeight;
+                  const isWithinHighlightDistance =
+                    hasHighlightDistance &&
+                    getCircularNailDistance(point.nail, fromIndex, nailsCount) <= highlightDistance;
 
                   return (
                     <rect
@@ -665,10 +678,7 @@ function App() {
                       className={[
                         'chart-bar',
                         point.nail === toIndex ? 'is-active' : '',
-                        hasHighlightDistance &&
-                        Math.abs(point.nail - fromIndex) <= highlightDistance
-                          ? 'is-range-highlighted'
-                          : '',
+                        isWithinHighlightDistance ? 'is-range-highlighted' : '',
                       ].filter(Boolean).join(' ')}
                       x={x}
                       y={y}
