@@ -339,9 +339,9 @@ function App() {
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
     for (const pixel of linePixels) {
       const index = (pixel.y * imageSize.width + pixel.x) * 4;
-      canvasImage.data[index] = Math.max(0, canvasImage.data[index] - LINE_DARKNESS_STEP);
-      canvasImage.data[index + 1] = Math.max(0, canvasImage.data[index + 1] - LINE_DARKNESS_STEP);
-      canvasImage.data[index + 2] = Math.max(0, canvasImage.data[index + 2] - LINE_DARKNESS_STEP);
+      canvasImage.data[index] = Math.min(255, canvasImage.data[index] + LINE_DARKNESS_STEP);
+      canvasImage.data[index + 1] = Math.min(255, canvasImage.data[index + 1] + LINE_DARKNESS_STEP);
+      canvasImage.data[index + 2] = Math.min(255, canvasImage.data[index + 2] + LINE_DARKNESS_STEP);
     }
 
     context.putImageData(canvasImage, 0, 0);
@@ -514,6 +514,7 @@ function App() {
     minimumDarkness === null
       ? []
       : eligibleDarknessSeries.filter((point) => point.darkness === minimumDarkness);
+  const nextNailNumber = darkestNails.length > 0 ? darkestNails[0].nail : null;
 
   return (
     <div className="app-shell">
@@ -607,6 +608,18 @@ function App() {
               />
             </label>
           </div>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={() => {
+              if (nextNailNumber !== null) {
+                setLineTo(String(nextNailNumber));
+              }
+            }}
+            disabled={nextNailNumber === null}
+          >
+            Set next nail {nextNailNumber ?? '-'}
+          </button>
           <button
             className="action-button"
             type="button"

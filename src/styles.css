@@ -134,6 +134,11 @@ label {
   cursor: pointer;
 }
 
+.action-button-secondary {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
 .action-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
