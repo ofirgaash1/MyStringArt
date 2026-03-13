@@ -123,6 +123,40 @@ label {
   background: #fff;
 }
 
+.line-darkness {
+  margin-top: 12px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.darkness-chart {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.darkness-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-axis {
+  stroke: rgba(15, 23, 42, 0.45);
+  stroke-width: 1;
+}
+
+.chart-bar {
+  fill: rgba(15, 23, 42, 0.82);
+}
+
+.chart-label {
+  fill: #334155;
+  font-size: 10px;
+}
+
 .helper-text {
   color: #475569;
 }

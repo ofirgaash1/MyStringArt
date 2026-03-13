@@ -46,6 +46,13 @@ function rasterizeLinePixels(startX, startY, endX, endY, width, height) {
   return pixels;
 }
 
+function getPixelDarkness(imageData, width, x, y) {
+  const index = (y * width + x) * 4;
+  return (
+    (imageData[index] + imageData[index + 1] + imageData[index + 2]) / 3
+  );
+}
+
 function App() {
   const [imageUrl, setImageUrl] = useState('');
   const [imageName, setImageName] = useState('');
@@ -345,7 +352,15 @@ function App() {
     toIndex <= nailsCount;
   const lineStart = hasValidLine ? nails[fromIndex - 1] : null;
   const lineEnd = hasValidLine ? nails[toIndex - 1] : null;
+  const hasValidFromIndex =
+    Number.isInteger(fromIndex) && fromIndex >= 1 && fromIndex <= nailsCount;
   const previewSize = previewRef.current?.clientWidth ?? 0;
+  const imageData =
+    imageCanvasRef.current && imageSize
+      ? imageCanvasRef.current
+          .getContext('2d', { willReadFrequently: true })
+          ?.getImageData(0, 0, imageSize.width, imageSize.height).data ?? null
+      : null;
 
   let linePixels = [];
   if (lineStart && lineEnd && imageSize && previewSize > 0) {
@@ -375,6 +390,77 @@ function App() {
       imageSize.height,
     );
   }
+
+  let averageLineDarkness = null;
+  if (linePixels.length > 0 && imageData && imageSize) {
+    let darknessSum = 0;
+
+    for (const pixel of linePixels) {
+      darknessSum += getPixelDarkness(
+        imageData,
+        imageSize.width,
+        pixel.x,
+        pixel.y,
+      );
+    }
+
+    averageLineDarkness = Math.round(darknessSum / linePixels.length);
+  }
+
+  let darknessSeries = [];
+  if (hasValidFromIndex && imageSize && previewSize > 0 && imageData) {
+    const originNail = nails[fromIndex - 1];
+    const originPreviewX = (originNail.cx / 100) * previewSize;
+    const originPreviewY = (originNail.cy / 100) * previewSize;
+    const originImageX =
+      (originPreviewX - previewSize / 2 - imageOffset.x) / scale +
+      imageSize.width / 2;
+    const originImageY =
+      (originPreviewY - previewSize / 2 - imageOffset.y) / scale +
+      imageSize.height / 2;
+
+    darknessSeries = nails.map((targetNail) => {
+      const targetPreviewX = (targetNail.cx / 100) * previewSize;
+      const targetPreviewY = (targetNail.cy / 100) * previewSize;
+      const targetImageX =
+        (targetPreviewX - previewSize / 2 - imageOffset.x) / scale +
+        imageSize.width / 2;
+      const targetImageY =
+        (targetPreviewY - previewSize / 2 - imageOffset.y) / scale +
+        imageSize.height / 2;
+      const pixels = rasterizeLinePixels(
+        originImageX,
+        originImageY,
+        targetImageX,
+        targetImageY,
+        imageSize.width,
+        imageSize.height,
+      );
+
+      let darknessSum = 0;
+      for (const pixel of pixels) {
+        darknessSum += getPixelDarkness(
+          imageData,
+          imageSize.width,
+          pixel.x,
+          pixel.y,
+        );
+      }
+
+      return {
+        nail: targetNail.number,
+        darkness: pixels.length > 0 ? darknessSum / pixels.length : 0,
+      };
+    });
+  }
+
+  const graphWidth = 320;
+  const graphHeight = 120;
+  const graphPadding = { top: 8, right: 8, bottom: 22, left: 30 };
+  const graphInnerWidth = graphWidth - graphPadding.left - graphPadding.right;
+  const graphInnerHeight = graphHeight - graphPadding.top - graphPadding.bottom;
+  const barWidth =
+    darknessSeries.length > 0 ? graphInnerWidth / darknessSeries.length : 0;
 
   return (
     <div className="app-shell">
@@ -453,6 +539,81 @@ function App() {
               />
             </label>
           </div>
+          {averageLineDarkness !== null && (
+            <p className="line-darkness">
+              Average darkness: {averageLineDarkness}
+            </p>
+          )}
+          {darknessSeries.length > 0 && (
+            <div className="darkness-chart">
+              <svg
+                viewBox={`0 0 ${graphWidth} ${graphHeight}`}
+                aria-label="Average darkness by target nail"
+              >
+                <line
+                  className="chart-axis"
+                  x1={graphPadding.left}
+                  y1={graphPadding.top}
+                  x2={graphPadding.left}
+                  y2={graphHeight - graphPadding.bottom}
+                />
+                <line
+                  className="chart-axis"
+                  x1={graphPadding.left}
+                  y1={graphHeight - graphPadding.bottom}
+                  x2={graphWidth - graphPadding.right}
+                  y2={graphHeight - graphPadding.bottom}
+                />
+                {darknessSeries.map((point, index) => {
+                  const barHeight = (point.darkness / 255) * graphInnerHeight;
+                  const x = graphPadding.left + index * barWidth;
+                  const y =
+                    graphHeight - graphPadding.bottom - barHeight;
+
+                  return (
+                    <rect
+                      key={`bar-${point.nail}`}
+                      className="chart-bar"
+                      x={x}
+                      y={y}
+                      width={Math.max(barWidth - 0.2, 0.4)}
+                      height={barHeight}
+                    />
+                  );
+                })}
+                <text
+                  className="chart-label"
+                  x={graphPadding.left}
+                  y={graphHeight - 4}
+                >
+                  1
+                </text>
+                <text
+                  className="chart-label"
+                  x={graphWidth - graphPadding.right}
+                  y={graphHeight - 4}
+                  textAnchor="end"
+                >
+                  {nailsCount}
+                </text>
+                <text
+                  className="chart-label"
+                  x={10}
+                  y={graphPadding.top + 4}
+                >
+                  255
+                </text>
+                <text
+                  className="chart-label"
+                  x={14}
+                  y={graphHeight - graphPadding.bottom}
+                  dominantBaseline="ideographic"
+                >
+                  0
+                </text>
+              </svg>
+            </div>
+          )}
         </div>
 
         <div className="panel helper-text">
