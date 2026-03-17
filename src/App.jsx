@@ -114,7 +114,6 @@ function App() {
   const [hoveredPixel, setHoveredPixel] = useState(null);
   const [isBrushMode, setIsBrushMode] = useState(false);
   const [brushRadius, setBrushRadius] = useState(6);
-  const [showGraph, setShowGraph] = useState(true);
   const [pixelGroups, setPixelGroups] = useState([createPixelGroup(1)]);
   const [activeGroupId, setActiveGroupId] = useState('group-1');
   const [nextGroupNumber, setNextGroupNumber] = useState(2);
@@ -123,6 +122,7 @@ function App() {
   const imageRef = useRef(null);
   const selectionOverlayRef = useRef(null);
   const imageCanvasRef = useRef(null);
+  const originalImageDataRef = useRef(null);
   const sourceUrlRef = useRef(null);
   const animationFrameRef = useRef(null);
   const isMountedRef = useRef(true);
@@ -265,6 +265,7 @@ function App() {
     groupPixelsRef.current = new Map([[1, new Set()]]);
     pixelOwnerMapRef.current = null;
     pixelWeightMapRef.current = null;
+    originalImageDataRef.current = null;
     linePixelsCacheRef.current.clear();
     clearSelectionOverlay();
 
@@ -284,6 +285,7 @@ function App() {
       canvas.height = img.height;
       const context = canvas.getContext('2d', { willReadFrequently: true });
       context?.drawImage(img, 0, 0);
+      originalImageDataRef.current = context?.getImageData(0, 0, img.width, img.height) ?? null;
       imageCanvasRef.current = canvas;
       pixelOwnerMapRef.current = new Int32Array(img.width * img.height);
       pixelWeightMapRef.current = new Float32Array(img.width * img.height);
@@ -522,34 +524,6 @@ function App() {
     setPixelGroups((currentGroups) => [...currentGroups, nextGroup]);
     setActiveGroupId(nextGroup.id);
     setNextGroupNumber((currentValue) => currentValue + 1);
-  };
-
-  const handleClearActiveGroup = () => {
-    const activeGroup = pixelGroups.find((group) => group.id === activeGroupId);
-    if (!activeGroup || !pixelOwnerMapRef.current || !pixelWeightMapRef.current) {
-      return;
-    }
-
-    const activePixels = groupPixelsRef.current.get(activeGroup.groupNumber);
-    if (!activePixels || activePixels.size === 0) {
-      return;
-    }
-
-    const pixelIndexes = Array.from(activePixels);
-    for (const pixelIndex of pixelIndexes) {
-      pixelOwnerMapRef.current[pixelIndex] = 0;
-      pixelWeightMapRef.current[pixelIndex] = 1;
-    }
-    activePixels.clear();
-    eraseSelectionPixelsFromOverlay(pixelIndexes);
-
-    setPixelGroups((currentGroups) =>
-      currentGroups.map((group) =>
-        group.id === activeGroupId
-          ? { ...group, pixelCount: 0 }
-          : group,
-      ),
-    );
   };
 
   const handleRemovePixelGroup = (groupId) => {
@@ -1143,11 +1117,9 @@ function App() {
   const hasValidFromIndex =
     Number.isInteger(fromIndex) && fromIndex >= 1 && fromIndex <= nailsCount;
   const shouldComputeAlgorithmView = !isArtMode && hasLoadedImage;
-  const shouldComputeAlgorithmAnalytics = !isArtMode && hasLoadedImage;
-  const shouldComputeGraph =
-    showGraph && hasLoadedImage && hasValidFromIndex && Boolean(imageSize) && previewSize > 0;
-  const needsImageData =
-    (shouldComputeAlgorithmAnalytics && lineStart && lineEnd) || shouldComputeGraph;
+  const shouldComputeAverageDarkness = !isArtMode && hasLoadedImage && lineStart && lineEnd;
+  const shouldComputeNextNail = hasLoadedImage && hasValidFromIndex && Boolean(imageSize);
+  const needsImageData = shouldComputeAverageDarkness || shouldComputeNextNail;
   const imageData =
     needsImageData && imageCanvasRef.current && imageSize
       ? imageCanvasRef.current
@@ -1155,7 +1127,7 @@ function App() {
           ?.getImageData(0, 0, imageSize.width, imageSize.height).data ?? null
       : null;
 
-  const linePixels = shouldComputeAlgorithmAnalytics && lineStart && lineEnd
+  const linePixels = shouldComputeAverageDarkness
     ? getLinePixelsForIndexes(fromIndex, toIndex)
     : [];
   const hasRenderableLine = linePixels.length > 1;
@@ -1174,7 +1146,7 @@ function App() {
   }
 
   let darknessSeries = [];
-  if (shouldComputeGraph && imageData) {
+  if (shouldComputeNextNail && imageData) {
     darknessSeries = nails.map((targetNail) => {
       const pixels = getLinePixelsForIndexes(fromIndex, targetNail.number);
       const weightedDarkness = getWeightedAverageDarkness(imageData, pixels);
@@ -1211,7 +1183,10 @@ function App() {
     minimumDarkness === null
       ? []
       : eligibleDarknessSeries.filter((point) => point.darkness === minimumDarkness);
-  const nextNailNumber = darkestNails.length > 0 ? darkestNails[0].nail : null;
+  const nextNailNumber =
+    shouldComputeNextNail && imageData
+      ? darkestNails[0]?.nail ?? null
+      : null;
   const artLineSegments = isArtMode
     ? savedNailSequence.reduce((segments, nailNumber, index) => {
         const startNailNumber = index === 0 ? 1 : savedNailSequence[index - 1];
@@ -1233,6 +1208,38 @@ function App() {
     : [];
   const activeGroup =
     pixelGroups.find((group) => group.id === activeGroupId) ?? pixelGroups[0] ?? null;
+  const averageLineDarknessDisplay =
+    averageLineDarkness === null ? 'none' : String(averageLineDarkness);
+
+  const handleResetImage = () => {
+    if (!imageCanvasRef.current || !imageSize || !originalImageDataRef.current) {
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d');
+    if (!context) {
+      return;
+    }
+
+    context.putImageData(originalImageDataRef.current, 0, 0);
+    syncVisibleCanvas();
+    setSavedNailSequence([]);
+    setHiddenPreviewLineKey(currentPreviewLineKey);
+    setHoveredPixel(null);
+  };
+
+  const handleExportNailList = () => {
+    const nailListContent = savedNailSequence.join('\n');
+    const fileBaseName = imageName
+      ? imageName.replace(/\.[^.]+$/, '')
+      : 'string-art';
+    const exportUrl = URL.createObjectURL(new Blob([nailListContent], { type: 'text/plain' }));
+    const downloadLink = document.createElement('a');
+    downloadLink.href = exportUrl;
+    downloadLink.download = `${fileBaseName}-nail-list.txt`;
+    downloadLink.click();
+    URL.revokeObjectURL(exportUrl);
+  };
 
   return (
     <div className="app-shell">
@@ -1358,18 +1365,10 @@ function App() {
                 );
               })}
             </div>
-            <button
-              className="action-button action-button-secondary"
-              type="button"
-              onClick={handleClearActiveGroup}
-              disabled={!activeGroup || activeGroup.pixelCount === 0}
-            >
-              clear active group
-            </button>
             <p className="brush-summary">
-              {!activeGroup || activeGroup.pixelCount === 0
-                ? `Paint inside the circle to build ${activeGroup?.name ?? 'a group'}.`
-                : `${activeGroup.name}: ${activeGroup.pixelCount} pixels, value ${activeGroup.value.toFixed(2)}`}
+              {activeGroup
+                ? `${activeGroup.name}: ${activeGroup.pixelCount} pixels, value ${activeGroup.value.toFixed(2)}`
+                : 'No active group'}
             </p>
           </div>
 
@@ -1457,20 +1456,10 @@ function App() {
           >
             all of the above
           </button>
-          <button
-            className="action-button action-button-secondary"
-            type="button"
-            onClick={() => setShowGraph((currentValue) => !currentValue)}
-            disabled={!hasLoadedImage || !hasValidFromIndex}
-          >
-            {showGraph ? 'hide graph' : 'show graph'}
-          </button>
-          {averageLineDarkness !== null && (
-            <p className="line-darkness">
-              Average darkness: {averageLineDarkness}
-            </p>
-          )}
-          {showGraph && darknessSeries.length > 0 && (
+          <p className="line-darkness">
+            Average darkness: {averageLineDarknessDisplay}
+          </p>
+          {darknessSeries.length > 0 && (
             <div className="darkness-chart">
               <svg
                 viewBox={`0 0 ${graphWidth} ${graphHeight}`}
@@ -1599,6 +1588,24 @@ function App() {
           >
             {isArtMode ? 'switch to algorithm' : 'switch to art'}
           </button>
+          <div className="panel-footer-actions">
+            <button
+              className="action-button action-button-secondary"
+              type="button"
+              onClick={handleResetImage}
+              disabled={!hasLoadedImage || isPerformingSteps}
+            >
+              reset
+            </button>
+            <button
+              className="action-button action-button-secondary"
+              type="button"
+              onClick={handleExportNailList}
+              disabled={savedNailSequence.length === 0}
+            >
+              export nail list
+            </button>
+          </div>
         </div>
 
       </aside>
