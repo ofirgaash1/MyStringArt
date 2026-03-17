@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
@@ -723,7 +723,7 @@ function App() {
     setDragState(null);
   };
 
-  const handleWheel = (event) => {
+  const handleWheel = useCallback((event) => {
     event.preventDefault();
     const previewRect = previewRef.current?.getBoundingClientRect();
     if (!previewRect) {
@@ -800,7 +800,20 @@ function App() {
       y: currentOffset.y + (nextCenterY - imageCenterY) / previewScreenScale,
     }));
     setScale(nextScale);
-  };
+  }, [hasLoadedImage, previewScale, scale]);
+
+  useEffect(() => {
+    const previewElement = previewRef.current;
+    if (!previewElement) {
+      return undefined;
+    }
+
+    previewElement.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      previewElement.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleWheel]);
 
   const getLinePixelsForIndexes = (startIndex, endIndex) => {
     if (
@@ -1629,7 +1642,6 @@ function App() {
               stopDragging(event);
               setHoveredPixel(null);
             }}
-            onWheel={handleWheel}
           >
             {isArtMode ? (
               <>
