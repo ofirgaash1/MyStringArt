@@ -5,6 +5,19 @@ const MAX_SCALE = 5;
 const MIN_PREVIEW_SCALE = 50;
 const MAX_PREVIEW_SCALE = 1000;
 const DEFAULT_LINE_STRENGTH = 30;
+const MIN_BRUSH_RADIUS = 1;
+const MAX_BRUSH_RADIUS = 40;
+const MIN_GROUP_VALUE = 0;
+const MAX_GROUP_VALUE = 10;
+const GROUP_VALUE_STEP = 0.05;
+const GROUP_COLORS = [
+  '#0ea5e9',
+  '#f97316',
+  '#22c55e',
+  '#e11d48',
+  '#8b5cf6',
+  '#facc15',
+];
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -63,6 +76,21 @@ function getPixelDarkness(imageData, width, x, y) {
   );
 }
 
+function getLinearPixelIndex(width, x, y) {
+  return y * width + x;
+}
+
+function createPixelGroup(groupNumber) {
+  return {
+    id: `group-${groupNumber}`,
+    groupNumber,
+    name: `group${groupNumber}`,
+    value: 0,
+    pixelCount: 0,
+    color: GROUP_COLORS[(groupNumber - 1) % GROUP_COLORS.length],
+  };
+}
+
 function App() {
   const [imageName, setImageName] = useState('');
   const [imageSize, setImageSize] = useState(null);
@@ -84,14 +112,24 @@ function App() {
   const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
   const [dragState, setDragState] = useState(null);
   const [hoveredPixel, setHoveredPixel] = useState(null);
+  const [isBrushMode, setIsBrushMode] = useState(false);
+  const [brushRadius, setBrushRadius] = useState(6);
+  const [showGraph, setShowGraph] = useState(true);
+  const [pixelGroups, setPixelGroups] = useState([createPixelGroup(1)]);
+  const [activeGroupId, setActiveGroupId] = useState('group-1');
+  const [nextGroupNumber, setNextGroupNumber] = useState(2);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
+  const selectionOverlayRef = useRef(null);
   const imageCanvasRef = useRef(null);
   const sourceUrlRef = useRef(null);
   const animationFrameRef = useRef(null);
   const isMountedRef = useRef(true);
   const pauseRequestedRef = useRef(false);
+  const pixelWeightMapRef = useRef(null);
+  const pixelOwnerMapRef = useRef(null);
+  const groupPixelsRef = useRef(new Map([[1, new Set()]]));
   const previewSize = previewRef.current?.clientWidth ?? 0;
   const hasLoadedImage = Boolean(imageCanvasRef.current && imageSize);
 
@@ -132,6 +170,65 @@ function App() {
     syncVisibleCanvas();
   }, [imageSize, isArtMode]);
 
+  const clearSelectionOverlay = () => {
+    if (!selectionOverlayRef.current || !imageSize) {
+      return;
+    }
+
+    const context = selectionOverlayRef.current.getContext('2d');
+    context?.clearRect(0, 0, imageSize.width, imageSize.height);
+  };
+
+  const paintSelectionPixelsOnOverlay = (pixelIndexes, color) => {
+    if (!selectionOverlayRef.current || pixelIndexes.length === 0 || !imageSize) {
+      return;
+    }
+
+    const context = selectionOverlayRef.current.getContext('2d');
+    if (!context) {
+      return;
+    }
+
+    context.fillStyle = color;
+    context.globalAlpha = 0.75;
+    for (const pixelIndex of pixelIndexes) {
+      const x = pixelIndex % imageSize.width;
+      const y = Math.floor(pixelIndex / imageSize.width);
+      context.fillRect(x, y, 1, 1);
+    }
+    context.globalAlpha = 1;
+  };
+
+  const eraseSelectionPixelsFromOverlay = (pixelIndexes) => {
+    if (!selectionOverlayRef.current || pixelIndexes.length === 0 || !imageSize) {
+      return;
+    }
+
+    const context = selectionOverlayRef.current.getContext('2d');
+    if (!context) {
+      return;
+    }
+
+    for (const pixelIndex of pixelIndexes) {
+      const x = pixelIndex % imageSize.width;
+      const y = Math.floor(pixelIndex / imageSize.width);
+      context.clearRect(x, y, 1, 1);
+    }
+  };
+
+  const redrawSelectionOverlay = () => {
+    clearSelectionOverlay();
+
+    if (!imageSize) {
+      return;
+    }
+
+    for (const group of pixelGroups) {
+      const pixelIndexes = Array.from(groupPixelsRef.current.get(group.groupNumber) ?? []);
+      paintSelectionPixelsOnOverlay(pixelIndexes, group.color);
+    }
+  };
+
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -150,6 +247,13 @@ function App() {
     setPreviewOffset({ x: 0, y: 0 });
     setHoveredPixel(null);
     setHiddenPreviewLineKey(null);
+    setPixelGroups([createPixelGroup(1)]);
+    setActiveGroupId('group-1');
+    setNextGroupNumber(2);
+    groupPixelsRef.current = new Map([[1, new Set()]]);
+    pixelOwnerMapRef.current = null;
+    pixelWeightMapRef.current = null;
+    clearSelectionOverlay();
 
     const img = new Image();
     img.onload = () => {
@@ -168,6 +272,13 @@ function App() {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       context?.drawImage(img, 0, 0);
       imageCanvasRef.current = canvas;
+      pixelOwnerMapRef.current = new Int32Array(img.width * img.height);
+      pixelWeightMapRef.current = new Float32Array(img.width * img.height);
+      pixelWeightMapRef.current.fill(1);
+      groupPixelsRef.current = new Map([[1, new Set()]]);
+      window.requestAnimationFrame(() => {
+        clearSelectionOverlay();
+      });
 
       if (sourceUrlRef.current) {
         URL.revokeObjectURL(sourceUrlRef.current);
@@ -177,22 +288,43 @@ function App() {
     img.src = nextUrl;
   };
 
-  const updateHoveredPixel = (event) => {
-    if (isArtMode || !hasLoadedImage) {
-      setHoveredPixel(null);
-      return;
+  const getPreviewFramePoint = (clientX, clientY) => {
+    const previewRect = previewRef.current?.getBoundingClientRect();
+    if (!previewRect) {
+      return null;
     }
 
+    return {
+      previewRect,
+      x: clientX - previewRect.left,
+      y: clientY - previewRect.top,
+    };
+  };
+
+  const isPointInsideCircle = (clientX, clientY) => {
+    const previewPoint = getPreviewFramePoint(clientX, clientY);
+    if (!previewPoint) {
+      return false;
+    }
+
+    const centerX = previewPoint.previewRect.width / 2;
+    const centerY = previewPoint.previewRect.height / 2;
+    const radius = Math.min(previewPoint.previewRect.width, previewPoint.previewRect.height) / 2;
+    return (
+      Math.hypot(previewPoint.x - centerX, previewPoint.y - centerY) <= radius
+    );
+  };
+
+  const getImagePointFromClientPosition = (clientX, clientY) => {
     const imageRect = imageRef.current?.getBoundingClientRect();
     if (!imageRect) {
-      setHoveredPixel(null);
-      return;
+      return null;
     }
 
     const imageX =
-      ((event.clientX - imageRect.left) / imageRect.width) * imageSize.width;
+      ((clientX - imageRect.left) / imageRect.width) * imageSize.width;
     const imageY =
-      ((event.clientY - imageRect.top) / imageRect.height) * imageSize.height;
+      ((clientY - imageRect.top) / imageRect.height) * imageSize.height;
 
     if (
       imageX < 0 ||
@@ -200,6 +332,51 @@ function App() {
       imageX >= imageSize.width ||
       imageY >= imageSize.height
     ) {
+      return null;
+    }
+
+    return {
+      imageRect,
+      imageX,
+      imageY,
+      pixelColumn: Math.floor(imageX),
+      pixelRow: Math.floor(imageY),
+    };
+  };
+
+  const getPreviewCoordinatesForPixel = (pixelX, pixelY) => {
+    if (!imageSize || previewSize <= 0) {
+      return null;
+    }
+
+    return {
+      x: previewSize / 2 + imageOffset.x + ((pixelX + 0.5) - imageSize.width / 2) * scale,
+      y: previewSize / 2 + imageOffset.y + ((pixelY + 0.5) - imageSize.height / 2) * scale,
+    };
+  };
+
+  const isImagePixelInsideCircle = (pixelX, pixelY) => {
+    const previewCoordinates = getPreviewCoordinatesForPixel(pixelX, pixelY);
+    if (!previewCoordinates) {
+      return false;
+    }
+
+    return (
+      Math.hypot(
+        previewCoordinates.x - previewSize / 2,
+        previewCoordinates.y - previewSize / 2,
+      ) <= previewSize / 2
+    );
+  };
+
+  const updateHoveredPixel = (event) => {
+    if (isArtMode || !hasLoadedImage) {
+      setHoveredPixel(null);
+      return;
+    }
+
+    const imagePoint = getImagePointFromClientPosition(event.clientX, event.clientY);
+    if (!imagePoint) {
       setHoveredPixel(null);
       return;
     }
@@ -207,11 +384,9 @@ function App() {
     const context = imageCanvasRef.current.getContext('2d', {
       willReadFrequently: true,
     });
-    const pixelColumn = Math.floor(imageX);
-    const pixelRow = Math.floor(imageY);
     const pixel = context?.getImageData(
-      pixelColumn,
-      pixelRow,
+      imagePoint.pixelColumn,
+      imagePoint.pixelRow,
       1,
       1,
     ).data;
@@ -224,15 +399,243 @@ function App() {
     setHoveredPixel({
       x: event.clientX,
       y: event.clientY,
-      left: imageRect.left + (pixelColumn / imageSize.width) * imageRect.width,
-      top: imageRect.top + (pixelRow / imageSize.height) * imageRect.height,
-      width: imageRect.width / imageSize.width,
-      height: imageRect.height / imageSize.height,
+      left:
+        imagePoint.imageRect.left +
+        (imagePoint.pixelColumn / imageSize.width) * imagePoint.imageRect.width,
+      top:
+        imagePoint.imageRect.top +
+        (imagePoint.pixelRow / imageSize.height) * imagePoint.imageRect.height,
+      width: imagePoint.imageRect.width / imageSize.width,
+      height: imagePoint.imageRect.height / imageSize.height,
+      pixelX: imagePoint.pixelColumn,
+      pixelY: imagePoint.pixelRow,
       r: pixel[0],
       g: pixel[1],
       b: pixel[2],
       darkness: Math.round((pixel[0] + pixel[1] + pixel[2]) / 3),
     });
+  };
+
+  const paintBrushSelection = (clientX, clientY) => {
+    if (
+      !hasLoadedImage ||
+      isArtMode ||
+      !activeGroupId ||
+      !isPointInsideCircle(clientX, clientY)
+    ) {
+      return false;
+    }
+
+    const imagePoint = getImagePointFromClientPosition(clientX, clientY);
+    if (!imagePoint) {
+      return false;
+    }
+
+    const pixelOwnerMap = pixelOwnerMapRef.current;
+    const pixelWeightMap = pixelWeightMapRef.current;
+    const activeGroup = pixelGroups.find((group) => group.id === activeGroupId);
+    if (!pixelOwnerMap || !pixelWeightMap || !activeGroup) {
+      return false;
+    }
+
+    const activePixels = groupPixelsRef.current.get(activeGroup.groupNumber) ?? new Set();
+    groupPixelsRef.current.set(activeGroup.groupNumber, activePixels);
+    const countAdjustments = new Map();
+    const changedPixelIndexes = [];
+
+    for (let offsetY = -brushRadius; offsetY <= brushRadius; offsetY += 1) {
+      for (let offsetX = -brushRadius; offsetX <= brushRadius; offsetX += 1) {
+        if (offsetX * offsetX + offsetY * offsetY > brushRadius * brushRadius) {
+          continue;
+        }
+
+        const pixelX = imagePoint.pixelColumn + offsetX;
+        const pixelY = imagePoint.pixelRow + offsetY;
+        if (
+          pixelX < 0 ||
+          pixelY < 0 ||
+          pixelX >= imageSize.width ||
+          pixelY >= imageSize.height ||
+          !isImagePixelInsideCircle(pixelX, pixelY)
+        ) {
+          continue;
+        }
+
+        const pixelIndex = getLinearPixelIndex(imageSize.width, pixelX, pixelY);
+        const previousOwner = pixelOwnerMap[pixelIndex];
+        if (previousOwner === activeGroup.groupNumber) {
+          continue;
+        }
+
+        if (previousOwner > 0) {
+          const previousGroupPixels = groupPixelsRef.current.get(previousOwner);
+          previousGroupPixels?.delete(pixelIndex);
+          countAdjustments.set(
+            previousOwner,
+            (countAdjustments.get(previousOwner) ?? 0) - 1,
+          );
+        }
+
+        activePixels.add(pixelIndex);
+        pixelOwnerMap[pixelIndex] = activeGroup.groupNumber;
+        pixelWeightMap[pixelIndex] = activeGroup.value;
+        countAdjustments.set(
+          activeGroup.groupNumber,
+          (countAdjustments.get(activeGroup.groupNumber) ?? 0) + 1,
+        );
+        changedPixelIndexes.push(pixelIndex);
+      }
+    }
+
+    if (changedPixelIndexes.length === 0) {
+      return false;
+    }
+
+    paintSelectionPixelsOnOverlay(changedPixelIndexes, activeGroup.color);
+    setPixelGroups((currentGroups) =>
+      currentGroups.map((group) => {
+        const adjustment = countAdjustments.get(group.groupNumber);
+        return adjustment
+          ? { ...group, pixelCount: group.pixelCount + adjustment }
+          : group;
+      }),
+    );
+    return true;
+  };
+
+  const handleAddPixelGroup = () => {
+    const nextGroup = createPixelGroup(nextGroupNumber);
+    groupPixelsRef.current.set(nextGroup.groupNumber, new Set());
+    setPixelGroups((currentGroups) => [...currentGroups, nextGroup]);
+    setActiveGroupId(nextGroup.id);
+    setNextGroupNumber((currentValue) => currentValue + 1);
+  };
+
+  const handleClearActiveGroup = () => {
+    const activeGroup = pixelGroups.find((group) => group.id === activeGroupId);
+    if (!activeGroup || !pixelOwnerMapRef.current || !pixelWeightMapRef.current) {
+      return;
+    }
+
+    const activePixels = groupPixelsRef.current.get(activeGroup.groupNumber);
+    if (!activePixels || activePixels.size === 0) {
+      return;
+    }
+
+    const pixelIndexes = Array.from(activePixels);
+    for (const pixelIndex of pixelIndexes) {
+      pixelOwnerMapRef.current[pixelIndex] = 0;
+      pixelWeightMapRef.current[pixelIndex] = 1;
+    }
+    activePixels.clear();
+    eraseSelectionPixelsFromOverlay(pixelIndexes);
+
+    setPixelGroups((currentGroups) =>
+      currentGroups.map((group) =>
+        group.id === activeGroupId
+          ? { ...group, pixelCount: 0 }
+          : group,
+      ),
+    );
+  };
+
+  const handleRemovePixelGroup = (groupId) => {
+    const removedGroup = pixelGroups.find((group) => group.id === groupId);
+    const removedPixels = removedGroup
+      ? Array.from(groupPixelsRef.current.get(removedGroup.groupNumber) ?? [])
+      : [];
+    if (
+      removedGroup &&
+      pixelGroups.length > 1 &&
+      pixelOwnerMapRef.current &&
+      pixelWeightMapRef.current
+    ) {
+      for (const pixelIndex of removedPixels) {
+        pixelOwnerMapRef.current[pixelIndex] = 0;
+        pixelWeightMapRef.current[pixelIndex] = 1;
+      }
+      groupPixelsRef.current.delete(removedGroup.groupNumber);
+      eraseSelectionPixelsFromOverlay(removedPixels);
+    }
+
+    setPixelGroups((currentGroups) => {
+      if (currentGroups.length === 1) {
+        const groupPixels = groupPixelsRef.current.get(removedGroup.groupNumber);
+        groupPixels?.clear();
+        if (pixelOwnerMapRef.current && pixelWeightMapRef.current) {
+          for (const pixelIndex of removedPixels) {
+            pixelOwnerMapRef.current[pixelIndex] = 0;
+            pixelWeightMapRef.current[pixelIndex] = 1;
+          }
+        }
+        eraseSelectionPixelsFromOverlay(removedPixels);
+        return currentGroups.map((group) =>
+          group.id === groupId ? { ...group, pixelCount: 0, value: 0 } : group,
+        );
+      }
+
+      const remainingGroups = currentGroups.filter((group) => group.id !== groupId);
+      if (groupId === activeGroupId && remainingGroups.length > 0) {
+        setActiveGroupId(remainingGroups[0].id);
+      }
+      return remainingGroups;
+    });
+  };
+
+  const handleGroupValueChange = (groupId, nextValue) => {
+    const clampedValue = clamp(nextValue, MIN_GROUP_VALUE, MAX_GROUP_VALUE);
+    const targetGroup = pixelGroups.find((group) => group.id === groupId);
+    if (targetGroup && pixelWeightMapRef.current) {
+      for (const pixelIndex of groupPixelsRef.current.get(targetGroup.groupNumber) ?? []) {
+        pixelWeightMapRef.current[pixelIndex] = clampedValue;
+      }
+    }
+
+    setPixelGroups((currentGroups) =>
+      currentGroups.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              value: clampedValue,
+            }
+          : group,
+      ),
+    );
+  };
+
+  useEffect(() => {
+    if (!isArtMode) {
+      redrawSelectionOverlay();
+    }
+  }, [imageSize, isArtMode]);
+
+  const getWeightedAverageDarkness = (sourceImageData, pixels) => {
+    if (!imageSize || !sourceImageData || pixels.length === 0) {
+      return null;
+    }
+
+    const pixelWeightMap = pixelWeightMapRef.current;
+    let weightedDarknessSum = 0;
+    let totalWeight = 0;
+
+    for (const pixel of pixels) {
+      const pixelWeight = pixelWeightMap
+        ? pixelWeightMap[getLinearPixelIndex(imageSize.width, pixel.x, pixel.y)]
+        : 1;
+      if (pixelWeight <= 0) {
+        continue;
+      }
+
+      weightedDarknessSum +=
+        getPixelDarkness(sourceImageData, imageSize.width, pixel.x, pixel.y) * pixelWeight;
+      totalWeight += pixelWeight;
+    }
+
+    if (totalWeight === 0) {
+      return null;
+    }
+
+    return weightedDarknessSum / totalWeight;
   };
 
   const handlePointerDown = (event) => {
@@ -242,6 +645,16 @@ function App() {
 
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (isBrushMode && !isArtMode) {
+      paintBrushSelection(event.clientX, event.clientY);
+      updateHoveredPixel(event);
+      setDragState({
+        mode: 'brush',
+        pointerStart: { x: event.clientX, y: event.clientY },
+      });
+      return;
+    }
+
     if (event.shiftKey) {
       setDragState({
         mode: 'preview',
@@ -260,6 +673,12 @@ function App() {
 
   const handlePointerMove = (event) => {
     if (!dragState) {
+      updateHoveredPixel(event);
+      return;
+    }
+
+    if (dragState.mode === 'brush') {
+      paintBrushSelection(event.clientX, event.clientY);
       updateHoveredPixel(event);
       return;
     }
@@ -444,17 +863,11 @@ function App() {
         continue;
       }
 
-      let darknessSum = 0;
-      for (const pixel of pixels) {
-        darknessSum += getPixelDarkness(
-          sourceImageData,
-          imageSize.width,
-          pixel.x,
-          pixel.y,
-        );
+      const averageDarkness = getWeightedAverageDarkness(sourceImageData, pixels);
+      if (averageDarkness === null) {
+        continue;
       }
 
-      const averageDarkness = darknessSum / pixels.length;
       if (averageDarkness < minimumDarkness) {
         minimumDarkness = averageDarkness;
         selectedNail = targetNail.number;
@@ -487,12 +900,23 @@ function App() {
       : DEFAULT_LINE_STRENGTH;
   };
 
-  const waitForNextAnimationFrame = () =>
+  const waitForNextWorkSlice = () =>
     new Promise((resolve) => {
-      animationFrameRef.current = window.requestAnimationFrame((timestamp) => {
-        animationFrameRef.current = null;
-        resolve(timestamp);
-      });
+      if (!document.hidden) {
+        animationFrameRef.current = window.requestAnimationFrame((timestamp) => {
+          animationFrameRef.current = null;
+          resolve(timestamp);
+        });
+        return;
+      }
+
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => {
+        channel.port1.close();
+        channel.port2.close();
+        resolve(performance.now());
+      };
+      channel.port2.postMessage(null);
     });
 
   const handleSetNextNail = () => {
@@ -569,7 +993,6 @@ function App() {
     const lineDarknessStep = getLineDarknessStep();
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
     let currentFromIndex = fromIndex;
-    const frameBudgetMs = 12;
     let stepIndex = 0;
 
     pauseRequestedRef.current = false;
@@ -578,17 +1001,18 @@ function App() {
 
     try {
       while (stepIndex < 9000 && isMountedRef.current && !pauseRequestedRef.current) {
-        const frameStart = await waitForNextAnimationFrame();
+        const frameStart = await waitForNextWorkSlice();
         if (!isMountedRef.current) {
           break;
         }
 
+        const sliceBudgetMs = document.hidden ? 90 : 12;
         const frameNails = [];
         while (
           stepIndex < 9000 &&
           isMountedRef.current &&
           !pauseRequestedRef.current &&
-          performance.now() - frameStart < frameBudgetMs
+          performance.now() - frameStart < sliceBudgetMs
         ) {
           const nextNail = getNextNailForImageData(currentFromIndex, canvasImage.data);
           if (nextNail === null) {
@@ -614,8 +1038,10 @@ function App() {
 
         if (frameNails.length > 0 && isMountedRef.current) {
           const latestNail = frameNails[frameNails.length - 1];
-          context.putImageData(canvasImage, 0, 0);
-          syncVisibleCanvas();
+          if (!document.hidden) {
+            context.putImageData(canvasImage, 0, 0);
+            syncVisibleCanvas();
+          }
           setLineTo(String(latestNail));
           setLineFrom(String(latestNail));
           setSavedNailSequence((currentSequence) => [...currentSequence, ...frameNails]);
@@ -624,6 +1050,8 @@ function App() {
     } finally {
       pauseRequestedRef.current = false;
       if (isMountedRef.current) {
+        context.putImageData(canvasImage, 0, 0);
+        syncVisibleCanvas();
         setIsPerformingSteps(false);
       }
     }
@@ -631,7 +1059,14 @@ function App() {
 
   const imageStyle = {
     transform: `translate(-50%, -50%) translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${scale})`,
-    cursor: dragState?.mode === 'image' ? 'grabbing' : hasLoadedImage ? 'grab' : 'default',
+    cursor:
+      isBrushMode && !isArtMode
+        ? 'crosshair'
+        : dragState?.mode === 'image'
+          ? 'grabbing'
+          : hasLoadedImage
+            ? 'grab'
+            : 'default',
     filter: isBlackAndWhite ? 'grayscale(1)' : 'none',
   };
 
@@ -671,14 +1106,20 @@ function App() {
   const lineEnd = hasValidLine ? nails[toIndex - 1] : null;
   const hasValidFromIndex =
     Number.isInteger(fromIndex) && fromIndex >= 1 && fromIndex <= nailsCount;
+  const shouldComputeAlgorithmView = !isArtMode && hasLoadedImage;
+  const shouldComputeAlgorithmAnalytics = !isArtMode && hasLoadedImage;
+  const shouldComputeGraph =
+    showGraph && hasLoadedImage && hasValidFromIndex && Boolean(imageSize) && previewSize > 0;
+  const needsImageData =
+    (shouldComputeAlgorithmAnalytics && lineStart && lineEnd) || shouldComputeGraph;
   const imageData =
-    imageCanvasRef.current && imageSize
+    needsImageData && imageCanvasRef.current && imageSize
       ? imageCanvasRef.current
           .getContext('2d', { willReadFrequently: true })
           ?.getImageData(0, 0, imageSize.width, imageSize.height).data ?? null
       : null;
 
-  const linePixels = lineStart && lineEnd
+  const linePixels = shouldComputeAlgorithmAnalytics && lineStart && lineEnd
     ? getLinePixelsForIndexes(fromIndex, toIndex)
     : [];
   const hasRenderableLine = linePixels.length > 1;
@@ -691,22 +1132,13 @@ function App() {
 
   let averageLineDarkness = null;
   if (linePixels.length > 0 && imageData && imageSize) {
-    let darknessSum = 0;
-
-    for (const pixel of linePixels) {
-      darknessSum += getPixelDarkness(
-        imageData,
-        imageSize.width,
-        pixel.x,
-        pixel.y,
-      );
-    }
-
-    averageLineDarkness = Math.round(darknessSum / linePixels.length);
+    const weightedDarkness = getWeightedAverageDarkness(imageData, linePixels);
+    averageLineDarkness =
+      weightedDarkness === null ? null : Math.round(weightedDarkness);
   }
 
   let darknessSeries = [];
-  if (hasValidFromIndex && imageSize && previewSize > 0 && imageData) {
+  if (shouldComputeGraph && imageData) {
     const originNail = nails[fromIndex - 1];
     const originPreviewX = (originNail.cx / 100) * previewSize;
     const originPreviewY = (originNail.cy / 100) * previewSize;
@@ -734,20 +1166,11 @@ function App() {
         imageSize.width,
         imageSize.height,
       );
-
-      let darknessSum = 0;
-      for (const pixel of pixels) {
-        darknessSum += getPixelDarkness(
-          imageData,
-          imageSize.width,
-          pixel.x,
-          pixel.y,
-        );
-      }
+      const weightedDarkness = getWeightedAverageDarkness(imageData, pixels);
 
       return {
         nail: targetNail.number,
-        darkness: pixels.length > 0 ? darknessSum / pixels.length : 0,
+        darkness: weightedDarkness ?? 255,
       };
     });
   }
@@ -778,23 +1201,27 @@ function App() {
       ? []
       : eligibleDarknessSeries.filter((point) => point.darkness === minimumDarkness);
   const nextNailNumber = darkestNails.length > 0 ? darkestNails[0].nail : null;
-  const artLineSegments = savedNailSequence.reduce((segments, nailNumber, index) => {
-    const startNailNumber = index === 0 ? 1 : savedNailSequence[index - 1];
-    const startNail = nails[startNailNumber - 1];
-    const endNail = nails[nailNumber - 1];
+  const artLineSegments = isArtMode
+    ? savedNailSequence.reduce((segments, nailNumber, index) => {
+        const startNailNumber = index === 0 ? 1 : savedNailSequence[index - 1];
+        const startNail = nails[startNailNumber - 1];
+        const endNail = nails[nailNumber - 1];
 
-    if (startNail && endNail) {
-      segments.push({
-        key: `art-line-${index}-${startNailNumber}-${nailNumber}`,
-        x1: startNail.cx,
-        y1: startNail.cy,
-        x2: endNail.cx,
-        y2: endNail.cy,
-      });
-    }
+        if (startNail && endNail) {
+          segments.push({
+            key: `art-line-${index}-${startNailNumber}-${nailNumber}`,
+            x1: startNail.cx,
+            y1: startNail.cy,
+            x2: endNail.cx,
+            y2: endNail.cy,
+          });
+        }
 
-    return segments;
-  }, []);
+        return segments;
+      }, [])
+    : [];
+  const activeGroup =
+    pixelGroups.find((group) => group.id === activeGroupId) ?? pixelGroups[0] ?? null;
 
   return (
     <div className="app-shell">
@@ -835,6 +1262,105 @@ function App() {
             />
             <span>Nails numbers</span>
           </label>
+
+          <div className="brush-panel">
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={isBrushMode}
+                onChange={(event) => setIsBrushMode(event.target.checked)}
+                disabled={!hasLoadedImage || isArtMode}
+              />
+              <span>Brush select</span>
+            </label>
+            <label className="slider-control brush-radius-control">
+              <span>Brush radius: {brushRadius}px</span>
+              <input
+                type="range"
+                min={MIN_BRUSH_RADIUS}
+                max={MAX_BRUSH_RADIUS}
+                step="1"
+                value={brushRadius}
+                onChange={(event) => {
+                  setBrushRadius(
+                    clamp(Number(event.target.value), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
+                  );
+                }}
+                disabled={!hasLoadedImage || isArtMode}
+              />
+            </label>
+            <button
+              className="action-button action-button-secondary"
+              type="button"
+              onClick={handleAddPixelGroup}
+              disabled={!hasLoadedImage || isArtMode}
+            >
+              add group
+            </button>
+            <div className="group-list">
+              {pixelGroups.map((group) => {
+                const isActiveGroup = group.id === activeGroupId;
+                return (
+                  <div
+                    key={group.id}
+                    className={`group-card ${isActiveGroup ? 'is-active' : ''}`}
+                  >
+                    <button
+                      className="group-select-button"
+                      type="button"
+                      onClick={() => setActiveGroupId(group.id)}
+                    >
+                      <span
+                        className="group-swatch"
+                        style={{ backgroundColor: group.color }}
+                      />
+                      <span>{group.name}</span>
+                    </button>
+                    <label className="group-value-control">
+                      <span>Weight: {group.value}</span>
+                      <input
+                        type="range"
+                        min={MIN_GROUP_VALUE}
+                        max={MAX_GROUP_VALUE}
+                        step={GROUP_VALUE_STEP}
+                        value={group.value}
+                        onChange={(event) => {
+                          const parsedValue = Number.parseFloat(event.target.value);
+                          handleGroupValueChange(
+                            group.id,
+                            Number.isFinite(parsedValue) ? parsedValue : 0,
+                          );
+                        }}
+                      />
+                    </label>
+                    <p className="group-meta">
+                      {group.pixelCount} pixels
+                    </p>
+                    <button
+                      className="action-button action-button-secondary group-remove-button"
+                      type="button"
+                      onClick={() => handleRemovePixelGroup(group.id)}
+                    >
+                      remove
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              className="action-button action-button-secondary"
+              type="button"
+              onClick={handleClearActiveGroup}
+              disabled={!activeGroup || activeGroup.pixelCount === 0}
+            >
+              clear active group
+            </button>
+            <p className="brush-summary">
+              {!activeGroup || activeGroup.pixelCount === 0
+                ? `Paint inside the circle to build ${activeGroup?.name ?? 'a group'}.`
+                : `${activeGroup.name}: ${activeGroup.pixelCount} pixels, value ${activeGroup.value.toFixed(2)}`}
+            </p>
+          </div>
 
           <label className="slider-control">
             <span>Nails: {nailsCount}</span>
@@ -920,12 +1446,20 @@ function App() {
           >
             all of the above
           </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={() => setShowGraph((currentValue) => !currentValue)}
+            disabled={!hasLoadedImage || !hasValidFromIndex}
+          >
+            {showGraph ? 'hide graph' : 'show graph'}
+          </button>
           {averageLineDarkness !== null && (
             <p className="line-darkness">
               Average darkness: {averageLineDarkness}
             </p>
           )}
-          {darknessSeries.length > 0 && (
+          {showGraph && darknessSeries.length > 0 && (
             <div className="darkness-chart">
               <svg
                 viewBox={`0 0 ${graphWidth} ${graphHeight}`}
@@ -1033,7 +1567,6 @@ function App() {
             disabled={
               !isPerformingSteps &&
               (
-                nextNailNumber === null ||
                 !imageCanvasRef.current ||
                 !imageSize ||
                 !hasValidFromIndex
@@ -1150,6 +1683,18 @@ function App() {
                   height={imageSize.height}
                   style={imageStyle}
                 />
+                <canvas
+                  ref={selectionOverlayRef}
+                  className="brush-selection-layer"
+                  aria-hidden="true"
+                  width={imageSize.width}
+                  height={imageSize.height}
+                  style={{
+                    width: `${imageSize.width}px`,
+                    height: `${imageSize.height}px`,
+                    transform: imageStyle.transform,
+                  }}
+                />
                 {linePixels.length > 0 && (
                   <svg
                     className="line-pixels-layer"
@@ -1229,9 +1774,11 @@ function App() {
               top: hoveredPixel.y - 16,
             }}
           >
-            {isBlackAndWhite
-              ? `Darkness ${hoveredPixel.darkness}`
-              : `RGB(${hoveredPixel.r}, ${hoveredPixel.g}, ${hoveredPixel.b})`}
+            {isBrushMode
+              ? `${hoveredPixel.pixelX},${hoveredPixel.pixelY}`
+              : isBlackAndWhite
+                ? `Darkness ${hoveredPixel.darkness}`
+                : `RGB(${hoveredPixel.r}, ${hoveredPixel.g}, ${hoveredPixel.b})`}
           </div>
         </>
       )}
