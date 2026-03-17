@@ -1229,7 +1229,7 @@ function App() {
   };
 
   const handleExportNailList = () => {
-    const nailListContent = savedNailSequence.join('\n');
+    const nailListContent = [1, ...savedNailSequence].join('\n');
     const fileBaseName = imageName
       ? imageName.replace(/\.[^.]+$/, '')
       : 'string-art';
