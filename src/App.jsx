@@ -128,6 +128,7 @@ function App() {
   const isMountedRef = useRef(true);
   const pauseRequestedRef = useRef(false);
   const pixelWeightMapRef = useRef(null);
+  const linePixelsCacheRef = useRef(new Map());
   const pixelOwnerMapRef = useRef(null);
   const groupPixelsRef = useRef(new Map([[1, new Set()]]));
   const previewSize = previewRef.current?.clientWidth ?? 0;
@@ -151,6 +152,17 @@ function App() {
   useEffect(() => {
     setHiddenPreviewLineKey(null);
   }, [lineFrom, lineTo]);
+
+  useEffect(() => {
+    linePixelsCacheRef.current.clear();
+  }, [
+    imageSize,
+    nailsCount,
+    previewSize,
+    scale,
+    imageOffset.x,
+    imageOffset.y,
+  ]);
 
   const syncVisibleCanvas = () => {
     if (!imageRef.current || !imageCanvasRef.current || !imageSize) {
@@ -253,6 +265,7 @@ function App() {
     groupPixelsRef.current = new Map([[1, new Set()]]);
     pixelOwnerMapRef.current = null;
     pixelWeightMapRef.current = null;
+    linePixelsCacheRef.current.clear();
     clearSelectionOverlay();
 
     const img = new Image();
@@ -809,6 +822,14 @@ function App() {
       return [];
     }
 
+    const cacheStartIndex = Math.min(startIndex, endIndex);
+    const cacheEndIndex = Math.max(startIndex, endIndex);
+    const cacheKey = `${cacheStartIndex}-${cacheEndIndex}`;
+    const cachedPixels = linePixelsCacheRef.current.get(cacheKey);
+    if (cachedPixels) {
+      return cachedPixels;
+    }
+
     const startPreviewX = (startNail.cx / 100) * previewSize;
     const startPreviewY = (startNail.cy / 100) * previewSize;
     const endPreviewX = (endNail.cx / 100) * previewSize;
@@ -826,7 +847,7 @@ function App() {
       (endPreviewY - previewSize / 2 - imageOffset.y) / scale +
       imageSize.height / 2;
 
-    return rasterizeLinePixels(
+    const linePixels = rasterizeLinePixels(
       startImageX,
       startImageY,
       endImageX,
@@ -834,6 +855,8 @@ function App() {
       imageSize.width,
       imageSize.height,
     );
+    linePixelsCacheRef.current.set(cacheKey, linePixels);
+    return linePixels;
   };
 
   const getNextNailForImageData = (originIndex, sourceImageData) => {
@@ -1139,33 +1162,8 @@ function App() {
 
   let darknessSeries = [];
   if (shouldComputeGraph && imageData) {
-    const originNail = nails[fromIndex - 1];
-    const originPreviewX = (originNail.cx / 100) * previewSize;
-    const originPreviewY = (originNail.cy / 100) * previewSize;
-    const originImageX =
-      (originPreviewX - previewSize / 2 - imageOffset.x) / scale +
-      imageSize.width / 2;
-    const originImageY =
-      (originPreviewY - previewSize / 2 - imageOffset.y) / scale +
-      imageSize.height / 2;
-
     darknessSeries = nails.map((targetNail) => {
-      const targetPreviewX = (targetNail.cx / 100) * previewSize;
-      const targetPreviewY = (targetNail.cy / 100) * previewSize;
-      const targetImageX =
-        (targetPreviewX - previewSize / 2 - imageOffset.x) / scale +
-        imageSize.width / 2;
-      const targetImageY =
-        (targetPreviewY - previewSize / 2 - imageOffset.y) / scale +
-        imageSize.height / 2;
-      const pixels = rasterizeLinePixels(
-        originImageX,
-        originImageY,
-        targetImageX,
-        targetImageY,
-        imageSize.width,
-        imageSize.height,
-      );
+      const pixels = getLinePixelsForIndexes(fromIndex, targetNail.number);
       const weightedDarkness = getWeightedAverageDarkness(imageData, pixels);
 
       return {
