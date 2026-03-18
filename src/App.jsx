@@ -439,15 +439,34 @@ function App() {
   };
 
   const getPreviewFramePoint = (clientX, clientY) => {
-    const previewRect = previewRef.current?.getBoundingClientRect();
-    if (!previewRect || previewSize <= 0) {
+    const previewElement = previewRef.current;
+    const previewRect = previewElement?.getBoundingClientRect();
+    if (!previewElement || !previewRect || previewSize <= 0) {
       return null;
     }
 
+    const offsetWidth = previewElement.offsetWidth;
+    const offsetHeight = previewElement.offsetHeight;
+    const clientWidth = previewElement.clientWidth;
+    const clientHeight = previewElement.clientHeight;
+    if (offsetWidth <= 0 || offsetHeight <= 0 || clientWidth <= 0 || clientHeight <= 0) {
+      return null;
+    }
+
+    const scaleX = previewRect.width / offsetWidth;
+    const scaleY = previewRect.height / offsetHeight;
+    const contentRect = {
+      left: previewRect.left + previewElement.clientLeft * scaleX,
+      top: previewRect.top + previewElement.clientTop * scaleY,
+      width: clientWidth * scaleX,
+      height: clientHeight * scaleY,
+    };
+
     return {
       previewRect,
-      x: ((clientX - previewRect.left) / previewRect.width) * previewSize,
-      y: ((clientY - previewRect.top) / previewRect.height) * previewSize,
+      contentRect,
+      x: ((clientX - contentRect.left) / contentRect.width) * previewSize,
+      y: ((clientY - contentRect.top) / contentRect.height) * previewSize,
     };
   };
 
@@ -486,7 +505,7 @@ function App() {
     }
 
     return {
-      previewRect: previewPoint.previewRect,
+      contentRect: previewPoint.contentRect,
       imageX,
       imageY,
       pixelColumn: Math.floor(imageX),
@@ -550,15 +569,15 @@ function App() {
       x: event.clientX,
       y: event.clientY,
       left:
-        imagePoint.previewRect.left +
+        imagePoint.contentRect.left +
         (previewSize / 2 + (imagePoint.pixelColumn - imageCenter.x) * imageScale) *
-          (imagePoint.previewRect.width / previewSize),
+          (imagePoint.contentRect.width / previewSize),
       top:
-        imagePoint.previewRect.top +
+        imagePoint.contentRect.top +
         (previewSize / 2 + (imagePoint.pixelRow - imageCenter.y) * imageScale) *
-          (imagePoint.previewRect.height / previewSize),
-      width: imageScale * (imagePoint.previewRect.width / previewSize),
-      height: imageScale * (imagePoint.previewRect.height / previewSize),
+          (imagePoint.contentRect.height / previewSize),
+      width: imageScale * (imagePoint.contentRect.width / previewSize),
+      height: imageScale * (imagePoint.contentRect.height / previewSize),
       pixelX: imagePoint.pixelColumn,
       pixelY: imagePoint.pixelRow,
       r: pixel[0],
@@ -1242,6 +1261,11 @@ function App() {
             : 'default',
     filter: isBlackAndWhite ? 'grayscale(1)' : 'none',
   };
+  const imageLayerStyle = {
+    width: imageSize ? `${imageSize.width * imageScale}px` : '0px',
+    height: imageSize ? `${imageSize.height * imageScale}px` : '0px',
+    transform: imageStyle.transform,
+  };
 
   const previewStyle = {
     transform: `translate(${previewOffset.x}px, ${previewOffset.y}px) scale(${previewScale / 100})`,
@@ -1918,22 +1942,14 @@ function App() {
                   aria-hidden="true"
                   width={imageSize.width}
                   height={imageSize.height}
-                  style={{
-                    width: `${imageSize.width}px`,
-                    height: `${imageSize.height}px`,
-                    transform: imageStyle.transform,
-                  }}
+                  style={imageLayerStyle}
                 />
                 {linePixels.length > 0 && (
                   <svg
                     className="line-pixels-layer"
                     aria-hidden="true"
                     viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
-                    style={{
-                      width: `${imageSize.width}px`,
-                      height: `${imageSize.height}px`,
-                      transform: imageStyle.transform,
-                    }}
+                    style={imageLayerStyle}
                   >
                     {linePixels.map((pixel) => (
                       <rect
