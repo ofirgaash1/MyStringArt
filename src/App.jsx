@@ -10,6 +10,9 @@ const MIN_HIGHLIGHT_DISTANCE = 0;
 const MAX_HIGHLIGHT_DISTANCE = 50;
 const MIN_LINE_STRENGTH = 1;
 const MAX_LINE_STRENGTH = 50;
+const MIN_CONTRAST = 50;
+const MAX_CONTRAST = 100;
+const DEFAULT_CONTRAST = 100;
 const MIN_BRUSH_RADIUS = 1;
 const MAX_BRUSH_RADIUS = 40;
 const MIN_GROUP_VALUE = 0;
@@ -96,6 +99,46 @@ function createPixelGroup(groupNumber) {
   };
 }
 
+function writeProcessedImageData(
+  context,
+  sourceImageData,
+  width,
+  height,
+  contrastPercent,
+  lineBoostMap,
+) {
+  const nextImage = context.createImageData(width, height);
+  const sourceData = sourceImageData.data;
+  const nextData = nextImage.data;
+  const contrastFactor = clamp(
+    Number.isFinite(contrastPercent) ? contrastPercent : DEFAULT_CONTRAST,
+    MIN_CONTRAST,
+    MAX_CONTRAST,
+  ) / 100;
+
+  for (let pixelIndex = 0, offset = 0; offset < sourceData.length; offset += 4, pixelIndex += 1) {
+    const lineBoost = lineBoostMap?.[pixelIndex] ?? 0;
+    nextData[offset] = clamp(
+      Math.round((sourceData[offset] - 128) * contrastFactor + 128) + lineBoost,
+      0,
+      255,
+    );
+    nextData[offset + 1] = clamp(
+      Math.round((sourceData[offset + 1] - 128) * contrastFactor + 128) + lineBoost,
+      0,
+      255,
+    );
+    nextData[offset + 2] = clamp(
+      Math.round((sourceData[offset + 2] - 128) * contrastFactor + 128) + lineBoost,
+      0,
+      255,
+    );
+    nextData[offset + 3] = sourceData[offset + 3];
+  }
+
+  context.putImageData(nextImage, 0, 0);
+}
+
 function App() {
   const [imageName, setImageName] = useState('');
   const [imageSize, setImageSize] = useState(null);
@@ -107,6 +150,7 @@ function App() {
   const [lineTo, setLineTo] = useState('1');
   const [highlightRange, setHighlightRange] = useState('15');
   const [lineStrength, setLineStrength] = useState(String(DEFAULT_LINE_STRENGTH));
+  const [contrast, setContrast] = useState(String(DEFAULT_CONTRAST));
   const [savedNailSequence, setSavedNailSequence] = useState([]);
   const [isArtMode, setIsArtMode] = useState(false);
   const [isPerformingSteps, setIsPerformingSteps] = useState(false);
@@ -134,6 +178,7 @@ function App() {
   const pauseRequestedRef = useRef(false);
   const pixelWeightMapRef = useRef(null);
   const linePixelsCacheRef = useRef(new Map());
+  const lineBoostMapRef = useRef(null);
   const pixelOwnerMapRef = useRef(null);
   const groupPixelsRef = useRef(new Map([[1, new Set()]]));
   const previewSize = previewRef.current?.clientWidth ?? 0;
@@ -186,6 +231,29 @@ function App() {
   useEffect(() => {
     syncVisibleCanvas();
   }, [imageSize, isArtMode]);
+
+  useEffect(() => {
+    if (isPerformingSteps || !imageCanvasRef.current || !imageSize || !originalImageDataRef.current) {
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    if (!context) {
+      return;
+    }
+
+    writeProcessedImageData(
+      context,
+      originalImageDataRef.current,
+      imageSize.width,
+      imageSize.height,
+      Number.parseInt(contrast, 10),
+      lineBoostMapRef.current,
+    );
+    syncVisibleCanvas();
+  }, [contrast, imageSize, isPerformingSteps]);
 
   const clearSelectionOverlay = () => {
     if (!selectionOverlayRef.current || !imageSize) {
@@ -270,6 +338,7 @@ function App() {
     groupPixelsRef.current = new Map([[1, new Set()]]);
     pixelOwnerMapRef.current = null;
     pixelWeightMapRef.current = null;
+    lineBoostMapRef.current = null;
     originalImageDataRef.current = null;
     linePixelsCacheRef.current.clear();
     clearSelectionOverlay();
@@ -296,10 +365,21 @@ function App() {
       context?.drawImage(img, 0, 0);
       originalImageDataRef.current = context?.getImageData(0, 0, img.width, img.height) ?? null;
       imageCanvasRef.current = canvas;
+      lineBoostMapRef.current = new Uint32Array(img.width * img.height);
       pixelOwnerMapRef.current = new Int32Array(img.width * img.height);
       pixelWeightMapRef.current = new Float32Array(img.width * img.height);
       pixelWeightMapRef.current.fill(1);
       groupPixelsRef.current = new Map([[1, new Set()]]);
+      if (context && originalImageDataRef.current) {
+        writeProcessedImageData(
+          context,
+          originalImageDataRef.current,
+          img.width,
+          img.height,
+          Number.parseInt(contrast, 10),
+          lineBoostMapRef.current,
+        );
+      }
       window.requestAnimationFrame(() => {
         clearSelectionOverlay();
       });
@@ -896,17 +976,27 @@ function App() {
     return selectedNail;
   };
 
-  const applyLineToImageData = (targetImageData, startIndex, endIndex, lineDarknessStep) => {
+  const applyLineToImageData = (
+    targetImageData,
+    startIndex,
+    endIndex,
+    lineDarknessStep,
+    targetLineBoostMap = null,
+  ) => {
     const targetLinePixels = getLinePixelsForIndexes(startIndex, endIndex);
     if (!imageSize || targetLinePixels.length === 0) {
       return false;
     }
 
     for (const pixel of targetLinePixels) {
-      const index = (pixel.y * imageSize.width + pixel.x) * 4;
+      const pixelIndex = pixel.y * imageSize.width + pixel.x;
+      const index = pixelIndex * 4;
       targetImageData[index] = Math.min(255, targetImageData[index] + lineDarknessStep);
       targetImageData[index + 1] = Math.min(255, targetImageData[index + 1] + lineDarknessStep);
       targetImageData[index + 2] = Math.min(255, targetImageData[index + 2] + lineDarknessStep);
+      if (targetLineBoostMap) {
+        targetLineBoostMap[pixelIndex] += lineDarknessStep;
+      }
     }
 
     return true;
@@ -965,7 +1055,13 @@ function App() {
     }
 
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
-    applyLineToImageData(canvasImage.data, startIndex, endIndex, lineDarknessStep);
+    applyLineToImageData(
+      canvasImage.data,
+      startIndex,
+      endIndex,
+      lineDarknessStep,
+      lineBoostMapRef.current,
+    );
 
     context.putImageData(canvasImage, 0, 0);
     syncVisibleCanvas();
@@ -1044,6 +1140,7 @@ function App() {
             currentFromIndex,
             nextNail,
             lineDarknessStep,
+            lineBoostMapRef.current,
           );
           if (!didApplyLine) {
             stepIndex = 9000;
@@ -1083,7 +1180,7 @@ function App() {
         ? 'crosshair'
         : dragState?.mode === 'image'
           ? 'grabbing'
-          : hasLoadedImage
+        : hasLoadedImage
             ? 'grab'
             : 'default',
     filter: isBlackAndWhite ? 'grayscale(1)' : 'none',
@@ -1225,12 +1322,22 @@ function App() {
       return;
     }
 
-    const context = imageCanvasRef.current.getContext('2d');
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
     if (!context) {
       return;
     }
 
-    context.putImageData(originalImageDataRef.current, 0, 0);
+    lineBoostMapRef.current?.fill(0);
+    writeProcessedImageData(
+      context,
+      originalImageDataRef.current,
+      imageSize.width,
+      imageSize.height,
+      Number.parseInt(contrast, 10),
+      lineBoostMapRef.current,
+    );
     syncVisibleCanvas();
     setSavedNailSequence([]);
     setHiddenPreviewLineKey(currentPreviewLineKey);
@@ -1344,6 +1451,27 @@ function App() {
                 />
               </label>
             </div>
+            <label className="slider-control slider-control-wide">
+              <span>Contrast: {contrast}%</span>
+              <input
+                type="range"
+                min={MIN_CONTRAST}
+                max={MAX_CONTRAST}
+                step="1"
+                value={contrast}
+                onChange={(event) => {
+                  setContrast(
+                    String(
+                      clamp(
+                        Number(event.target.value),
+                        MIN_CONTRAST,
+                        MAX_CONTRAST,
+                      ),
+                    ),
+                  );
+                }}
+              />
+            </label>
           </div>
           <p className="line-darkness">
             Average darkness: {averageLineDarknessDisplay}
@@ -1387,7 +1515,7 @@ function App() {
                       ].filter(Boolean).join(' ')}
                       x={x}
                       y={y}
-                      width={Math.max(barWidth - 0.2, 0.4)}
+                      width={Math.max(barWidth + 0.35, 0.6)}
                       height={barHeight}
                     />
                   );
