@@ -4,7 +4,12 @@ const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
 const MIN_PREVIEW_SCALE = 50;
 const MAX_PREVIEW_SCALE = 1000;
+const INITIAL_IMAGE_SCALE_MULTIPLIER = 1.5;
 const DEFAULT_LINE_STRENGTH = 30;
+const MIN_HIGHLIGHT_DISTANCE = 0;
+const MAX_HIGHLIGHT_DISTANCE = 50;
+const MIN_LINE_STRENGTH = 1;
+const MAX_LINE_STRENGTH = 50;
 const MIN_BRUSH_RADIUS = 1;
 const MAX_BRUSH_RADIUS = 40;
 const MIN_GROUP_VALUE = 0;
@@ -106,7 +111,7 @@ function App() {
   const [isArtMode, setIsArtMode] = useState(false);
   const [isPerformingSteps, setIsPerformingSteps] = useState(false);
   const [hiddenPreviewLineKey, setHiddenPreviewLineKey] = useState(null);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(INITIAL_IMAGE_SCALE_MULTIPLIER);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
@@ -278,7 +283,11 @@ function App() {
       );
 
       setImageSize({ width: img.width, height: img.height });
-      setScale(clamp(fittedScale, MIN_SCALE, MAX_SCALE));
+      setScale(clamp(
+        fittedScale * INITIAL_IMAGE_SCALE_MULTIPLIER,
+        MIN_SCALE,
+        MAX_SCALE,
+      ));
 
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
@@ -642,7 +651,7 @@ function App() {
       return;
     }
 
-    if (event.shiftKey) {
+    if (!event.shiftKey) {
       setDragState({
         mode: 'preview',
         pointerStart: { x: event.clientX, y: event.clientY },
@@ -707,7 +716,7 @@ function App() {
     const imageRect = imageRef.current?.getBoundingClientRect() ?? null;
     const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
 
-    if (event.shiftKey) {
+    if (!event.shiftKey) {
       const nextPreviewScale = Math.max(
         Math.round(previewScale * zoomFactor),
         MIN_PREVIEW_SCALE,
@@ -905,8 +914,8 @@ function App() {
 
   const getLineDarknessStep = () => {
     const parsedLineStrength = Number.parseInt(lineStrength, 10);
-    return Number.isFinite(parsedLineStrength) && parsedLineStrength >= 0
-      ? parsedLineStrength
+    return Number.isFinite(parsedLineStrength)
+      ? clamp(parsedLineStrength, MIN_LINE_STRENGTH, MAX_LINE_STRENGTH)
       : DEFAULT_LINE_STRENGTH;
   };
 
@@ -1254,33 +1263,252 @@ function App() {
         </label>
 
         <div className="panel">
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={cropToCircle}
-              onChange={(event) => setCropToCircle(event.target.checked)}
-            />
-            <span>Crop to a circle</span>
-          </label>
+          <div className="nail-controls">
+            <label className="slider-control slider-control-wide">
+              <span>Nails: {nailsCount}</span>
+              <input
+                type="range"
+                min="0"
+                max="300"
+                step="1"
+                value={nailsCount}
+                onChange={(event) => {
+                  setNailsCount(clamp(Number(event.target.value), 0, 300));
+                }}
+              />
+            </label>
 
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={isBlackAndWhite}
-              onChange={(event) => setIsBlackAndWhite(event.target.checked)}
-            />
-            <span>B&amp;W</span>
-          </label>
+            <div className="line-inputs">
+              <label className="slider-control line-input">
+                <span>From: {lineFrom || 1}</span>
+                <input
+                  type="range"
+                  min="1"
+                  max={Math.max(nailsCount, 1)}
+                  step="1"
+                  value={lineFrom === '' ? 1 : lineFrom}
+                  onChange={(event) => setLineFrom(event.target.value)}
+                />
+              </label>
+              <label className="slider-control line-input">
+                <span>To: {lineTo || 1}</span>
+                <input
+                  type="range"
+                  min="1"
+                  max={Math.max(nailsCount, 1)}
+                  step="1"
+                  value={lineTo === '' ? 1 : lineTo}
+                  onChange={(event) => setLineTo(event.target.value)}
+                />
+              </label>
+              <label className="slider-control line-input">
+                <span>Min distance: {highlightRange}</span>
+                <input
+                  type="range"
+                  min={MIN_HIGHLIGHT_DISTANCE}
+                  max={MAX_HIGHLIGHT_DISTANCE}
+                  step="1"
+                  value={highlightRange}
+                  onChange={(event) => {
+                    setHighlightRange(
+                      String(
+                        clamp(
+                          Number(event.target.value),
+                          MIN_HIGHLIGHT_DISTANCE,
+                          MAX_HIGHLIGHT_DISTANCE,
+                        ),
+                      ),
+                    );
+                  }}
+                />
+              </label>
+              <label className="slider-control line-input">
+                <span>Line strength: {lineStrength}</span>
+                <input
+                  type="range"
+                  min={MIN_LINE_STRENGTH}
+                  max={MAX_LINE_STRENGTH}
+                  step="1"
+                  value={lineStrength}
+                  onChange={(event) => {
+                    setLineStrength(
+                      String(
+                        clamp(
+                          Number(event.target.value),
+                          MIN_LINE_STRENGTH,
+                          MAX_LINE_STRENGTH,
+                        ),
+                      ),
+                    );
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+          <p className="line-darkness">
+            Average darkness: {averageLineDarknessDisplay}
+          </p>
+          {darknessSeries.length > 0 && (
+            <div className="darkness-chart">
+              <svg
+                viewBox={`0 0 ${graphWidth} ${graphHeight}`}
+                aria-label="Average darkness by target nail"
+              >
+                <line
+                  className="chart-axis"
+                  x1={graphPadding.left}
+                  y1={graphPadding.top}
+                  x2={graphPadding.left}
+                  y2={graphHeight - graphPadding.bottom}
+                />
+                <line
+                  className="chart-axis"
+                  x1={graphPadding.left}
+                  y1={graphHeight - graphPadding.bottom}
+                  x2={graphWidth - graphPadding.right}
+                  y2={graphHeight - graphPadding.bottom}
+                />
+                {darknessSeries.map((point, index) => {
+                  const barHeight = (point.darkness / 255) * graphInnerHeight;
+                  const x = graphPadding.left + index * barWidth;
+                  const y =
+                    graphHeight - graphPadding.bottom - barHeight;
+                  const isWithinHighlightDistance =
+                    hasHighlightDistance &&
+                    getCircularNailDistance(point.nail, fromIndex, nailsCount) <= highlightDistance;
 
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={showNailNumbers}
-              onChange={(event) => setShowNailNumbers(event.target.checked)}
-            />
-            <span>Nails numbers</span>
-          </label>
-
+                  return (
+                    <rect
+                      key={`bar-${point.nail}`}
+                      className={[
+                        'chart-bar',
+                        point.nail === toIndex ? 'is-active' : '',
+                        isWithinHighlightDistance ? 'is-range-highlighted' : '',
+                      ].filter(Boolean).join(' ')}
+                      x={x}
+                      y={y}
+                      width={Math.max(barWidth - 0.2, 0.4)}
+                      height={barHeight}
+                    />
+                  );
+                })}
+                <text
+                  className="chart-label"
+                  x={graphPadding.left}
+                  y={graphHeight - 4}
+                >
+                  1
+                </text>
+                <text
+                  className="chart-label"
+                  x={graphWidth - graphPadding.right}
+                  y={graphHeight - 4}
+                  textAnchor="end"
+                >
+                  {nailsCount}
+                </text>
+                <text
+                  className="chart-label"
+                  x={10}
+                  y={graphPadding.top + 4}
+                >
+                  255
+                </text>
+                <text
+                  className="chart-label"
+                  x={14}
+                  y={graphHeight - graphPadding.bottom}
+                  dominantBaseline="ideographic"
+                >
+                  0
+                </text>
+              </svg>
+              {darkestNails.length > 0 && (
+                <p className="chart-minimum">
+                  Minimum darkness outside of red area: {Math.round(minimumDarkness)} at nail
+                  {darkestNails.length > 1 ? 's' : ''} {darkestNails.map((point) => point.nail).join(', ')}
+                </p>
+              )}
+            </div>
+          )}
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={handleSetNextNail}
+            disabled={nextNailNumber === null}
+          >
+            Set next nail {nextNailNumber ?? '-'}
+          </button>
+          <button
+            className="action-button"
+            type="button"
+            onClick={handleMakeCurrentLinePermanent}
+            disabled={!hasRenderableLine}
+          >
+            make line permanent
+          </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={handleSetFromCurrentTo}
+            disabled={lineTo === ''}
+          >
+            Set &apos;from&apos; {lineTo || '-'}
+          </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={handleAllOfTheAbove}
+            disabled={nextNailNumber === null}
+          >
+            all of the above
+          </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={handlePerform9000Steps}
+            disabled={
+              !isPerformingSteps &&
+              (
+                !imageCanvasRef.current ||
+                !imageSize ||
+                !hasValidFromIndex
+              )
+            }
+          >
+            {isPerformingSteps
+              ? `pause at ${savedNailSequence.length}`
+              : 'perform 9000 steps'}
+          </button>
+          <button
+            className="action-button action-button-secondary"
+            type="button"
+            onClick={() => {
+              setIsArtMode((currentValue) => !currentValue);
+              setHoveredPixel(null);
+            }}
+            disabled={isPerformingSteps}
+          >
+            {isArtMode ? 'switch to algorithm' : 'switch to art'}
+          </button>
+          <div className="panel-footer-actions">
+            <button
+              className="action-button action-button-secondary"
+              type="button"
+              onClick={handleResetImage}
+              disabled={!hasLoadedImage || isPerformingSteps}
+            >
+              reset
+            </button>
+            <button
+              className="action-button action-button-secondary"
+              type="button"
+              onClick={handleExportNailList}
+              disabled={savedNailSequence.length === 0}
+            >
+              export nail list
+            </button>
+          </div>
           <div className="brush-panel">
             <label className="checkbox-row">
               <input
@@ -1370,241 +1598,6 @@ function App() {
                 ? `${activeGroup.name}: ${activeGroup.pixelCount} pixels, value ${activeGroup.value.toFixed(2)}`
                 : 'No active group'}
             </p>
-          </div>
-
-          <label className="slider-control">
-            <span>Nails: {nailsCount}</span>
-            <input
-              type="range"
-              min="0"
-              max="300"
-              step="1"
-              value={nailsCount}
-              onChange={(event) => {
-                setNailsCount(clamp(Number(event.target.value), 0, 300));
-              }}
-            />
-          </label>
-
-          <div className="line-inputs">
-            <label className="line-input">
-              <span>From</span>
-              <input
-                type="range"
-                min="1"
-                max={Math.max(nailsCount, 1)}
-                step="1"
-                value={lineFrom === '' ? 1 : lineFrom}
-                onChange={(event) => setLineFrom(event.target.value)}
-              />
-              <input
-                type="number"
-                min="1"
-                max={Math.max(nailsCount, 1)}
-                value={lineFrom}
-                onChange={(event) => setLineFrom(event.target.value)}
-              />
-            </label>
-            <label className="line-input">
-              <span>To</span>
-              <input
-                type="range"
-                min="1"
-                max={Math.max(nailsCount, 1)}
-                step="1"
-                value={lineTo === '' ? 1 : lineTo}
-                onChange={(event) => setLineTo(event.target.value)}
-              />
-              <input
-                type="number"
-                min="1"
-                max={Math.max(nailsCount, 1)}
-                value={lineTo}
-                onChange={(event) => setLineTo(event.target.value)}
-              />
-            </label>
-          </div>
-          <button
-            className="action-button action-button-secondary"
-            type="button"
-            onClick={handleSetNextNail}
-            disabled={nextNailNumber === null}
-          >
-            Set next nail {nextNailNumber ?? '-'}
-          </button>
-          <button
-            className="action-button"
-            type="button"
-            onClick={handleMakeCurrentLinePermanent}
-            disabled={!hasRenderableLine}
-          >
-            make line permanent
-          </button>
-          <button
-            className="action-button action-button-secondary"
-            type="button"
-            onClick={handleSetFromCurrentTo}
-            disabled={lineTo === ''}
-          >
-            Set &apos;from&apos; {lineTo || '-'}
-          </button>
-          <button
-            className="action-button action-button-secondary"
-            type="button"
-            onClick={handleAllOfTheAbove}
-            disabled={nextNailNumber === null}
-          >
-            all of the above
-          </button>
-          <p className="line-darkness">
-            Average darkness: {averageLineDarknessDisplay}
-          </p>
-          {darknessSeries.length > 0 && (
-            <div className="darkness-chart">
-              <svg
-                viewBox={`0 0 ${graphWidth} ${graphHeight}`}
-                aria-label="Average darkness by target nail"
-              >
-                <line
-                  className="chart-axis"
-                  x1={graphPadding.left}
-                  y1={graphPadding.top}
-                  x2={graphPadding.left}
-                  y2={graphHeight - graphPadding.bottom}
-                />
-                <line
-                  className="chart-axis"
-                  x1={graphPadding.left}
-                  y1={graphHeight - graphPadding.bottom}
-                  x2={graphWidth - graphPadding.right}
-                  y2={graphHeight - graphPadding.bottom}
-                />
-                {darknessSeries.map((point, index) => {
-                  const barHeight = (point.darkness / 255) * graphInnerHeight;
-                  const x = graphPadding.left + index * barWidth;
-                  const y =
-                    graphHeight - graphPadding.bottom - barHeight;
-                  const isWithinHighlightDistance =
-                    hasHighlightDistance &&
-                    getCircularNailDistance(point.nail, fromIndex, nailsCount) <= highlightDistance;
-
-                  return (
-                    <rect
-                      key={`bar-${point.nail}`}
-                      className={[
-                        'chart-bar',
-                        point.nail === toIndex ? 'is-active' : '',
-                        isWithinHighlightDistance ? 'is-range-highlighted' : '',
-                      ].filter(Boolean).join(' ')}
-                      x={x}
-                      y={y}
-                      width={Math.max(barWidth - 0.2, 0.4)}
-                      height={barHeight}
-                    />
-                  );
-                })}
-                <text
-                  className="chart-label"
-                  x={graphPadding.left}
-                  y={graphHeight - 4}
-                >
-                  1
-                </text>
-                <text
-                  className="chart-label"
-                  x={graphWidth - graphPadding.right}
-                  y={graphHeight - 4}
-                  textAnchor="end"
-                >
-                  {nailsCount}
-                </text>
-                <text
-                  className="chart-label"
-                  x={10}
-                  y={graphPadding.top + 4}
-                >
-                  255
-                </text>
-                <text
-                  className="chart-label"
-                  x={14}
-                  y={graphHeight - graphPadding.bottom}
-                  dominantBaseline="ideographic"
-                >
-                  0
-                </text>
-              </svg>
-              {darkestNails.length > 0 && (
-                <p className="chart-minimum">
-                  Minimum darkness outside of red area: {Math.round(minimumDarkness)} at nail
-                  {darkestNails.length > 1 ? 's' : ''} {darkestNails.map((point) => point.nail).join(', ')}
-                </p>
-              )}
-              <label className="chart-range-input">
-                <span>min distance</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={highlightRange}
-                  onChange={(event) => setHighlightRange(event.target.value)}
-                />
-              </label>
-            </div>
-          )}
-          <label className="chart-range-input">
-            <span>line strength</span>
-            <input
-              type="number"
-              min="0"
-              value={lineStrength}
-              onChange={(event) => setLineStrength(event.target.value)}
-            />
-          </label>
-          <button
-            className="action-button action-button-secondary"
-            type="button"
-            onClick={handlePerform9000Steps}
-            disabled={
-              !isPerformingSteps &&
-              (
-                !imageCanvasRef.current ||
-                !imageSize ||
-                !hasValidFromIndex
-              )
-            }
-          >
-            {isPerformingSteps
-              ? `pause at ${savedNailSequence.length}`
-              : 'perform 9000 steps'}
-          </button>
-          <button
-            className="action-button action-button-secondary"
-            type="button"
-            onClick={() => {
-              setIsArtMode((currentValue) => !currentValue);
-              setHoveredPixel(null);
-            }}
-            disabled={isPerformingSteps}
-          >
-            {isArtMode ? 'switch to algorithm' : 'switch to art'}
-          </button>
-          <div className="panel-footer-actions">
-            <button
-              className="action-button action-button-secondary"
-              type="button"
-              onClick={handleResetImage}
-              disabled={!hasLoadedImage || isPerformingSteps}
-            >
-              reset
-            </button>
-            <button
-              className="action-button action-button-secondary"
-              type="button"
-              onClick={handleExportNailList}
-              disabled={savedNailSequence.length === 0}
-            >
-              export nail list
-            </button>
           </div>
         </div>
 
