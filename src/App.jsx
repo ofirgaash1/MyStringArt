@@ -10,7 +10,7 @@ const MIN_HIGHLIGHT_DISTANCE = 0;
 const MAX_HIGHLIGHT_DISTANCE = 50;
 const MIN_LINE_STRENGTH = 1;
 const MAX_LINE_STRENGTH = 50;
-const MIN_CONTRAST = 50;
+const MIN_CONTRAST = 0;
 const MAX_CONTRAST = 100;
 const DEFAULT_CONTRAST = 100;
 const MIN_BRUSH_RADIUS = 1;
@@ -99,6 +99,16 @@ function createPixelGroup(groupNumber) {
   };
 }
 
+function getNormalizedLineKey(firstNail, secondNail) {
+  if (!Number.isInteger(firstNail) || !Number.isInteger(secondNail)) {
+    return null;
+  }
+
+  const start = Math.min(firstNail, secondNail);
+  const end = Math.max(firstNail, secondNail);
+  return `${start}-${end}`;
+}
+
 function writeProcessedImageData(
   context,
   sourceImageData,
@@ -155,6 +165,7 @@ function App() {
   const [isArtMode, setIsArtMode] = useState(false);
   const [isPerformingSteps, setIsPerformingSteps] = useState(false);
   const [hiddenPreviewLineKey, setHiddenPreviewLineKey] = useState(null);
+  const [isMinimumDarknessExpanded, setIsMinimumDarknessExpanded] = useState(false);
   const [scale, setScale] = useState(INITIAL_IMAGE_SCALE_MULTIPLIER);
   const [previewScale, setPreviewScale] = useState(100);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -179,6 +190,7 @@ function App() {
   const pixelWeightMapRef = useRef(null);
   const linePixelsCacheRef = useRef(new Map());
   const lineBoostMapRef = useRef(null);
+  const usedLineKeysRef = useRef(new Set());
   const pixelOwnerMapRef = useRef(null);
   const groupPixelsRef = useRef(new Map([[1, new Set()]]));
   const previewSize = previewRef.current?.clientWidth ?? 0;
@@ -339,6 +351,7 @@ function App() {
     pixelOwnerMapRef.current = null;
     pixelWeightMapRef.current = null;
     lineBoostMapRef.current = null;
+    usedLineKeysRef.current = new Set();
     originalImageDataRef.current = null;
     linePixelsCacheRef.current.clear();
     clearSelectionOverlay();
@@ -950,6 +963,10 @@ function App() {
     let selectedNail = null;
 
     for (const targetNail of nails) {
+      if (usedLineKeysRef.current.has(getNormalizedLineKey(originIndex, targetNail.number))) {
+        continue;
+      }
+
       if (
         hasHighlightDistance &&
         getCircularNailDistance(targetNail.number, originIndex, nailsCount) <= highlightDistance
@@ -1041,9 +1058,16 @@ function App() {
   };
 
   const handleMakeLinePermanent = (startIndex = fromIndex, endIndex = toIndex) => {
+    const lineKey = getNormalizedLineKey(startIndex, endIndex);
     const targetLinePixels = getLinePixelsForIndexes(startIndex, endIndex);
-    if (!imageCanvasRef.current || !imageSize || targetLinePixels.length === 0) {
-      return;
+    if (
+      !lineKey ||
+      usedLineKeysRef.current.has(lineKey) ||
+      !imageCanvasRef.current ||
+      !imageSize ||
+      targetLinePixels.length === 0
+    ) {
+      return false;
     }
 
     const lineDarknessStep = getLineDarknessStep();
@@ -1051,7 +1075,7 @@ function App() {
       willReadFrequently: true,
     });
     if (!context) {
-      return;
+      return false;
     }
 
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
@@ -1062,9 +1086,11 @@ function App() {
       lineDarknessStep,
       lineBoostMapRef.current,
     );
+    usedLineKeysRef.current.add(lineKey);
 
     context.putImageData(canvasImage, 0, 0);
     syncVisibleCanvas();
+    return true;
   };
 
   const handleMakeCurrentLinePermanent = () => {
@@ -1072,8 +1098,9 @@ function App() {
       return;
     }
 
-    handleMakeLinePermanent(fromIndex, toIndex);
-    setHiddenPreviewLineKey(`${fromIndex}-${toIndex}`);
+    if (handleMakeLinePermanent(fromIndex, toIndex)) {
+      setHiddenPreviewLineKey(getNormalizedLineKey(fromIndex, toIndex));
+    }
   };
 
   const handleAllOfTheAbove = () => {
@@ -1083,7 +1110,10 @@ function App() {
 
     const nextNailValue = String(nextNailNumber);
     setLineTo(nextNailValue);
-    handleMakeLinePermanent(fromIndex, nextNailNumber);
+    const didApplyLine = handleMakeLinePermanent(fromIndex, nextNailNumber);
+    if (!didApplyLine) {
+      return;
+    }
     setLineFrom(nextNailValue);
     setSavedNailSequence((currentSequence) => [...currentSequence, nextNailNumber]);
   };
@@ -1147,6 +1177,7 @@ function App() {
             break;
           }
 
+          usedLineKeysRef.current.add(getNormalizedLineKey(currentFromIndex, nextNail));
           frameNails.push(nextNail);
           currentFromIndex = nextNail;
           stepIndex += 1;
@@ -1238,11 +1269,14 @@ function App() {
     : [];
   const hasRenderableLine = linePixels.length > 1;
   const currentPreviewLineKey =
-    hasValidLine ? `${fromIndex}-${toIndex}` : null;
+    hasValidLine ? getNormalizedLineKey(fromIndex, toIndex) : null;
+  const isCurrentLineUsed =
+    currentPreviewLineKey !== null && usedLineKeysRef.current.has(currentPreviewLineKey);
   const shouldShowPreviewLine =
     lineStart &&
     lineEnd &&
-    currentPreviewLineKey !== hiddenPreviewLineKey;
+    currentPreviewLineKey !== hiddenPreviewLineKey &&
+    !isCurrentLineUsed;
 
   let averageLineDarkness = null;
   if (linePixels.length > 0 && imageData && imageSize) {
@@ -1254,12 +1288,16 @@ function App() {
   let darknessSeries = [];
   if (shouldComputeNextNail && imageData) {
     darknessSeries = nails.map((targetNail) => {
+      const isUsedLine = usedLineKeysRef.current.has(
+        getNormalizedLineKey(fromIndex, targetNail.number),
+      );
       const pixels = getLinePixelsForIndexes(fromIndex, targetNail.number);
       const weightedDarkness = getWeightedAverageDarkness(imageData, pixels);
 
       return {
         nail: targetNail.number,
-        darkness: weightedDarkness ?? 255,
+        darkness: isUsedLine ? 255 : weightedDarkness ?? 255,
+        isUsedLine,
       };
     });
   }
@@ -1278,9 +1316,10 @@ function App() {
     hasHighlightDistance
       ? darknessSeries.filter(
           (point) =>
+            !point.isUsedLine &&
             getCircularNailDistance(point.nail, fromIndex, nailsCount) > highlightDistance,
         )
-      : darknessSeries;
+      : darknessSeries.filter((point) => !point.isUsedLine);
   const minimumDarkness =
     eligibleDarknessSeries.length > 0
       ? Math.min(...eligibleDarknessSeries.map((point) => point.darkness))
@@ -1293,6 +1332,12 @@ function App() {
     shouldComputeNextNail && imageData
       ? darkestNails[0]?.nail ?? null
       : null;
+  const darkestNailsKey = darkestNails.map((point) => point.nail).join(',');
+
+  useEffect(() => {
+    setIsMinimumDarknessExpanded(false);
+  }, [minimumDarkness, darkestNailsKey]);
+
   const artLineSegments = isArtMode
     ? savedNailSequence.reduce((segments, nailNumber, index) => {
         const startNailNumber = index === 0 ? 1 : savedNailSequence[index - 1];
@@ -1330,6 +1375,7 @@ function App() {
     }
 
     lineBoostMapRef.current?.fill(0);
+    usedLineKeysRef.current = new Set();
     writeProcessedImageData(
       context,
       originalImageDataRef.current,
@@ -1553,8 +1599,24 @@ function App() {
               </svg>
               {darkestNails.length > 0 && (
                 <p className="chart-minimum">
-                  Minimum darkness outside of red area: {Math.round(minimumDarkness)} at nail
-                  {darkestNails.length > 1 ? 's' : ''} {darkestNails.map((point) => point.nail).join(', ')}
+                  {darkestNails.length > 1 && !isMinimumDarknessExpanded ? (
+                    <>
+                      Minimum darkness {Math.round(minimumDarkness)} at{' '}
+                      <button
+                        className="chart-minimum-toggle"
+                        type="button"
+                        onClick={() => setIsMinimumDarknessExpanded(true)}
+                      >
+                        many
+                      </button>{' '}
+                      nails
+                    </>
+                  ) : (
+                    <>
+                      Minimum darkness outside of red area: {Math.round(minimumDarkness)} at nail
+                      {darkestNails.length > 1 ? 's' : ''} {darkestNails.map((point) => point.nail).join(', ')}
+                    </>
+                  )}
                 </p>
               )}
             </div>
@@ -1571,7 +1633,7 @@ function App() {
             className="action-button"
             type="button"
             onClick={handleMakeCurrentLinePermanent}
-            disabled={!hasRenderableLine}
+            disabled={!hasRenderableLine || isCurrentLineUsed}
           >
             make line permanent
           </button>

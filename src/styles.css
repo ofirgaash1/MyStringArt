@@ -277,6 +277,17 @@ label {
   font-size: 0.92rem;
 }
 
+.chart-minimum-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .workspace {
   position: relative;
   z-index: 1;
