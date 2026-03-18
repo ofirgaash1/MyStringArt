@@ -30,7 +30,8 @@ label {
 .app-shell {
   display: grid;
   grid-template-columns: clamp(360px, 30vw, 460px) 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -38,10 +39,14 @@ label {
   z-index: 2;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   padding: 22px 18px;
   background: rgba(255, 255, 255, 0.82);
   border-right: 1px solid rgba(148, 163, 184, 0.35);
   backdrop-filter: blur(18px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .sidebar h1,
@@ -66,6 +71,7 @@ label {
   flex: 1;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
 }
 
 .upload-field span {
@@ -446,11 +452,15 @@ label {
 @media (max-width: 860px) {
   .app-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
   .sidebar {
     border-right: 0;
     border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    overflow: visible;
   }
 
   .workspace {
