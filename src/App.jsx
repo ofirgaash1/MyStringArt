@@ -4,7 +4,8 @@ const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
 const MIN_PREVIEW_SCALE = 50;
 const MAX_PREVIEW_SCALE = 1000;
-const INITIAL_IMAGE_SCALE_MULTIPLIER = 1.5;
+const INITIAL_PREVIEW_SCALE = 150;
+const INITIAL_IMAGE_SCALE_MULTIPLIER = 1;
 const DEFAULT_LINE_STRENGTH = 30;
 const MIN_HIGHLIGHT_DISTANCE = 0;
 const MAX_HIGHLIGHT_DISTANCE = 50;
@@ -167,9 +168,9 @@ function App() {
   const [isStepLoopPaused, setIsStepLoopPaused] = useState(false);
   const [hiddenPreviewLineKey, setHiddenPreviewLineKey] = useState(null);
   const [isMinimumDarknessExpanded, setIsMinimumDarknessExpanded] = useState(false);
-  const [scale, setScale] = useState(INITIAL_IMAGE_SCALE_MULTIPLIER);
-  const [previewScale, setPreviewScale] = useState(100);
-  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
+  const [imageScale, setImageScale] = useState(INITIAL_IMAGE_SCALE_MULTIPLIER);
+  const [previewScale, setPreviewScale] = useState(INITIAL_PREVIEW_SCALE);
+  const [imageCenter, setImageCenter] = useState({ x: 0, y: 0 });
   const [previewOffset, setPreviewOffset] = useState({ x: 0, y: 0 });
   const [dragState, setDragState] = useState(null);
   const [hoveredPixel, setHoveredPixel] = useState(null);
@@ -183,6 +184,10 @@ function App() {
   const imageRef = useRef(null);
   const selectionOverlayRef = useRef(null);
   const imageCanvasRef = useRef(null);
+  const imageScaleRef = useRef(INITIAL_IMAGE_SCALE_MULTIPLIER);
+  const previewScaleRef = useRef(INITIAL_PREVIEW_SCALE);
+  const imageCenterRef = useRef({ x: 0, y: 0 });
+  const previewOffsetRef = useRef({ x: 0, y: 0 });
   const originalImageDataRef = useRef(null);
   const sourceUrlRef = useRef(null);
   const animationFrameRef = useRef(null);
@@ -217,14 +222,30 @@ function App() {
   }, [lineFrom, lineTo]);
 
   useEffect(() => {
+    imageScaleRef.current = imageScale;
+  }, [imageScale]);
+
+  useEffect(() => {
+    previewScaleRef.current = previewScale;
+  }, [previewScale]);
+
+  useEffect(() => {
+    imageCenterRef.current = imageCenter;
+  }, [imageCenter]);
+
+  useEffect(() => {
+    previewOffsetRef.current = previewOffset;
+  }, [previewOffset]);
+
+  useEffect(() => {
     linePixelsCacheRef.current.clear();
   }, [
     imageSize,
     nailsCount,
     previewSize,
-    scale,
-    imageOffset.x,
-    imageOffset.y,
+    imageScale,
+    imageCenter.x,
+    imageCenter.y,
   ]);
 
   const syncVisibleCanvas = () => {
@@ -341,8 +362,12 @@ function App() {
     const nextUrl = URL.createObjectURL(file);
     sourceUrlRef.current = nextUrl;
     setImageName(file.name);
-    setImageOffset({ x: 0, y: 0 });
-    setPreviewOffset({ x: 0, y: 0 });
+    imageCenterRef.current = { x: 0, y: 0 };
+    setImageCenter(imageCenterRef.current);
+    previewScaleRef.current = INITIAL_PREVIEW_SCALE;
+    setPreviewScale(INITIAL_PREVIEW_SCALE);
+    previewOffsetRef.current = { x: 0, y: 0 };
+    setPreviewOffset(previewOffsetRef.current);
     setHoveredPixel(null);
     setIsStepLoopPaused(false);
     setHiddenPreviewLineKey(null);
@@ -367,11 +392,17 @@ function App() {
       );
 
       setImageSize({ width: img.width, height: img.height });
-      setScale(clamp(
+      imageScaleRef.current = clamp(
         fittedScale * INITIAL_IMAGE_SCALE_MULTIPLIER,
         MIN_SCALE,
         MAX_SCALE,
-      ));
+      );
+      setImageScale(imageScaleRef.current);
+      imageCenterRef.current = {
+        x: img.width / 2,
+        y: img.height / 2,
+      };
+      setImageCenter(imageCenterRef.current);
 
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
@@ -409,14 +440,14 @@ function App() {
 
   const getPreviewFramePoint = (clientX, clientY) => {
     const previewRect = previewRef.current?.getBoundingClientRect();
-    if (!previewRect) {
+    if (!previewRect || previewSize <= 0) {
       return null;
     }
 
     return {
       previewRect,
-      x: clientX - previewRect.left,
-      y: clientY - previewRect.top,
+      x: ((clientX - previewRect.left) / previewRect.width) * previewSize,
+      y: ((clientY - previewRect.top) / previewRect.height) * previewSize,
     };
   };
 
@@ -426,24 +457,24 @@ function App() {
       return false;
     }
 
-    const centerX = previewPoint.previewRect.width / 2;
-    const centerY = previewPoint.previewRect.height / 2;
-    const radius = Math.min(previewPoint.previewRect.width, previewPoint.previewRect.height) / 2;
+    const centerX = previewSize / 2;
+    const centerY = previewSize / 2;
+    const radius = previewSize / 2;
     return (
       Math.hypot(previewPoint.x - centerX, previewPoint.y - centerY) <= radius
     );
   };
 
   const getImagePointFromClientPosition = (clientX, clientY) => {
-    const imageRect = imageRef.current?.getBoundingClientRect();
-    if (!imageRect) {
+    const previewPoint = getPreviewFramePoint(clientX, clientY);
+    if (!previewPoint || !imageSize || imageScale <= 0) {
       return null;
     }
 
     const imageX =
-      ((clientX - imageRect.left) / imageRect.width) * imageSize.width;
+      imageCenter.x + (previewPoint.x - previewSize / 2) / imageScale;
     const imageY =
-      ((clientY - imageRect.top) / imageRect.height) * imageSize.height;
+      imageCenter.y + (previewPoint.y - previewSize / 2) / imageScale;
 
     if (
       imageX < 0 ||
@@ -455,7 +486,7 @@ function App() {
     }
 
     return {
-      imageRect,
+      previewRect: previewPoint.previewRect,
       imageX,
       imageY,
       pixelColumn: Math.floor(imageX),
@@ -469,8 +500,8 @@ function App() {
     }
 
     return {
-      x: previewSize / 2 + imageOffset.x + ((pixelX + 0.5) - imageSize.width / 2) * scale,
-      y: previewSize / 2 + imageOffset.y + ((pixelY + 0.5) - imageSize.height / 2) * scale,
+      x: previewSize / 2 + ((pixelX + 0.5) - imageCenter.x) * imageScale,
+      y: previewSize / 2 + ((pixelY + 0.5) - imageCenter.y) * imageScale,
     };
   };
 
@@ -519,13 +550,15 @@ function App() {
       x: event.clientX,
       y: event.clientY,
       left:
-        imagePoint.imageRect.left +
-        (imagePoint.pixelColumn / imageSize.width) * imagePoint.imageRect.width,
+        imagePoint.previewRect.left +
+        (previewSize / 2 + (imagePoint.pixelColumn - imageCenter.x) * imageScale) *
+          (imagePoint.previewRect.width / previewSize),
       top:
-        imagePoint.imageRect.top +
-        (imagePoint.pixelRow / imageSize.height) * imagePoint.imageRect.height,
-      width: imagePoint.imageRect.width / imageSize.width,
-      height: imagePoint.imageRect.height / imageSize.height,
+        imagePoint.previewRect.top +
+        (previewSize / 2 + (imagePoint.pixelRow - imageCenter.y) * imageScale) *
+          (imagePoint.previewRect.height / previewSize),
+      width: imageScale * (imagePoint.previewRect.width / previewSize),
+      height: imageScale * (imagePoint.previewRect.height / previewSize),
       pixelX: imagePoint.pixelColumn,
       pixelY: imagePoint.pixelRow,
       r: pixel[0],
@@ -750,7 +783,7 @@ function App() {
       setDragState({
         mode: 'preview',
         pointerStart: { x: event.clientX, y: event.clientY },
-        startOffset: previewOffset,
+        startOffset: previewOffsetRef.current,
       });
       return;
     }
@@ -758,7 +791,7 @@ function App() {
     setDragState({
       mode: 'image',
       pointerStart: { x: event.clientX, y: event.clientY },
-      startOffset: imageOffset,
+      startCenter: imageCenterRef.current,
     });
   };
 
@@ -775,22 +808,28 @@ function App() {
     }
 
     if (dragState.mode === 'preview') {
-      setPreviewOffset({
+      const nextPreviewOffset = {
         x: dragState.startOffset.x + event.clientX - dragState.pointerStart.x,
         y: dragState.startOffset.y + event.clientY - dragState.pointerStart.y,
-      });
+      };
+      previewOffsetRef.current = nextPreviewOffset;
+      setPreviewOffset(nextPreviewOffset);
       updateHoveredPixel(event);
       return;
     }
 
-    setImageOffset({
+    const nextImageCenter = {
       x:
-        dragState.startOffset.x +
-        (event.clientX - dragState.pointerStart.x) / (previewScale / 100),
+        dragState.startCenter.x -
+        (event.clientX - dragState.pointerStart.x) /
+          ((previewScaleRef.current / 100) * imageScaleRef.current),
       y:
-        dragState.startOffset.y +
-        (event.clientY - dragState.pointerStart.y) / (previewScale / 100),
-    });
+        dragState.startCenter.y -
+        (event.clientY - dragState.pointerStart.y) /
+          ((previewScaleRef.current / 100) * imageScaleRef.current),
+    };
+    imageCenterRef.current = nextImageCenter;
+    setImageCenter(nextImageCenter);
     updateHoveredPixel(event);
   };
 
@@ -804,53 +843,33 @@ function App() {
   const handleWheel = useCallback((event) => {
     event.preventDefault();
     const previewRect = previewRef.current?.getBoundingClientRect();
-    if (!previewRect) {
+    if (!previewRect || previewSize <= 0) {
       return;
     }
 
-    const imageRect = imageRef.current?.getBoundingClientRect() ?? null;
-    const zoomFactor = event.deltaY < 0 ? 1.08 : 0.92;
+    const zoomFactor = Math.exp(-event.deltaY * 0.0015);
 
     if (!event.shiftKey) {
+      const currentPreviewScale = previewScaleRef.current;
       const nextPreviewScale = Math.max(
-        Math.round(previewScale * zoomFactor),
+        Math.round(currentPreviewScale * zoomFactor),
         MIN_PREVIEW_SCALE,
       );
-      const previewRatio = nextPreviewScale / previewScale;
-
-      if (!imageRect || !hasLoadedImage) {
-        const previewCenterX = previewRect.left + previewRect.width / 2;
-        const previewCenterY = previewRect.top + previewRect.height / 2;
-
-        setPreviewOffset((currentOffset) => ({
-          x: currentOffset.x + (1 - previewRatio) * (event.clientX - previewCenterX),
-          y: currentOffset.y + (1 - previewRatio) * (event.clientY - previewCenterY),
-        }));
-        setPreviewScale(nextPreviewScale);
-        return;
-      }
-
-      const imageCenterX = imageRect.left + imageRect.width / 2;
-      const imageCenterY = imageRect.top + imageRect.height / 2;
+      const previewRatio = nextPreviewScale / currentPreviewScale;
       const previewCenterX = previewRect.left + previewRect.width / 2;
       const previewCenterY = previewRect.top + previewRect.height / 2;
-      const cursorRatioX = (event.clientX - imageRect.left) / imageRect.width;
-      const cursorRatioY = (event.clientY - imageRect.top) / imageRect.height;
-      const nextImageWidth = imageRect.width * previewRatio;
-      const nextImageHeight = imageRect.height * previewRatio;
-      const predictedCenterX =
-        previewCenterX + (imageCenterX - previewCenterX) * previewRatio;
-      const predictedCenterY =
-        previewCenterY + (imageCenterY - previewCenterY) * previewRatio;
-      const predictedLeft = predictedCenterX - nextImageWidth / 2;
-      const predictedTop = predictedCenterY - nextImageHeight / 2;
-      const desiredLeft = event.clientX - cursorRatioX * nextImageWidth;
-      const desiredTop = event.clientY - cursorRatioY * nextImageHeight;
 
-      setPreviewOffset((currentOffset) => ({
-        x: currentOffset.x + (desiredLeft - predictedLeft),
-        y: currentOffset.y + (desiredTop - predictedTop),
-      }));
+      const nextPreviewOffset = {
+        x:
+          previewOffsetRef.current.x +
+          (1 - previewRatio) * (event.clientX - previewCenterX),
+        y:
+          previewOffsetRef.current.y +
+          (1 - previewRatio) * (event.clientY - previewCenterY),
+      };
+      previewOffsetRef.current = nextPreviewOffset;
+      previewScaleRef.current = nextPreviewScale;
+      setPreviewOffset(nextPreviewOffset);
       setPreviewScale(nextPreviewScale);
       return;
     }
@@ -859,26 +878,28 @@ function App() {
       return;
     }
 
-    if (!imageRect) {
+    const previewPoint = getPreviewFramePoint(event.clientX, event.clientY);
+    if (!previewPoint) {
       return;
     }
 
-    const nextScale = clamp(scale * zoomFactor, MIN_SCALE, MAX_SCALE);
-    const imageRatio = nextScale / scale;
-    const imageCenterX = imageRect.left + imageRect.width / 2;
-    const imageCenterY = imageRect.top + imageRect.height / 2;
-    const nextCenterX =
-      event.clientX - imageRatio * (event.clientX - imageCenterX);
-    const nextCenterY =
-      event.clientY - imageRatio * (event.clientY - imageCenterY);
-    const previewScreenScale = previewScale / 100;
+    const currentImageScale = imageScaleRef.current;
+    const currentImageCenter = imageCenterRef.current;
+    const nextImageScale = clamp(currentImageScale * zoomFactor, MIN_SCALE, MAX_SCALE);
+    const anchorImageX =
+      currentImageCenter.x + (previewPoint.x - previewSize / 2) / currentImageScale;
+    const anchorImageY =
+      currentImageCenter.y + (previewPoint.y - previewSize / 2) / currentImageScale;
 
-    setImageOffset((currentOffset) => ({
-      x: currentOffset.x + (nextCenterX - imageCenterX) / previewScreenScale,
-      y: currentOffset.y + (nextCenterY - imageCenterY) / previewScreenScale,
-    }));
-    setScale(nextScale);
-  }, [hasLoadedImage, previewScale, scale]);
+    const nextImageCenter = {
+      x: anchorImageX - (previewPoint.x - previewSize / 2) / nextImageScale,
+      y: anchorImageY - (previewPoint.y - previewSize / 2) / nextImageScale,
+    };
+    imageCenterRef.current = nextImageCenter;
+    imageScaleRef.current = nextImageScale;
+    setImageCenter(nextImageCenter);
+    setImageScale(nextImageScale);
+  }, [hasLoadedImage, previewSize]);
 
   useEffect(() => {
     const previewElement = previewRef.current;
@@ -926,17 +947,13 @@ function App() {
     const endPreviewX = (endNail.cx / 100) * previewSize;
     const endPreviewY = (endNail.cy / 100) * previewSize;
     const startImageX =
-      (startPreviewX - previewSize / 2 - imageOffset.x) / scale +
-      imageSize.width / 2;
+      imageCenter.x + (startPreviewX - previewSize / 2) / imageScale;
     const startImageY =
-      (startPreviewY - previewSize / 2 - imageOffset.y) / scale +
-      imageSize.height / 2;
+      imageCenter.y + (startPreviewY - previewSize / 2) / imageScale;
     const endImageX =
-      (endPreviewX - previewSize / 2 - imageOffset.x) / scale +
-      imageSize.width / 2;
+      imageCenter.x + (endPreviewX - previewSize / 2) / imageScale;
     const endImageY =
-      (endPreviewY - previewSize / 2 - imageOffset.y) / scale +
-      imageSize.height / 2;
+      imageCenter.y + (endPreviewY - previewSize / 2) / imageScale;
 
     const linePixels = rasterizeLinePixels(
       startImageX,
@@ -1210,7 +1227,11 @@ function App() {
   };
 
   const imageStyle = {
-    transform: `translate(-50%, -50%) translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${scale})`,
+    top: 0,
+    left: 0,
+    width: imageSize ? `${imageSize.width * imageScale}px` : '0px',
+    height: imageSize ? `${imageSize.height * imageScale}px` : '0px',
+    transform: `translate(${previewSize / 2 - imageCenter.x * imageScale}px, ${previewSize / 2 - imageCenter.y * imageScale}px)`,
     cursor:
       isBrushMode && !isArtMode
         ? 'crosshair'

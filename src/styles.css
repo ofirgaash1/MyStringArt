@@ -332,8 +332,8 @@ label {
 
 .preview-image {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 0;
+  left: 0;
   max-width: none;
   user-select: none;
   transform-origin: center center;
@@ -343,8 +343,8 @@ label {
 
 .line-pixels-layer {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 0;
+  left: 0;
   max-width: none;
   pointer-events: none;
   transform-origin: center center;
@@ -353,8 +353,8 @@ label {
 
 .brush-selection-layer {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 0;
+  left: 0;
   max-width: none;
   pointer-events: none;
   transform-origin: center center;
