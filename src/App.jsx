@@ -164,6 +164,7 @@ function App() {
   const [savedNailSequence, setSavedNailSequence] = useState([]);
   const [isArtMode, setIsArtMode] = useState(false);
   const [isPerformingSteps, setIsPerformingSteps] = useState(false);
+  const [isStepLoopPaused, setIsStepLoopPaused] = useState(false);
   const [hiddenPreviewLineKey, setHiddenPreviewLineKey] = useState(null);
   const [isMinimumDarknessExpanded, setIsMinimumDarknessExpanded] = useState(false);
   const [scale, setScale] = useState(INITIAL_IMAGE_SCALE_MULTIPLIER);
@@ -343,6 +344,7 @@ function App() {
     setImageOffset({ x: 0, y: 0 });
     setPreviewOffset({ x: 0, y: 0 });
     setHoveredPixel(null);
+    setIsStepLoopPaused(false);
     setHiddenPreviewLineKey(null);
     setPixelGroups([createPixelGroup(1)]);
     setActiveGroupId('group-1');
@@ -1141,6 +1143,7 @@ function App() {
     let stepIndex = 0;
 
     pauseRequestedRef.current = false;
+    setIsStepLoopPaused(false);
     setIsPerformingSteps(true);
     setHoveredPixel(null);
 
@@ -1195,11 +1198,13 @@ function App() {
         }
       }
     } finally {
+      const didPause = pauseRequestedRef.current;
       pauseRequestedRef.current = false;
       if (isMountedRef.current) {
         context.putImageData(canvasImage, 0, 0);
         syncVisibleCanvas();
         setIsPerformingSteps(false);
+        setIsStepLoopPaused(didPause);
       }
     }
   };
@@ -1386,6 +1391,7 @@ function App() {
     );
     syncVisibleCanvas();
     setSavedNailSequence([]);
+    setIsStepLoopPaused(false);
     setHiddenPreviewLineKey(currentPreviewLineKey);
     setHoveredPixel(null);
   };
@@ -1651,7 +1657,7 @@ function App() {
             onClick={handleAllOfTheAbove}
             disabled={nextNailNumber === null}
           >
-            all of the above
+            all of the above once
           </button>
           <button
             className="action-button action-button-secondary"
@@ -1668,7 +1674,9 @@ function App() {
           >
             {isPerformingSteps
               ? `pause at ${savedNailSequence.length}`
-              : 'perform 9000 steps'}
+              : isStepLoopPaused
+                ? `continue (${savedNailSequence.length})`
+                : 'loop all of the above'}
           </button>
           <button
             className="action-button action-button-secondary"
