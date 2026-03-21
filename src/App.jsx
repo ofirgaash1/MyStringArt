@@ -161,7 +161,7 @@ function clonePalettePreset(preset) {
   };
 }
 
-function getNearestPaletteColor(red, green, blue, paletteColors) {
+function getNearestPaletteMatch(red, green, blue, paletteColors) {
   let closestColor = null;
   let minimumDistance = Infinity;
 
@@ -177,7 +177,7 @@ function getNearestPaletteColor(red, green, blue, paletteColors) {
 
     if (distance < minimumDistance) {
       minimumDistance = distance;
-      closestColor = color.rgb;
+      closestColor = color;
     }
   }
 
@@ -191,7 +191,7 @@ function createPalettePreviewImageData(sourceImageData, paletteColors) {
 
   const nextData = new Uint8ClampedArray(sourceImageData.data);
   for (let offset = 0; offset < nextData.length; offset += 4) {
-    const nearestColor = getNearestPaletteColor(
+    const nearestColor = getNearestPaletteMatch(
       nextData[offset],
       nextData[offset + 1],
       nextData[offset + 2],
@@ -201,12 +201,39 @@ function createPalettePreviewImageData(sourceImageData, paletteColors) {
       continue;
     }
 
-    nextData[offset] = nearestColor.r;
-    nextData[offset + 1] = nearestColor.g;
-    nextData[offset + 2] = nearestColor.b;
+    nextData[offset] = nearestColor.rgb.r;
+    nextData[offset + 1] = nearestColor.rgb.g;
+    nextData[offset + 2] = nearestColor.rgb.b;
   }
 
   return new ImageData(nextData, sourceImageData.width, sourceImageData.height);
+}
+
+function countPixelsByNearestPaletteColor(sourceImageData, paletteColors) {
+  if (!sourceImageData || paletteColors.length === 0) {
+    return [];
+  }
+
+  const colorCounts = new Map(paletteColors.map((color) => [color.id, 0]));
+
+  for (let offset = 0; offset < sourceImageData.data.length; offset += 4) {
+    const nearestColor = getNearestPaletteMatch(
+      sourceImageData.data[offset],
+      sourceImageData.data[offset + 1],
+      sourceImageData.data[offset + 2],
+      paletteColors,
+    );
+    if (!nearestColor) {
+      continue;
+    }
+
+    colorCounts.set(nearestColor.id, (colorCounts.get(nearestColor.id) ?? 0) + 1);
+  }
+
+  return paletteColors.map((color) => ({
+    ...color,
+    pixelCount: colorCounts.get(color.id) ?? 0,
+  }));
 }
 
 function drawImageDataToCanvas(canvas, imageData) {
@@ -289,7 +316,7 @@ function App() {
   const [pixelGroups, setPixelGroups] = useState([createPixelGroup(1)]);
   const [activeGroupId, setActiveGroupId] = useState('group-1');
   const [nextGroupNumber, setNextGroupNumber] = useState(2);
-  const [isMulticolorLabEnabled, setIsMulticolorLabEnabled] = useState(false);
+  const [isMulticolorLabEnabled, setIsMulticolorLabEnabled] = useState(true);
   const [multicolorDebugView, setMulticolorDebugView] = useState('original');
   const [multicolorPalettePresetId, setMulticolorPalettePresetId] = useState(
     MULTICOLOR_PALETTE_PRESETS[0].id,
@@ -298,6 +325,7 @@ function App() {
     clonePalettePreset(MULTICOLOR_PALETTE_PRESETS[0]).colors,
   );
   const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(false);
+  const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -379,6 +407,9 @@ function App() {
       rgb: hexToRgb(color.hex),
     }))
     .filter((color) => color.rgb);
+  const multicolorPalettePixelCountMap = new Map(
+    multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
+  );
   const isPalettePreviewVisible =
     isMulticolorLabEnabled &&
     isPalettePreviewEnabled &&
@@ -461,6 +492,20 @@ function App() {
     );
     drawImageDataToCanvas(paletteComparisonCanvasRef.current, palettePreviewImage);
   }, [shouldShowPaletteComparison, enabledPalettePreviewColors]);
+
+  useEffect(() => {
+    if (!originalImageDataRef.current || enabledPalettePreviewColors.length === 0) {
+      setMulticolorPalettePixelCounts([]);
+      return;
+    }
+
+    setMulticolorPalettePixelCounts(
+      countPixelsByNearestPaletteColor(
+        originalImageDataRef.current,
+        enabledPalettePreviewColors,
+      ),
+    );
+  }, [imageName, imageSize, multicolorPaletteColors]);
 
   const clearSelectionOverlay = () => {
     if (!selectionOverlayRef.current || !imageSize) {
@@ -2096,7 +2141,7 @@ function App() {
                     {multicolorPaletteColors.map((color) => (
                       <label
                         key={color.id}
-                        className={`multicolor-palette-item ${color.enabled ? '' : 'is-disabled'}`.trim()}
+                        className={`multicolor-palette-row ${color.enabled ? '' : 'is-disabled'}`.trim()}
                       >
                         <input
                           type="checkbox"
@@ -2117,9 +2162,15 @@ function App() {
                         <span
                           className="multicolor-palette-swatch"
                           style={{ backgroundColor: color.hex }}
+                          aria-label={color.label}
+                          title={color.label}
                         />
-                        <span className="multicolor-palette-name">{color.label}</span>
                         <span className="multicolor-palette-value">{color.hex}</span>
+                        <span className="multicolor-palette-count-value">
+                          {originalImageDataRef.current
+                            ? `${(multicolorPalettePixelCountMap.get(color.id) ?? 0).toLocaleString()} px`
+                            : '-'}
+                        </span>
                       </label>
                     ))}
                   </div>
