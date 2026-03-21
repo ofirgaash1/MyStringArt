@@ -107,6 +107,70 @@ label {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.multicolor-lab {
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.92), rgba(255, 255, 255, 0.82));
+}
+
+.multicolor-lab-header {
+  display: grid;
+  gap: 4px;
+}
+
+.multicolor-lab-header h2 {
+  margin: 0;
+}
+
+.multicolor-lab-header p {
+  color: #7c2d12;
+  font-size: 0.92rem;
+}
+
+.multicolor-lab-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(194, 65, 12, 0.14);
+}
+
+.multicolor-lab-placeholder {
+  padding: 10px;
+  border: 1px dashed rgba(194, 65, 12, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.multicolor-lab-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #9a3412;
+}
+
+.multicolor-lab-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.multicolor-lab-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(251, 146, 60, 0.16);
+  color: #9a3412;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.multicolor-lab-note {
+  color: #7c2d12;
+  font-size: 0.9rem;
+}
+
 .brush-radius-control {
   margin-top: 8px;
 }

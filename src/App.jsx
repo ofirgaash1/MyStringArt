@@ -179,6 +179,7 @@ function App() {
   const [pixelGroups, setPixelGroups] = useState([createPixelGroup(1)]);
   const [activeGroupId, setActiveGroupId] = useState('group-1');
   const [nextGroupNumber, setNextGroupNumber] = useState(2);
+  const [isMulticolorLabEnabled, setIsMulticolorLabEnabled] = useState(false);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -1841,6 +1842,52 @@ function App() {
                 ? `${activeGroup.name}: ${activeGroup.pixelCount} pixels, value ${activeGroup.value.toFixed(2)}`
                 : 'No active group'}
             </p>
+          </div>
+          <div className="multicolor-lab">
+            <div className="multicolor-lab-header">
+              <h2>Multicolor lab</h2>
+              <p>
+                Isolated staging area for the slow multicolor port. Nothing here affects the
+                preview or solver yet.
+              </p>
+            </div>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={isMulticolorLabEnabled}
+                onChange={(event) => setIsMulticolorLabEnabled(event.target.checked)}
+              />
+              <span>Enable multicolor lab</span>
+            </label>
+            {isMulticolorLabEnabled && (
+              <div className="multicolor-lab-body">
+                <label className="checkbox-row multicolor-lab-placeholder">
+                  <input
+                    type="checkbox"
+                    disabled
+                  />
+                  <span>Quantized preview placeholder</span>
+                </label>
+                <div className="multicolor-lab-placeholder">
+                  <span className="multicolor-lab-label">Palette placeholder</span>
+                  <div className="multicolor-lab-chip-row" aria-hidden="true">
+                    <span className="multicolor-lab-chip">preset A</span>
+                    <span className="multicolor-lab-chip">preset B</span>
+                    <span className="multicolor-lab-chip">custom later</span>
+                  </div>
+                </div>
+                <label className="checkbox-row multicolor-lab-placeholder">
+                  <input
+                    type="checkbox"
+                    disabled
+                  />
+                  <span>Mask preview placeholder</span>
+                </label>
+                <p className="multicolor-lab-note">
+                  Milestone 01 only adds the lab shell and a master kill switch.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
