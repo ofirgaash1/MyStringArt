@@ -351,6 +351,60 @@ function createPaletteMaskImageData(
   return new ImageData(nextData, quantizedImageData.width, quantizedImageData.height);
 }
 
+function blurMaskImageData(sourceImageData, radius = 0) {
+  if (!sourceImageData || radius <= 0) {
+    return sourceImageData;
+  }
+
+  const { width, height, data } = sourceImageData;
+  const sourceValues = new Float32Array(width * height);
+  for (let index = 0, offset = 0; index < sourceValues.length; index += 1, offset += 4) {
+    sourceValues[index] = data[offset];
+  }
+
+  const horizontalBlur = new Float32Array(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let total = 0;
+      let count = 0;
+      for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
+        const sampleX = x + offsetX;
+        if (sampleX < 0 || sampleX >= width) {
+          continue;
+        }
+        total += sourceValues[y * width + sampleX];
+        count += 1;
+      }
+      horizontalBlur[y * width + x] = count > 0 ? total / count : sourceValues[y * width + x];
+    }
+  }
+
+  const nextData = new Uint8ClampedArray(data.length);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let total = 0;
+      let count = 0;
+      for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
+        const sampleY = y + offsetY;
+        if (sampleY < 0 || sampleY >= height) {
+          continue;
+        }
+        total += horizontalBlur[sampleY * width + x];
+        count += 1;
+      }
+
+      const blurredValue = Math.round(count > 0 ? total / count : horizontalBlur[y * width + x]);
+      const pixelOffset = (y * width + x) * 4;
+      nextData[pixelOffset] = blurredValue;
+      nextData[pixelOffset + 1] = blurredValue;
+      nextData[pixelOffset + 2] = blurredValue;
+      nextData[pixelOffset + 3] = 255;
+    }
+  }
+
+  return new ImageData(nextData, width, height);
+}
+
 function countPixelsByNearestPaletteColor(sourceImageData, paletteColors) {
   if (!sourceImageData || paletteColors.length === 0) {
     return [];
@@ -473,6 +527,7 @@ function App() {
     MULTICOLOR_PALETTE_PRESETS[0].colors[0].id,
   );
   const [isActivePaletteColorOnlyEnabled, setIsActivePaletteColorOnlyEnabled] = useState(false);
+  const [maskBlurRadius, setMaskBlurRadius] = useState(0);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -623,7 +678,7 @@ function App() {
         activePaletteColorId,
       );
       if (paletteMaskImage) {
-        visibleContext.putImageData(paletteMaskImage, 0, 0);
+        visibleContext.putImageData(blurMaskImageData(paletteMaskImage, maskBlurRadius), 0, 0);
       }
       return;
     }
@@ -652,6 +707,7 @@ function App() {
     multicolorPaletteColors,
     activePaletteColorId,
     isActivePaletteColorOnlyEnabled,
+    maskBlurRadius,
   ]);
 
   useEffect(() => {
@@ -2444,10 +2500,27 @@ function App() {
                   Quantized palette preview appears in future quantized. Black/white masks appear
                   in future mask. Current quantization source: {palettePreviewModeLabel}.
                 </p>
+                <div className="multicolor-lab-placeholder">
+                  <label className="slider-control">
+                    <span>Mask blur radius: {maskBlurRadius}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="12"
+                      step="1"
+                      value={maskBlurRadius}
+                      onChange={(event) => {
+                        setMaskBlurRadius(Math.max(0, Number(event.target.value) || 0));
+                      }}
+                      disabled={!isPaletteMaskVisible}
+                    />
+                  </label>
+                </div>
                 {isPaletteMaskVisible && (
                   <p className="multicolor-lab-helper">
                     Showing a black/white mask for the active palette color using the current
-                    {` ${palettePreviewModeLabel.toLowerCase()}`} source.
+                    {` ${palettePreviewModeLabel.toLowerCase()}`} source. Set the blur radius to{' '}
+                    <code>0</code> for the raw mask and increase it to preview a softened version.
                   </p>
                 )}
                 {shouldShowPaletteComparison && (
