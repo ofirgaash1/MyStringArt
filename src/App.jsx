@@ -184,7 +184,12 @@ function getNearestPaletteMatch(red, green, blue, paletteColors) {
   return closestColor;
 }
 
-function createPalettePreviewImageData(sourceImageData, paletteColors) {
+function createPalettePreviewImageData(
+  sourceImageData,
+  paletteColors,
+  activeColorId = null,
+  isolateActiveColorOnly = false,
+) {
   if (!sourceImageData || paletteColors.length === 0) {
     return null;
   }
@@ -198,6 +203,11 @@ function createPalettePreviewImageData(sourceImageData, paletteColors) {
       paletteColors,
     );
     if (!nearestColor) {
+      continue;
+    }
+
+    if (isolateActiveColorOnly && nearestColor.id !== activeColorId) {
+      nextData[offset + 3] = 0;
       continue;
     }
 
@@ -326,6 +336,10 @@ function App() {
   );
   const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(false);
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
+  const [activePaletteColorId, setActivePaletteColorId] = useState(
+    MULTICOLOR_PALETTE_PRESETS[0].colors[0].id,
+  );
+  const [isActivePaletteColorOnlyEnabled, setIsActivePaletteColorOnlyEnabled] = useState(false);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -407,6 +421,7 @@ function App() {
       rgb: hexToRgb(color.hex),
     }))
     .filter((color) => color.rgb);
+  const activePaletteColor = multicolorPaletteColors.find((color) => color.id === activePaletteColorId) ?? null;
   const multicolorPalettePixelCountMap = new Map(
     multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
   );
@@ -418,6 +433,23 @@ function App() {
   const shouldShowPaletteComparison =
     isPalettePreviewVisible &&
     Boolean(originalImageDataRef.current);
+
+  useEffect(() => {
+    const currentActiveColor = multicolorPaletteColors.find((color) => color.id === activePaletteColorId);
+    if (currentActiveColor?.enabled) {
+      return;
+    }
+
+    const firstEnabledColor = multicolorPaletteColors.find((color) => color.enabled);
+    if (firstEnabledColor) {
+      setActivePaletteColorId(firstEnabledColor.id);
+      return;
+    }
+
+    if (multicolorPaletteColors.length > 0 && activePaletteColorId !== multicolorPaletteColors[0].id) {
+      setActivePaletteColorId(multicolorPaletteColors[0].id);
+    }
+  }, [activePaletteColorId, multicolorPaletteColors]);
 
   const syncVisibleCanvas = () => {
     if (!imageRef.current || !imageCanvasRef.current || !imageSize) {
@@ -440,6 +472,8 @@ function App() {
     const palettePreviewImage = createPalettePreviewImageData(
       visibleImage,
       enabledPalettePreviewColors,
+      activePaletteColorId,
+      isActivePaletteColorOnlyEnabled,
     );
     if (palettePreviewImage) {
       visibleContext.putImageData(palettePreviewImage, 0, 0);
@@ -455,6 +489,8 @@ function App() {
     isPalettePreviewEnabled,
     multicolorDebugView,
     multicolorPaletteColors,
+    activePaletteColorId,
+    isActivePaletteColorOnlyEnabled,
   ]);
 
   useEffect(() => {
@@ -489,9 +525,16 @@ function App() {
     const palettePreviewImage = createPalettePreviewImageData(
       originalImageDataRef.current,
       enabledPalettePreviewColors,
+      activePaletteColorId,
+      isActivePaletteColorOnlyEnabled,
     );
     drawImageDataToCanvas(paletteComparisonCanvasRef.current, palettePreviewImage);
-  }, [shouldShowPaletteComparison, enabledPalettePreviewColors]);
+  }, [
+    shouldShowPaletteComparison,
+    enabledPalettePreviewColors,
+    activePaletteColorId,
+    isActivePaletteColorOnlyEnabled,
+  ]);
 
   useEffect(() => {
     if (!originalImageDataRef.current || enabledPalettePreviewColors.length === 0) {
@@ -2127,6 +2170,7 @@ function App() {
                           onClick={() => {
                             setMulticolorPalettePresetId(preset.id);
                             setMulticolorPaletteColors(clonePalettePreset(preset).colors);
+                            setActivePaletteColorId(preset.colors[0]?.id ?? null);
                           }}
                         >
                           {preset.name}
@@ -2139,9 +2183,13 @@ function App() {
                   </p>
                   <div className="multicolor-palette-list">
                     {multicolorPaletteColors.map((color) => (
-                      <label
+                      <div
                         key={color.id}
-                        className={`multicolor-palette-row ${color.enabled ? '' : 'is-disabled'}`.trim()}
+                        className={[
+                          'multicolor-palette-row',
+                          color.enabled ? '' : 'is-disabled',
+                          color.id === activePaletteColorId ? 'is-active' : '',
+                        ].filter(Boolean).join(' ')}
                       >
                         <input
                           type="checkbox"
@@ -2159,21 +2207,46 @@ function App() {
                             );
                           }}
                         />
-                        <span
-                          className="multicolor-palette-swatch"
-                          style={{ backgroundColor: color.hex }}
-                          aria-label={color.label}
-                          title={color.label}
-                        />
+                        <button
+                          className={[
+                            'multicolor-palette-swatch-button',
+                            color.id === activePaletteColorId ? 'is-active' : '',
+                          ].filter(Boolean).join(' ')}
+                          type="button"
+                          onClick={() => setActivePaletteColorId(color.id)}
+                          aria-label={`Set active palette color ${color.label}`}
+                          title={`Active color: ${color.label}`}
+                        >
+                          <span
+                            className="multicolor-palette-swatch"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                        </button>
                         <span className="multicolor-palette-value">{color.hex}</span>
                         <span className="multicolor-palette-count-value">
                           {originalImageDataRef.current
                             ? `${(multicolorPalettePixelCountMap.get(color.id) ?? 0).toLocaleString()} px`
                             : '-'}
                         </span>
-                      </label>
+                      </div>
                     ))}
                   </div>
+                  <label className="checkbox-row multicolor-lab-helper-row">
+                    <input
+                      type="checkbox"
+                      checked={isActivePaletteColorOnlyEnabled}
+                      onChange={(event) => setIsActivePaletteColorOnlyEnabled(event.target.checked)}
+                      disabled={!activePaletteColor || enabledPalettePreviewColors.length === 0}
+                    />
+                    <span>
+                      Show active color only
+                      {activePaletteColor ? ` (${activePaletteColor.hex})` : ''}
+                    </span>
+                  </label>
+                  <p className="multicolor-lab-helper">
+                    Click a swatch to make it active. This mode hides all non-active palette matches
+                    in the quantized preview.
+                  </p>
                 </div>
                 <label className="checkbox-row multicolor-lab-placeholder">
                   <input
