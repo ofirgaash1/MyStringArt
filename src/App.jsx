@@ -184,7 +184,7 @@ function getNearestPaletteMatch(red, green, blue, paletteColors) {
   return closestColor;
 }
 
-function createPalettePreviewImageData(
+function createNearestPalettePreviewImageData(
   sourceImageData,
   paletteColors,
   activeColorId = null,
@@ -217,6 +217,99 @@ function createPalettePreviewImageData(
   }
 
   return new ImageData(nextData, sourceImageData.width, sourceImageData.height);
+}
+
+function createDitheredPalettePreviewImageData(
+  sourceImageData,
+  paletteColors,
+  activeColorId = null,
+  isolateActiveColorOnly = false,
+) {
+  if (!sourceImageData || paletteColors.length === 0) {
+    return null;
+  }
+
+  const { width, height } = sourceImageData;
+  const sourceData = sourceImageData.data;
+  const workingData = new Float32Array(sourceData.length);
+  const nextData = new Uint8ClampedArray(sourceData);
+  for (let index = 0; index < sourceData.length; index += 1) {
+    workingData[index] = sourceData[index];
+  }
+
+  const diffuseError = (targetOffset, redError, greenError, blueError, factor) => {
+    if (targetOffset < 0 || targetOffset >= workingData.length) {
+      return;
+    }
+
+    workingData[targetOffset] += redError * factor;
+    workingData[targetOffset + 1] += greenError * factor;
+    workingData[targetOffset + 2] += blueError * factor;
+  };
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const nearestColor = getNearestPaletteMatch(
+        workingData[offset],
+        workingData[offset + 1],
+        workingData[offset + 2],
+        paletteColors,
+      );
+      if (!nearestColor) {
+        continue;
+      }
+
+      nextData[offset] = nearestColor.rgb.r;
+      nextData[offset + 1] = nearestColor.rgb.g;
+      nextData[offset + 2] = nearestColor.rgb.b;
+      if (isolateActiveColorOnly && nearestColor.id !== activeColorId) {
+        nextData[offset + 3] = 0;
+      }
+
+      const redError = workingData[offset] - nearestColor.rgb.r;
+      const greenError = workingData[offset + 1] - nearestColor.rgb.g;
+      const blueError = workingData[offset + 2] - nearestColor.rgb.b;
+
+      if (x + 1 < width) {
+        diffuseError(offset + 4, redError, greenError, blueError, 7 / 16);
+      }
+      if (y + 1 < height) {
+        const nextRowOffset = offset + width * 4;
+        diffuseError(nextRowOffset, redError, greenError, blueError, 5 / 16);
+        if (x > 0) {
+          diffuseError(nextRowOffset - 4, redError, greenError, blueError, 3 / 16);
+        }
+        if (x + 1 < width) {
+          diffuseError(nextRowOffset + 4, redError, greenError, blueError, 1 / 16);
+        }
+      }
+    }
+  }
+
+  return new ImageData(nextData, width, height);
+}
+
+function createPalettePreviewImageData(
+  sourceImageData,
+  paletteColors,
+  useFloydSteinbergDithering = false,
+  activeColorId = null,
+  isolateActiveColorOnly = false,
+) {
+  return useFloydSteinbergDithering
+    ? createDitheredPalettePreviewImageData(
+        sourceImageData,
+        paletteColors,
+        activeColorId,
+        isolateActiveColorOnly,
+      )
+    : createNearestPalettePreviewImageData(
+        sourceImageData,
+        paletteColors,
+        activeColorId,
+        isolateActiveColorOnly,
+      );
 }
 
 function countPixelsByNearestPaletteColor(sourceImageData, paletteColors) {
@@ -335,6 +428,7 @@ function App() {
     clonePalettePreset(MULTICOLOR_PALETTE_PRESETS[0]).colors,
   );
   const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(false);
+  const [isPaletteDitheringEnabled, setIsPaletteDitheringEnabled] = useState(false);
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
   const [activePaletteColorId, setActivePaletteColorId] = useState(
     MULTICOLOR_PALETTE_PRESETS[0].colors[0].id,
@@ -351,6 +445,7 @@ function App() {
   const previewOffsetRef = useRef({ x: 0, y: 0 });
   const originalComparisonCanvasRef = useRef(null);
   const paletteComparisonCanvasRef = useRef(null);
+  const ditheredComparisonCanvasRef = useRef(null);
   const originalImageDataRef = useRef(null);
   const sourceUrlRef = useRef(null);
   const animationFrameRef = useRef(null);
@@ -430,6 +525,9 @@ function App() {
     isPalettePreviewEnabled &&
     multicolorDebugView === 'future-quantized' &&
     enabledPalettePreviewColors.length > 0;
+  const palettePreviewModeLabel = isPaletteDitheringEnabled
+    ? 'Floyd-Steinberg dithered preview'
+    : 'Nearest-palette preview';
   const shouldShowPaletteComparison =
     isPalettePreviewVisible &&
     Boolean(originalImageDataRef.current);
@@ -472,6 +570,7 @@ function App() {
     const palettePreviewImage = createPalettePreviewImageData(
       visibleImage,
       enabledPalettePreviewColors,
+      isPaletteDitheringEnabled,
       activePaletteColorId,
       isActivePaletteColorOnlyEnabled,
     );
@@ -487,6 +586,7 @@ function App() {
     isArtMode,
     isMulticolorLabEnabled,
     isPalettePreviewEnabled,
+    isPaletteDitheringEnabled,
     multicolorDebugView,
     multicolorPaletteColors,
     activePaletteColorId,
@@ -525,10 +625,19 @@ function App() {
     const palettePreviewImage = createPalettePreviewImageData(
       originalImageDataRef.current,
       enabledPalettePreviewColors,
+      false,
       activePaletteColorId,
       isActivePaletteColorOnlyEnabled,
     );
     drawImageDataToCanvas(paletteComparisonCanvasRef.current, palettePreviewImage);
+    const ditheredPalettePreviewImage = createPalettePreviewImageData(
+      originalImageDataRef.current,
+      enabledPalettePreviewColors,
+      true,
+      activePaletteColorId,
+      isActivePaletteColorOnlyEnabled,
+    );
+    drawImageDataToCanvas(ditheredComparisonCanvasRef.current, ditheredPalettePreviewImage);
   }, [
     shouldShowPaletteComparison,
     enabledPalettePreviewColors,
@@ -2259,13 +2368,23 @@ function App() {
                 <label className="checkbox-row multicolor-lab-placeholder">
                   <input
                     type="checkbox"
+                    checked={isPaletteDitheringEnabled}
+                    onChange={(event) => setIsPaletteDitheringEnabled(event.target.checked)}
+                    disabled={!isPalettePreviewEnabled}
+                  />
+                  <span>Use Floyd-Steinberg dithering preview</span>
+                </label>
+                <label className="checkbox-row multicolor-lab-placeholder">
+                  <input
+                    type="checkbox"
                     disabled
                   />
                   <span>Mask preview placeholder</span>
                 </label>
                 <p className="multicolor-lab-note">
                   Selected debug view: {MULTICOLOR_DEBUG_VIEWS.find((view) => view.id === multicolorDebugView)?.label}.
-                  Palette preview appears only when this is set to future quantized.
+                  Palette preview appears only when this is set to future quantized. Current mode:
+                  {' '}{palettePreviewModeLabel}.
                 </p>
                 {shouldShowPaletteComparison && (
                   <div className="multicolor-lab-placeholder">
@@ -2285,6 +2404,15 @@ function App() {
                           className="multicolor-comparison-canvas"
                         />
                       </figure>
+                      {isPaletteDitheringEnabled && (
+                        <figure className="multicolor-comparison-card">
+                          <figcaption>Floyd-Steinberg preview</figcaption>
+                          <canvas
+                            ref={ditheredComparisonCanvasRef}
+                            className="multicolor-comparison-canvas"
+                          />
+                        </figure>
+                      )}
                     </div>
                   </div>
                 )}
