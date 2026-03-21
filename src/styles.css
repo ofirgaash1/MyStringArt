@@ -199,6 +199,34 @@ label {
   font-size: 0.9rem;
 }
 
+.multicolor-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.multicolor-comparison-card {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.multicolor-comparison-card figcaption {
+  color: #7c2d12;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.multicolor-comparison-canvas {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(255, 255, 255, 0.92);
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 .multicolor-palette-list {
   display: grid;
   gap: 8px;
@@ -606,5 +634,9 @@ label {
 
   .preview-shell {
     width: min(88vw, 420px);
+  }
+
+  .multicolor-comparison-grid {
+    grid-template-columns: 1fr;
   }
 }

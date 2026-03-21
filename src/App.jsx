@@ -184,6 +184,42 @@ function getNearestPaletteColor(red, green, blue, paletteColors) {
   return closestColor;
 }
 
+function createPalettePreviewImageData(sourceImageData, paletteColors) {
+  if (!sourceImageData || paletteColors.length === 0) {
+    return null;
+  }
+
+  const nextData = new Uint8ClampedArray(sourceImageData.data);
+  for (let offset = 0; offset < nextData.length; offset += 4) {
+    const nearestColor = getNearestPaletteColor(
+      nextData[offset],
+      nextData[offset + 1],
+      nextData[offset + 2],
+      paletteColors,
+    );
+    if (!nearestColor) {
+      continue;
+    }
+
+    nextData[offset] = nearestColor.r;
+    nextData[offset + 1] = nearestColor.g;
+    nextData[offset + 2] = nearestColor.b;
+  }
+
+  return new ImageData(nextData, sourceImageData.width, sourceImageData.height);
+}
+
+function drawImageDataToCanvas(canvas, imageData) {
+  if (!canvas || !imageData) {
+    return;
+  }
+
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+  const context = canvas.getContext('2d');
+  context?.putImageData(imageData, 0, 0);
+}
+
 function writeProcessedImageData(
   context,
   sourceImageData,
@@ -271,6 +307,8 @@ function App() {
   const previewScaleRef = useRef(INITIAL_PREVIEW_SCALE);
   const imageCenterRef = useRef({ x: 0, y: 0 });
   const previewOffsetRef = useRef({ x: 0, y: 0 });
+  const originalComparisonCanvasRef = useRef(null);
+  const paletteComparisonCanvasRef = useRef(null);
   const originalImageDataRef = useRef(null);
   const sourceUrlRef = useRef(null);
   const animationFrameRef = useRef(null);
@@ -346,6 +384,9 @@ function App() {
     isPalettePreviewEnabled &&
     multicolorDebugView === 'future-quantized' &&
     enabledPalettePreviewColors.length > 0;
+  const shouldShowPaletteComparison =
+    isPalettePreviewVisible &&
+    Boolean(originalImageDataRef.current);
 
   const syncVisibleCanvas = () => {
     if (!imageRef.current || !imageCanvasRef.current || !imageSize) {
@@ -365,23 +406,13 @@ function App() {
     }
 
     const visibleImage = visibleContext.getImageData(0, 0, imageSize.width, imageSize.height);
-    const visibleData = visibleImage.data;
-    for (let offset = 0; offset < visibleData.length; offset += 4) {
-      const nearestColor = getNearestPaletteColor(
-        visibleData[offset],
-        visibleData[offset + 1],
-        visibleData[offset + 2],
-        enabledPalettePreviewColors,
-      );
-      if (!nearestColor) {
-        continue;
-      }
-
-      visibleData[offset] = nearestColor.r;
-      visibleData[offset + 1] = nearestColor.g;
-      visibleData[offset + 2] = nearestColor.b;
+    const palettePreviewImage = createPalettePreviewImageData(
+      visibleImage,
+      enabledPalettePreviewColors,
+    );
+    if (palettePreviewImage) {
+      visibleContext.putImageData(palettePreviewImage, 0, 0);
     }
-    visibleContext.putImageData(visibleImage, 0, 0);
   };
 
   useEffect(() => {
@@ -417,6 +448,19 @@ function App() {
     );
     syncVisibleCanvas();
   }, [contrast, imageSize, isPerformingSteps]);
+
+  useEffect(() => {
+    if (!shouldShowPaletteComparison || !originalImageDataRef.current) {
+      return;
+    }
+
+    drawImageDataToCanvas(originalComparisonCanvasRef.current, originalImageDataRef.current);
+    const palettePreviewImage = createPalettePreviewImageData(
+      originalImageDataRef.current,
+      enabledPalettePreviewColors,
+    );
+    drawImageDataToCanvas(paletteComparisonCanvasRef.current, palettePreviewImage);
+  }, [shouldShowPaletteComparison, enabledPalettePreviewColors]);
 
   const clearSelectionOverlay = () => {
     if (!selectionOverlayRef.current || !imageSize) {
@@ -2099,6 +2143,27 @@ function App() {
                   Selected debug view: {MULTICOLOR_DEBUG_VIEWS.find((view) => view.id === multicolorDebugView)?.label}.
                   Palette preview appears only when this is set to future quantized.
                 </p>
+                {shouldShowPaletteComparison && (
+                  <div className="multicolor-lab-placeholder">
+                    <span className="multicolor-lab-label">Palette comparison</span>
+                    <div className="multicolor-comparison-grid">
+                      <figure className="multicolor-comparison-card">
+                        <figcaption>Original RGB</figcaption>
+                        <canvas
+                          ref={originalComparisonCanvasRef}
+                          className="multicolor-comparison-canvas"
+                        />
+                      </figure>
+                      <figure className="multicolor-comparison-card">
+                        <figcaption>Nearest-palette preview</figcaption>
+                        <canvas
+                          ref={paletteComparisonCanvasRef}
+                          className="multicolor-comparison-canvas"
+                        />
+                      </figure>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
