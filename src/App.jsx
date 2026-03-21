@@ -27,6 +27,34 @@ const GROUP_COLORS = [
   '#8b5cf6',
   '#facc15',
 ];
+const MULTICOLOR_DEBUG_VIEWS = [
+  { id: 'original', label: 'original' },
+  { id: 'current-grayscale', label: 'current grayscale' },
+  { id: 'future-quantized', label: 'future quantized' },
+  { id: 'future-mask', label: 'future mask' },
+];
+const MULTICOLOR_PALETTE_PRESETS = [
+  {
+    id: 'warmup-preset',
+    name: 'Warmup preset',
+    colors: [
+      { id: 'warm-black', label: 'black', hex: '#111111', enabled: true },
+      { id: 'warm-ivory', label: 'ivory', hex: '#f3ede2', enabled: true },
+      { id: 'warm-coral', label: 'coral', hex: '#d96b4f', enabled: true },
+      { id: 'warm-olive', label: 'olive', hex: '#76835d', enabled: true },
+    ],
+  },
+  {
+    id: 'cool-study-preset',
+    name: 'Cool study preset',
+    colors: [
+      { id: 'cool-midnight', label: 'midnight', hex: '#102a43', enabled: true },
+      { id: 'cool-mist', label: 'mist', hex: '#d9e2ec', enabled: true },
+      { id: 'cool-teal', label: 'teal', hex: '#2a9d8f', enabled: true },
+      { id: 'cool-gold', label: 'gold', hex: '#e9c46a', enabled: true },
+    ],
+  },
+];
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -110,6 +138,52 @@ function getNormalizedLineKey(firstNail, secondNail) {
   return `${start}-${end}`;
 }
 
+function hexToRgb(hex) {
+  const normalizedHex = hex.replace('#', '');
+  if (normalizedHex.length !== 6) {
+    return null;
+  }
+
+  const red = Number.parseInt(normalizedHex.slice(0, 2), 16);
+  const green = Number.parseInt(normalizedHex.slice(2, 4), 16);
+  const blue = Number.parseInt(normalizedHex.slice(4, 6), 16);
+  if ([red, green, blue].some((value) => Number.isNaN(value))) {
+    return null;
+  }
+
+  return { r: red, g: green, b: blue };
+}
+
+function clonePalettePreset(preset) {
+  return {
+    ...preset,
+    colors: preset.colors.map((color) => ({ ...color })),
+  };
+}
+
+function getNearestPaletteColor(red, green, blue, paletteColors) {
+  let closestColor = null;
+  let minimumDistance = Infinity;
+
+  for (const color of paletteColors) {
+    if (!color.rgb) {
+      continue;
+    }
+
+    const distance =
+      (red - color.rgb.r) * (red - color.rgb.r) +
+      (green - color.rgb.g) * (green - color.rgb.g) +
+      (blue - color.rgb.b) * (blue - color.rgb.b);
+
+    if (distance < minimumDistance) {
+      minimumDistance = distance;
+      closestColor = color.rgb;
+    }
+  }
+
+  return closestColor;
+}
+
 function writeProcessedImageData(
   context,
   sourceImageData,
@@ -180,6 +254,14 @@ function App() {
   const [activeGroupId, setActiveGroupId] = useState('group-1');
   const [nextGroupNumber, setNextGroupNumber] = useState(2);
   const [isMulticolorLabEnabled, setIsMulticolorLabEnabled] = useState(false);
+  const [multicolorDebugView, setMulticolorDebugView] = useState('original');
+  const [multicolorPalettePresetId, setMulticolorPalettePresetId] = useState(
+    MULTICOLOR_PALETTE_PRESETS[0].id,
+  );
+  const [multicolorPaletteColors, setMulticolorPaletteColors] = useState(() =>
+    clonePalettePreset(MULTICOLOR_PALETTE_PRESETS[0]).colors,
+  );
+  const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(false);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -249,6 +331,22 @@ function App() {
     imageCenter.y,
   ]);
 
+  const multicolorPalettePreset = MULTICOLOR_PALETTE_PRESETS.find(
+    (preset) => preset.id === multicolorPalettePresetId,
+  ) ?? MULTICOLOR_PALETTE_PRESETS[0];
+  const enabledPaletteColors = multicolorPaletteColors.filter((color) => color.enabled);
+  const enabledPalettePreviewColors = enabledPaletteColors
+    .map((color) => ({
+      ...color,
+      rgb: hexToRgb(color.hex),
+    }))
+    .filter((color) => color.rgb);
+  const isPalettePreviewVisible =
+    isMulticolorLabEnabled &&
+    isPalettePreviewEnabled &&
+    multicolorDebugView === 'future-quantized' &&
+    enabledPalettePreviewColors.length > 0;
+
   const syncVisibleCanvas = () => {
     if (!imageRef.current || !imageCanvasRef.current || !imageSize) {
       return;
@@ -261,11 +359,41 @@ function App() {
 
     visibleContext.clearRect(0, 0, imageSize.width, imageSize.height);
     visibleContext.drawImage(imageCanvasRef.current, 0, 0);
+
+    if (!isPalettePreviewVisible) {
+      return;
+    }
+
+    const visibleImage = visibleContext.getImageData(0, 0, imageSize.width, imageSize.height);
+    const visibleData = visibleImage.data;
+    for (let offset = 0; offset < visibleData.length; offset += 4) {
+      const nearestColor = getNearestPaletteColor(
+        visibleData[offset],
+        visibleData[offset + 1],
+        visibleData[offset + 2],
+        enabledPalettePreviewColors,
+      );
+      if (!nearestColor) {
+        continue;
+      }
+
+      visibleData[offset] = nearestColor.r;
+      visibleData[offset + 1] = nearestColor.g;
+      visibleData[offset + 2] = nearestColor.b;
+    }
+    visibleContext.putImageData(visibleImage, 0, 0);
   };
 
   useEffect(() => {
     syncVisibleCanvas();
-  }, [imageSize, isArtMode]);
+  }, [
+    imageSize,
+    isArtMode,
+    isMulticolorLabEnabled,
+    isPalettePreviewEnabled,
+    multicolorDebugView,
+    multicolorPaletteColors,
+  ]);
 
   useEffect(() => {
     if (isPerformingSteps || !imageCanvasRef.current || !imageSize || !originalImageDataRef.current) {
@@ -1260,7 +1388,7 @@ function App() {
         : hasLoadedImage
             ? 'grab'
             : 'default',
-    filter: isBlackAndWhite ? 'grayscale(1)' : 'none',
+    filter: isPalettePreviewVisible ? 'none' : isBlackAndWhite ? 'grayscale(1)' : 'none',
   };
   const imageLayerStyle = {
     width: imageSize ? `${imageSize.width * imageScale}px` : '0px',
@@ -1847,8 +1975,8 @@ function App() {
             <div className="multicolor-lab-header">
               <h2>Multicolor lab</h2>
               <p>
-                Isolated staging area for the slow multicolor port. Nothing here affects the
-                preview or solver yet.
+                Isolated staging area for the slow multicolor port. Solver behavior stays untouched;
+                preview changes here are display-only.
               </p>
             </div>
             <label className="checkbox-row">
@@ -1861,21 +1989,105 @@ function App() {
             </label>
             {isMulticolorLabEnabled && (
               <div className="multicolor-lab-body">
+                <div className="multicolor-lab-placeholder">
+                  <span className="multicolor-lab-label">Debug view</span>
+                  <div
+                    className="multicolor-debug-toggle-group"
+                    role="radiogroup"
+                    aria-label="Multicolor debug view"
+                  >
+                    {MULTICOLOR_DEBUG_VIEWS.map((view) => {
+                      const isActive = multicolorDebugView === view.id;
+                      return (
+                        <button
+                          key={view.id}
+                          className={[
+                            'multicolor-debug-toggle',
+                            isActive ? 'is-active' : '',
+                          ].filter(Boolean).join(' ')}
+                          type="button"
+                          role="radio"
+                          aria-checked={isActive}
+                          onClick={() => setMulticolorDebugView(view.id)}
+                        >
+                          {view.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="multicolor-lab-placeholder">
+                  <span className="multicolor-lab-label">Palette preset</span>
+                  <div
+                    className="multicolor-debug-toggle-group"
+                    role="radiogroup"
+                    aria-label="Multicolor palette preset"
+                  >
+                    {MULTICOLOR_PALETTE_PRESETS.map((preset) => {
+                      const isActive = multicolorPalettePreset.id === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          className={[
+                            'multicolor-debug-toggle',
+                            isActive ? 'is-active' : '',
+                          ].filter(Boolean).join(' ')}
+                          type="button"
+                          role="radio"
+                          aria-checked={isActive}
+                          onClick={() => {
+                            setMulticolorPalettePresetId(preset.id);
+                            setMulticolorPaletteColors(clonePalettePreset(preset).colors);
+                          }}
+                        >
+                          {preset.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="multicolor-lab-helper">
+                    Active preset: {multicolorPalettePreset.name}
+                  </p>
+                  <div className="multicolor-palette-list">
+                    {multicolorPaletteColors.map((color) => (
+                      <label
+                        key={color.id}
+                        className={`multicolor-palette-item ${color.enabled ? '' : 'is-disabled'}`.trim()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={color.enabled}
+                          onChange={(event) => {
+                            setMulticolorPaletteColors((currentColors) =>
+                              currentColors.map((currentColor) =>
+                                currentColor.id === color.id
+                                  ? {
+                                      ...currentColor,
+                                      enabled: event.target.checked,
+                                    }
+                                  : currentColor,
+                              ),
+                            );
+                          }}
+                        />
+                        <span
+                          className="multicolor-palette-swatch"
+                          style={{ backgroundColor: color.hex }}
+                        />
+                        <span className="multicolor-palette-name">{color.label}</span>
+                        <span className="multicolor-palette-value">{color.hex}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <label className="checkbox-row multicolor-lab-placeholder">
                   <input
                     type="checkbox"
-                    disabled
+                    checked={isPalettePreviewEnabled}
+                    onChange={(event) => setIsPalettePreviewEnabled(event.target.checked)}
                   />
-                  <span>Quantized preview placeholder</span>
+                  <span>Use palette preview</span>
                 </label>
-                <div className="multicolor-lab-placeholder">
-                  <span className="multicolor-lab-label">Palette placeholder</span>
-                  <div className="multicolor-lab-chip-row" aria-hidden="true">
-                    <span className="multicolor-lab-chip">preset A</span>
-                    <span className="multicolor-lab-chip">preset B</span>
-                    <span className="multicolor-lab-chip">custom later</span>
-                  </div>
-                </div>
                 <label className="checkbox-row multicolor-lab-placeholder">
                   <input
                     type="checkbox"
@@ -1884,7 +2096,8 @@ function App() {
                   <span>Mask preview placeholder</span>
                 </label>
                 <p className="multicolor-lab-note">
-                  Milestone 01 only adds the lab shell and a master kill switch.
+                  Selected debug view: {MULTICOLOR_DEBUG_VIEWS.find((view) => view.id === multicolorDebugView)?.label}.
+                  Palette preview appears only when this is set to future quantized.
                 </p>
               </div>
             )}
