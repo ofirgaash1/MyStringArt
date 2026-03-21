@@ -312,6 +312,45 @@ function createPalettePreviewImageData(
       );
 }
 
+function createPaletteMaskImageData(
+  sourceImageData,
+  paletteColors,
+  useFloydSteinbergDithering = false,
+  activeColorId = null,
+) {
+  if (!sourceImageData || paletteColors.length === 0 || !activeColorId) {
+    return null;
+  }
+
+  const quantizedImageData = createPalettePreviewImageData(
+    sourceImageData,
+    paletteColors,
+    useFloydSteinbergDithering,
+    null,
+    false,
+  );
+  const activeColor = paletteColors.find((color) => color.id === activeColorId);
+  if (!quantizedImageData || !activeColor?.rgb) {
+    return null;
+  }
+
+  const nextData = new Uint8ClampedArray(quantizedImageData.data.length);
+  for (let offset = 0; offset < quantizedImageData.data.length; offset += 4) {
+    const isActiveMatch =
+      quantizedImageData.data[offset] === activeColor.rgb.r &&
+      quantizedImageData.data[offset + 1] === activeColor.rgb.g &&
+      quantizedImageData.data[offset + 2] === activeColor.rgb.b &&
+      quantizedImageData.data[offset + 3] > 0;
+    const value = isActiveMatch ? 0 : 255;
+    nextData[offset] = value;
+    nextData[offset + 1] = value;
+    nextData[offset + 2] = value;
+    nextData[offset + 3] = 255;
+  }
+
+  return new ImageData(nextData, quantizedImageData.width, quantizedImageData.height);
+}
+
 function countPixelsByNearestPaletteColor(sourceImageData, paletteColors) {
   if (!sourceImageData || paletteColors.length === 0) {
     return [];
@@ -427,7 +466,7 @@ function App() {
   const [multicolorPaletteColors, setMulticolorPaletteColors] = useState(() =>
     clonePalettePreset(MULTICOLOR_PALETTE_PRESETS[0]).colors,
   );
-  const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(false);
+  const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(true);
   const [isPaletteDitheringEnabled, setIsPaletteDitheringEnabled] = useState(false);
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
   const [activePaletteColorId, setActivePaletteColorId] = useState(
@@ -517,6 +556,9 @@ function App() {
     }))
     .filter((color) => color.rgb);
   const activePaletteColor = multicolorPaletteColors.find((color) => color.id === activePaletteColorId) ?? null;
+  const activePalettePreviewColor = enabledPalettePreviewColors.find(
+    (color) => color.id === activePaletteColorId,
+  ) ?? null;
   const multicolorPalettePixelCountMap = new Map(
     multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
   );
@@ -525,6 +567,12 @@ function App() {
     isPalettePreviewEnabled &&
     multicolorDebugView === 'future-quantized' &&
     enabledPalettePreviewColors.length > 0;
+  const isPaletteMaskVisible =
+    isMulticolorLabEnabled &&
+    isPalettePreviewEnabled &&
+    multicolorDebugView === 'future-mask' &&
+    enabledPalettePreviewColors.length > 0 &&
+    Boolean(activePalettePreviewColor);
   const palettePreviewModeLabel = isPaletteDitheringEnabled
     ? 'Floyd-Steinberg dithered preview'
     : 'Nearest-palette preview';
@@ -562,11 +610,24 @@ function App() {
     visibleContext.clearRect(0, 0, imageSize.width, imageSize.height);
     visibleContext.drawImage(imageCanvasRef.current, 0, 0);
 
-    if (!isPalettePreviewVisible) {
+    if (!isPalettePreviewVisible && !isPaletteMaskVisible) {
       return;
     }
 
     const visibleImage = visibleContext.getImageData(0, 0, imageSize.width, imageSize.height);
+    if (isPaletteMaskVisible) {
+      const paletteMaskImage = createPaletteMaskImageData(
+        visibleImage,
+        enabledPalettePreviewColors,
+        isPaletteDitheringEnabled,
+        activePaletteColorId,
+      );
+      if (paletteMaskImage) {
+        visibleContext.putImageData(paletteMaskImage, 0, 0);
+      }
+      return;
+    }
+
     const palettePreviewImage = createPalettePreviewImageData(
       visibleImage,
       enabledPalettePreviewColors,
@@ -1629,7 +1690,12 @@ function App() {
         : hasLoadedImage
             ? 'grab'
             : 'default',
-    filter: isPalettePreviewVisible ? 'none' : isBlackAndWhite ? 'grayscale(1)' : 'none',
+    filter:
+      isPalettePreviewVisible || isPaletteMaskVisible
+        ? 'none'
+        : isBlackAndWhite
+          ? 'grayscale(1)'
+          : 'none',
   };
   const imageLayerStyle = {
     width: imageSize ? `${imageSize.width * imageScale}px` : '0px',
@@ -2360,14 +2426,6 @@ function App() {
                 <label className="checkbox-row multicolor-lab-placeholder">
                   <input
                     type="checkbox"
-                    checked={isPalettePreviewEnabled}
-                    onChange={(event) => setIsPalettePreviewEnabled(event.target.checked)}
-                  />
-                  <span>Use palette preview</span>
-                </label>
-                <label className="checkbox-row multicolor-lab-placeholder">
-                  <input
-                    type="checkbox"
                     checked={isPaletteDitheringEnabled}
                     onChange={(event) => setIsPaletteDitheringEnabled(event.target.checked)}
                     disabled={!isPalettePreviewEnabled}
@@ -2383,9 +2441,15 @@ function App() {
                 </label>
                 <p className="multicolor-lab-note">
                   Selected debug view: {MULTICOLOR_DEBUG_VIEWS.find((view) => view.id === multicolorDebugView)?.label}.
-                  Palette preview appears only when this is set to future quantized. Current mode:
-                  {' '}{palettePreviewModeLabel}.
+                  Quantized palette preview appears in future quantized. Black/white masks appear
+                  in future mask. Current quantization source: {palettePreviewModeLabel}.
                 </p>
+                {isPaletteMaskVisible && (
+                  <p className="multicolor-lab-helper">
+                    Showing a black/white mask for the active palette color using the current
+                    {` ${palettePreviewModeLabel.toLowerCase()}`} source.
+                  </p>
+                )}
                 {shouldShowPaletteComparison && (
                   <div className="multicolor-lab-placeholder">
                     <span className="multicolor-lab-label">Palette comparison</span>
@@ -2416,6 +2480,14 @@ function App() {
                     </div>
                   </div>
                 )}
+                <label className="checkbox-row multicolor-lab-placeholder">
+                  <input
+                    type="checkbox"
+                    checked={isPalettePreviewEnabled}
+                    onChange={(event) => setIsPalettePreviewEnabled(event.target.checked)}
+                  />
+                  <span>Use palette preview</span>
+                </label>
               </div>
             )}
           </div>
