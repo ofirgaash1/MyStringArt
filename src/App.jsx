@@ -30,8 +30,8 @@ const GROUP_COLORS = [
 const MULTICOLOR_DEBUG_VIEWS = [
   { id: 'original', label: 'original' },
   { id: 'current-grayscale', label: 'current grayscale' },
-  { id: 'future-quantized', label: 'future quantized' },
-  { id: 'future-mask', label: 'future mask' },
+  { id: 'palette-preview', label: 'palette preview' },
+  { id: 'color-mask', label: 'color mask' },
 ];
 const MULTICOLOR_PALETTE_PRESETS = [
   {
@@ -785,15 +785,20 @@ function App() {
     (sum, color) => sum + color.allocatedUnits,
     0,
   );
+  const isActiveColorOnlyControlVisible = multicolorDebugView === 'palette-preview';
+  const shouldShowOriginalDebugView =
+    isMulticolorLabEnabled && multicolorDebugView === 'original';
+  const shouldShowCurrentGrayscaleDebugView =
+    isMulticolorLabEnabled && multicolorDebugView === 'current-grayscale';
   const isPalettePreviewVisible =
     isMulticolorLabEnabled &&
     isPalettePreviewEnabled &&
-    multicolorDebugView === 'future-quantized' &&
+    multicolorDebugView === 'palette-preview' &&
     enabledPalettePreviewColors.length > 0;
   const isPaletteMaskVisible =
     isMulticolorLabEnabled &&
     isPalettePreviewEnabled &&
-    multicolorDebugView === 'future-mask' &&
+    multicolorDebugView === 'color-mask' &&
     enabledPalettePreviewColors.length > 0 &&
     Boolean(activePalettePreviewColor);
   const palettePreviewModeLabel = isPaletteDitheringEnabled
@@ -831,7 +836,11 @@ function App() {
     }
 
     visibleContext.clearRect(0, 0, imageSize.width, imageSize.height);
-    visibleContext.drawImage(imageCanvasRef.current, 0, 0);
+    if (shouldShowOriginalDebugView && originalImageDataRef.current) {
+      visibleContext.putImageData(originalImageDataRef.current, 0, 0);
+    } else {
+      visibleContext.drawImage(imageCanvasRef.current, 0, 0);
+    }
 
     if (!isPalettePreviewVisible && !isPaletteMaskVisible) {
       return;
@@ -876,6 +885,7 @@ function App() {
     activePaletteColorId,
     isActivePaletteColorOnlyEnabled,
     maskBlurRadius,
+    shouldShowOriginalDebugView,
   ]);
 
   useEffect(() => {
@@ -1947,7 +1957,11 @@ function App() {
     filter:
       isPalettePreviewVisible || isPaletteMaskVisible
         ? 'none'
-        : isBlackAndWhite
+        : shouldShowCurrentGrayscaleDebugView
+          ? 'grayscale(1)'
+          : shouldShowOriginalDebugView
+            ? 'none'
+            : isBlackAndWhite
           ? 'grayscale(1)'
           : 'none',
   };
@@ -2660,22 +2674,26 @@ function App() {
                       </div>
                     ))}
                   </div>
-                  <label className="checkbox-row multicolor-lab-helper-row">
-                    <input
-                      type="checkbox"
-                      checked={isActivePaletteColorOnlyEnabled}
-                      onChange={(event) => setIsActivePaletteColorOnlyEnabled(event.target.checked)}
-                      disabled={!activePaletteColor || enabledPalettePreviewColors.length === 0}
-                    />
-                    <span>
-                      Show active color only
-                      {activePaletteColor ? ` (${activePaletteColor.hex})` : ''}
-                    </span>
-                  </label>
-                  <p className="multicolor-lab-helper">
-                    Click a swatch to make it active. This mode hides all non-active palette matches
-                    in the quantized preview.
-                  </p>
+                  {isActiveColorOnlyControlVisible && (
+                    <>
+                      <label className="checkbox-row multicolor-lab-helper-row">
+                        <input
+                          type="checkbox"
+                          checked={isActivePaletteColorOnlyEnabled}
+                          onChange={(event) => setIsActivePaletteColorOnlyEnabled(event.target.checked)}
+                          disabled={!activePaletteColor || enabledPalettePreviewColors.length === 0}
+                        />
+                        <span>
+                          Show active color only
+                          {activePaletteColor ? ` (${activePaletteColor.hex})` : ''}
+                        </span>
+                      </label>
+                      <p className="multicolor-lab-helper">
+                        Click a swatch to make it active. This mode hides all non-active palette
+                        matches in the palette preview.
+                      </p>
+                    </>
+                  )}
                 </div>
                 <label className="checkbox-row multicolor-lab-placeholder">
                   <input
@@ -2686,17 +2704,10 @@ function App() {
                   />
                   <span>Use Floyd-Steinberg dithering preview</span>
                 </label>
-                <label className="checkbox-row multicolor-lab-placeholder">
-                  <input
-                    type="checkbox"
-                    disabled
-                  />
-                  <span>Mask preview placeholder</span>
-                </label>
                 <p className="multicolor-lab-note">
-                  Selected debug view: {MULTICOLOR_DEBUG_VIEWS.find((view) => view.id === multicolorDebugView)?.label}.
-                  Quantized palette preview appears in future quantized. Black/white masks appear
-                  in future mask. Current quantization source: {palettePreviewModeLabel}.
+                  {MULTICOLOR_DEBUG_VIEWS.find((view) => view.id === multicolorDebugView)?.label}
+                  {' '}
+                  using {palettePreviewModeLabel.toLowerCase()}.
                 </p>
                 <div className="multicolor-lab-placeholder">
                   <span className="multicolor-lab-label">Mask source coverage</span>
