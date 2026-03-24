@@ -432,6 +432,96 @@ function countPixelsByNearestPaletteColor(sourceImageData, paletteColors) {
   }));
 }
 
+function countPixelsByCurrentPaletteSource(
+  sourceImageData,
+  paletteColors,
+  useFloydSteinbergDithering = false,
+) {
+  if (!sourceImageData || paletteColors.length === 0) {
+    return [];
+  }
+
+  const quantizedImageData = createPalettePreviewImageData(
+    sourceImageData,
+    paletteColors,
+    useFloydSteinbergDithering,
+    null,
+    false,
+  );
+  if (!quantizedImageData) {
+    return [];
+  }
+
+  const colorCounts = new Map(paletteColors.map((color) => [color.id, 0]));
+  const rgbToColorId = new Map(
+    paletteColors
+      .filter((color) => color.rgb)
+      .map((color) => [`${color.rgb.r}-${color.rgb.g}-${color.rgb.b}`, color.id]),
+  );
+
+  for (let offset = 0; offset < quantizedImageData.data.length; offset += 4) {
+    const colorId = rgbToColorId.get(
+      `${quantizedImageData.data[offset]}-${quantizedImageData.data[offset + 1]}-${quantizedImageData.data[offset + 2]}`,
+    );
+    if (!colorId) {
+      continue;
+    }
+
+    colorCounts.set(colorId, (colorCounts.get(colorId) ?? 0) + 1);
+  }
+
+  const totalPixelCount = quantizedImageData.width * quantizedImageData.height;
+  const totalTenths = 1000;
+  const percentageAllocations = paletteColors
+    .map((color) => {
+      const pixelCount = colorCounts.get(color.id) ?? 0;
+      const exactTenths = totalPixelCount > 0 ? (pixelCount / totalPixelCount) * totalTenths : 0;
+      const roundedTenths = Math.floor(exactTenths);
+      return {
+        id: color.id,
+        pixelCount,
+        exactTenths,
+        roundedTenths,
+        remainder: exactTenths - roundedTenths,
+      };
+    })
+    .sort((firstColor, secondColor) => {
+      if (secondColor.remainder !== firstColor.remainder) {
+        return secondColor.remainder - firstColor.remainder;
+      }
+
+      return secondColor.pixelCount - firstColor.pixelCount;
+    });
+
+  let tenthsRemaining =
+    totalTenths -
+    percentageAllocations.reduce((sum, color) => sum + color.roundedTenths, 0);
+  for (const color of percentageAllocations) {
+    if (tenthsRemaining <= 0) {
+      break;
+    }
+
+    color.roundedTenths += 1;
+    tenthsRemaining -= 1;
+  }
+
+  const percentageTenthsById = new Map(
+    percentageAllocations.map((color) => [color.id, color.roundedTenths]),
+  );
+
+  return paletteColors.map((color) => {
+    const pixelCount = colorCounts.get(color.id) ?? 0;
+    const percentageTenths = percentageTenthsById.get(color.id) ?? 0;
+    return {
+      ...color,
+      pixelCount,
+      percentageTenths,
+      percentage: percentageTenths / 10,
+      percentageLabel: `${(percentageTenths / 10).toFixed(1)}%`,
+    };
+  });
+}
+
 function drawImageDataToCanvas(canvas, imageData) {
   if (!canvas || !imageData) {
     return;
@@ -523,6 +613,7 @@ function App() {
   const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(true);
   const [isPaletteDitheringEnabled, setIsPaletteDitheringEnabled] = useState(false);
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
+  const [multicolorPaletteCoverage, setMulticolorPaletteCoverage] = useState([]);
   const [activePaletteColorId, setActivePaletteColorId] = useState(
     MULTICOLOR_PALETTE_PRESETS[0].colors[0].id,
   );
@@ -616,6 +707,10 @@ function App() {
   ) ?? null;
   const multicolorPalettePixelCountMap = new Map(
     multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
+  );
+  const totalPaletteCoverageTenths = multicolorPaletteCoverage.reduce(
+    (sum, color) => sum + color.percentageTenths,
+    0,
   );
   const isPalettePreviewVisible =
     isMulticolorLabEnabled &&
@@ -775,6 +870,36 @@ function App() {
       ),
     );
   }, [imageName, imageSize, multicolorPaletteColors]);
+
+  useEffect(() => {
+    if (!imageCanvasRef.current || !imageSize || enabledPalettePreviewColors.length === 0) {
+      setMulticolorPaletteCoverage([]);
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    if (!context) {
+      setMulticolorPaletteCoverage([]);
+      return;
+    }
+
+    const sourceImageData = context.getImageData(0, 0, imageSize.width, imageSize.height);
+    setMulticolorPaletteCoverage(
+      countPixelsByCurrentPaletteSource(
+        sourceImageData,
+        enabledPalettePreviewColors,
+        isPaletteDitheringEnabled,
+      ),
+    );
+  }, [
+    contrast,
+    imageName,
+    imageSize,
+    isPaletteDitheringEnabled,
+    multicolorPaletteColors,
+  ]);
 
   const clearSelectionOverlay = () => {
     if (!selectionOverlayRef.current || !imageSize) {
@@ -2500,6 +2625,47 @@ function App() {
                   Quantized palette preview appears in future quantized. Black/white masks appear
                   in future mask. Current quantization source: {palettePreviewModeLabel}.
                 </p>
+                <div className="multicolor-lab-placeholder">
+                  <span className="multicolor-lab-label">Mask source coverage</span>
+                  {multicolorPaletteCoverage.length > 0 ? (
+                    <div className="multicolor-histogram-list">
+                      {multicolorPaletteCoverage.map((color) => (
+                        <div
+                          key={color.id}
+                          className="multicolor-histogram-row"
+                        >
+                          <div className="multicolor-histogram-meta">
+                            <span
+                              className="multicolor-palette-swatch"
+                              style={{ backgroundColor: color.hex }}
+                            />
+                            <span className="multicolor-histogram-name">{color.label}</span>
+                            <span className="multicolor-histogram-value">
+                              {color.percentageLabel}
+                            </span>
+                          </div>
+                          <div className="multicolor-histogram-bar-track">
+                            <div
+                              className="multicolor-histogram-bar-fill"
+                              style={{
+                                width: `${color.percentage}%`,
+                                backgroundColor: color.hex,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      <p className="multicolor-histogram-total">
+                        Total: {(totalPaletteCoverageTenths / 10).toFixed(1)}%
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="multicolor-lab-helper">
+                      Load an image and keep at least one palette color enabled to see coverage
+                      percentages for the current {palettePreviewModeLabel.toLowerCase()} source.
+                    </p>
+                  )}
+                </div>
                 <div className="multicolor-lab-placeholder">
                   <label className="slider-control">
                     <span>Mask blur radius: {maskBlurRadius}</span>
