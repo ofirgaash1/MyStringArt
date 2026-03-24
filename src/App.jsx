@@ -1,4 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import BrushPanel from './components/BrushPanel';
+import HoveredPixelOverlay from './components/HoveredPixelOverlay';
+import MulticolorLab from './components/MulticolorLab';
+import PreviewWorkspace from './components/PreviewWorkspace';
+import {
+  buildArtLineSegments,
+  buildNails,
+  getDraggedImageCenter,
+  getDraggedPreviewOffset,
+  getImagePointFromPreviewPoint,
+  getPreviewCoordinatesForPixel as getPreviewCoordinatesForPixelFromState,
+  getPreviewFramePoint as getPreviewFramePointForElement,
+  getZoomFactor,
+  getZoomedImageState,
+  getZoomedPreviewState,
+  isPreviewPointInsideCircle,
+} from './previewMath';
+import {
+  clamp,
+  createPixelGroup,
+  getCircularNailDistance,
+  getLinearPixelIndex,
+  getNormalizedLineKey,
+  getPixelDarkness,
+  rasterizeLinePixels,
+  writeProcessedImageData,
+} from './stringArtMath';
+import {
+  allocateWholeUnitsByWeight,
+  blurMaskImageData,
+  clonePalettePreset,
+  countPixelsByCurrentPaletteSource,
+  countPixelsByNearestPaletteColor,
+  createPaletteMaskImageData,
+  createPalettePreviewImageData,
+  drawImageDataToCanvas,
+  hexToRgb,
+  isImagePixelInsidePreviewCircle,
+  MULTICOLOR_PALETTE_PRESETS,
+} from './multicolor';
 
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 5;
@@ -27,663 +67,6 @@ const GROUP_COLORS = [
   '#8b5cf6',
   '#facc15',
 ];
-const MULTICOLOR_DEBUG_VIEWS = [
-  { id: 'original', label: 'original' },
-  { id: 'current-grayscale', label: 'current grayscale' },
-  { id: 'palette-preview', label: 'palette preview' },
-  { id: 'color-mask', label: 'color mask' },
-];
-const MULTICOLOR_PALETTE_PRESETS = [
-  {
-    id: 'warmup-preset',
-    name: 'Warmup preset',
-    colors: [
-      { id: 'warm-black', label: 'black', hex: '#111111', enabled: true },
-      { id: 'warm-ivory', label: 'ivory', hex: '#f3ede2', enabled: true },
-      { id: 'warm-coral', label: 'coral', hex: '#d96b4f', enabled: true },
-      { id: 'warm-olive', label: 'olive', hex: '#76835d', enabled: true },
-    ],
-  },
-  {
-    id: 'cool-study-preset',
-    name: 'Cool study preset',
-    colors: [
-      { id: 'cool-midnight', label: 'midnight', hex: '#102a43', enabled: true },
-      { id: 'cool-mist', label: 'mist', hex: '#d9e2ec', enabled: true },
-      { id: 'cool-teal', label: 'teal', hex: '#2a9d8f', enabled: true },
-      { id: 'cool-gold', label: 'gold', hex: '#e9c46a', enabled: true },
-    ],
-  },
-];
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function getCircularNailDistance(firstNail, secondNail, totalNails) {
-  if (totalNails <= 0) {
-    return 0;
-  }
-
-  const directDistance = Math.abs(firstNail - secondNail);
-  return Math.min(directDistance, totalNails - directDistance);
-}
-
-function rasterizeLinePixels(startX, startY, endX, endY, width, height) {
-  const pixels = [];
-  const x0 = Math.round(startX);
-  const y0 = Math.round(startY);
-  const x1 = Math.round(endX);
-  const y1 = Math.round(endY);
-  const dx = Math.abs(x1 - x0);
-  const dy = Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let error = dx - dy;
-  let x = x0;
-  let y = y0;
-
-  while (true) {
-    if (x >= 0 && x < width && y >= 0 && y < height) {
-      pixels.push({ key: `${x}-${y}`, x, y });
-    }
-
-    if (x === x1 && y === y1) {
-      break;
-    }
-
-    const doubledError = error * 2;
-    if (doubledError > -dy) {
-      error -= dy;
-      x += sx;
-    }
-    if (doubledError < dx) {
-      error += dx;
-      y += sy;
-    }
-  }
-
-  return pixels;
-}
-
-function getPixelDarkness(imageData, width, x, y) {
-  const index = (y * width + x) * 4;
-  return (
-    (imageData[index] + imageData[index + 1] + imageData[index + 2]) / 3
-  );
-}
-
-function getLinearPixelIndex(width, x, y) {
-  return y * width + x;
-}
-
-function createPixelGroup(groupNumber) {
-  return {
-    id: `group-${groupNumber}`,
-    groupNumber,
-    name: `group${groupNumber}`,
-    value: 0,
-    pixelCount: 0,
-    color: GROUP_COLORS[(groupNumber - 1) % GROUP_COLORS.length],
-  };
-}
-
-function getNormalizedLineKey(firstNail, secondNail) {
-  if (!Number.isInteger(firstNail) || !Number.isInteger(secondNail)) {
-    return null;
-  }
-
-  const start = Math.min(firstNail, secondNail);
-  const end = Math.max(firstNail, secondNail);
-  return `${start}-${end}`;
-}
-
-function hexToRgb(hex) {
-  const normalizedHex = hex.replace('#', '');
-  if (normalizedHex.length !== 6) {
-    return null;
-  }
-
-  const red = Number.parseInt(normalizedHex.slice(0, 2), 16);
-  const green = Number.parseInt(normalizedHex.slice(2, 4), 16);
-  const blue = Number.parseInt(normalizedHex.slice(4, 6), 16);
-  if ([red, green, blue].some((value) => Number.isNaN(value))) {
-    return null;
-  }
-
-  return { r: red, g: green, b: blue };
-}
-
-function clonePalettePreset(preset) {
-  return {
-    ...preset,
-    colors: preset.colors.map((color) => ({ ...color })),
-  };
-}
-
-function getNearestPaletteMatch(red, green, blue, paletteColors) {
-  let closestColor = null;
-  let minimumDistance = Infinity;
-
-  for (const color of paletteColors) {
-    if (!color.rgb) {
-      continue;
-    }
-
-    const distance =
-      (red - color.rgb.r) * (red - color.rgb.r) +
-      (green - color.rgb.g) * (green - color.rgb.g) +
-      (blue - color.rgb.b) * (blue - color.rgb.b);
-
-    if (distance < minimumDistance) {
-      minimumDistance = distance;
-      closestColor = color;
-    }
-  }
-
-  return closestColor;
-}
-
-function createNearestPalettePreviewImageData(
-  sourceImageData,
-  paletteColors,
-  activeColorId = null,
-  isolateActiveColorOnly = false,
-) {
-  if (!sourceImageData || paletteColors.length === 0) {
-    return null;
-  }
-
-  const nextData = new Uint8ClampedArray(sourceImageData.data);
-  for (let offset = 0; offset < nextData.length; offset += 4) {
-    const nearestColor = getNearestPaletteMatch(
-      nextData[offset],
-      nextData[offset + 1],
-      nextData[offset + 2],
-      paletteColors,
-    );
-    if (!nearestColor) {
-      continue;
-    }
-
-    if (isolateActiveColorOnly && nearestColor.id !== activeColorId) {
-      nextData[offset + 3] = 0;
-      continue;
-    }
-
-    nextData[offset] = nearestColor.rgb.r;
-    nextData[offset + 1] = nearestColor.rgb.g;
-    nextData[offset + 2] = nearestColor.rgb.b;
-  }
-
-  return new ImageData(nextData, sourceImageData.width, sourceImageData.height);
-}
-
-function createDitheredPalettePreviewImageData(
-  sourceImageData,
-  paletteColors,
-  activeColorId = null,
-  isolateActiveColorOnly = false,
-) {
-  if (!sourceImageData || paletteColors.length === 0) {
-    return null;
-  }
-
-  const { width, height } = sourceImageData;
-  const sourceData = sourceImageData.data;
-  const workingData = new Float32Array(sourceData.length);
-  const nextData = new Uint8ClampedArray(sourceData);
-  for (let index = 0; index < sourceData.length; index += 1) {
-    workingData[index] = sourceData[index];
-  }
-
-  const diffuseError = (targetOffset, redError, greenError, blueError, factor) => {
-    if (targetOffset < 0 || targetOffset >= workingData.length) {
-      return;
-    }
-
-    workingData[targetOffset] += redError * factor;
-    workingData[targetOffset + 1] += greenError * factor;
-    workingData[targetOffset + 2] += blueError * factor;
-  };
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const offset = (y * width + x) * 4;
-      const nearestColor = getNearestPaletteMatch(
-        workingData[offset],
-        workingData[offset + 1],
-        workingData[offset + 2],
-        paletteColors,
-      );
-      if (!nearestColor) {
-        continue;
-      }
-
-      nextData[offset] = nearestColor.rgb.r;
-      nextData[offset + 1] = nearestColor.rgb.g;
-      nextData[offset + 2] = nearestColor.rgb.b;
-      if (isolateActiveColorOnly && nearestColor.id !== activeColorId) {
-        nextData[offset + 3] = 0;
-      }
-
-      const redError = workingData[offset] - nearestColor.rgb.r;
-      const greenError = workingData[offset + 1] - nearestColor.rgb.g;
-      const blueError = workingData[offset + 2] - nearestColor.rgb.b;
-
-      if (x + 1 < width) {
-        diffuseError(offset + 4, redError, greenError, blueError, 7 / 16);
-      }
-      if (y + 1 < height) {
-        const nextRowOffset = offset + width * 4;
-        diffuseError(nextRowOffset, redError, greenError, blueError, 5 / 16);
-        if (x > 0) {
-          diffuseError(nextRowOffset - 4, redError, greenError, blueError, 3 / 16);
-        }
-        if (x + 1 < width) {
-          diffuseError(nextRowOffset + 4, redError, greenError, blueError, 1 / 16);
-        }
-      }
-    }
-  }
-
-  return new ImageData(nextData, width, height);
-}
-
-function createPalettePreviewImageData(
-  sourceImageData,
-  paletteColors,
-  useFloydSteinbergDithering = false,
-  activeColorId = null,
-  isolateActiveColorOnly = false,
-) {
-  return useFloydSteinbergDithering
-    ? createDitheredPalettePreviewImageData(
-        sourceImageData,
-        paletteColors,
-        activeColorId,
-        isolateActiveColorOnly,
-      )
-    : createNearestPalettePreviewImageData(
-        sourceImageData,
-        paletteColors,
-        activeColorId,
-        isolateActiveColorOnly,
-      );
-}
-
-function createPaletteMaskImageData(
-  sourceImageData,
-  paletteColors,
-  useFloydSteinbergDithering = false,
-  activeColorId = null,
-) {
-  if (!sourceImageData || paletteColors.length === 0 || !activeColorId) {
-    return null;
-  }
-
-  const quantizedImageData = createPalettePreviewImageData(
-    sourceImageData,
-    paletteColors,
-    useFloydSteinbergDithering,
-    null,
-    false,
-  );
-  const activeColor = paletteColors.find((color) => color.id === activeColorId);
-  if (!quantizedImageData || !activeColor?.rgb) {
-    return null;
-  }
-
-  const nextData = new Uint8ClampedArray(quantizedImageData.data.length);
-  for (let offset = 0; offset < quantizedImageData.data.length; offset += 4) {
-    const isActiveMatch =
-      quantizedImageData.data[offset] === activeColor.rgb.r &&
-      quantizedImageData.data[offset + 1] === activeColor.rgb.g &&
-      quantizedImageData.data[offset + 2] === activeColor.rgb.b &&
-      quantizedImageData.data[offset + 3] > 0;
-    const value = isActiveMatch ? 0 : 255;
-    nextData[offset] = value;
-    nextData[offset + 1] = value;
-    nextData[offset + 2] = value;
-    nextData[offset + 3] = 255;
-  }
-
-  return new ImageData(nextData, quantizedImageData.width, quantizedImageData.height);
-}
-
-function blurMaskImageData(sourceImageData, radius = 0) {
-  if (!sourceImageData || radius <= 0) {
-    return sourceImageData;
-  }
-
-  const { width, height, data } = sourceImageData;
-  const sourceValues = new Float32Array(width * height);
-  for (let index = 0, offset = 0; index < sourceValues.length; index += 1, offset += 4) {
-    sourceValues[index] = data[offset];
-  }
-
-  const horizontalBlur = new Float32Array(width * height);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let total = 0;
-      let count = 0;
-      for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
-        const sampleX = x + offsetX;
-        if (sampleX < 0 || sampleX >= width) {
-          continue;
-        }
-        total += sourceValues[y * width + sampleX];
-        count += 1;
-      }
-      horizontalBlur[y * width + x] = count > 0 ? total / count : sourceValues[y * width + x];
-    }
-  }
-
-  const nextData = new Uint8ClampedArray(data.length);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let total = 0;
-      let count = 0;
-      for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
-        const sampleY = y + offsetY;
-        if (sampleY < 0 || sampleY >= height) {
-          continue;
-        }
-        total += horizontalBlur[sampleY * width + x];
-        count += 1;
-      }
-
-      const blurredValue = Math.round(count > 0 ? total / count : horizontalBlur[y * width + x]);
-      const pixelOffset = (y * width + x) * 4;
-      nextData[pixelOffset] = blurredValue;
-      nextData[pixelOffset + 1] = blurredValue;
-      nextData[pixelOffset + 2] = blurredValue;
-      nextData[pixelOffset + 3] = 255;
-    }
-  }
-
-  return new ImageData(nextData, width, height);
-}
-
-function isImagePixelInsidePreviewCircle(
-  pixelX,
-  pixelY,
-  imageCenter,
-  imageScale,
-  previewSize,
-) {
-  if (
-    !imageCenter ||
-    !Number.isFinite(imageCenter.x) ||
-    !Number.isFinite(imageCenter.y) ||
-    !Number.isFinite(imageScale) ||
-    imageScale <= 0 ||
-    !Number.isFinite(previewSize) ||
-    previewSize <= 0
-  ) {
-    return false;
-  }
-
-  const previewRadius = previewSize / 2;
-  const previewX = previewRadius + ((pixelX + 0.5) - imageCenter.x) * imageScale;
-  const previewY = previewRadius + ((pixelY + 0.5) - imageCenter.y) * imageScale;
-  return Math.hypot(previewX - previewRadius, previewY - previewRadius) <= previewRadius;
-}
-
-function countPixelsByNearestPaletteColor(
-  sourceImageData,
-  paletteColors,
-  imageCenter,
-  imageScale,
-  previewSize,
-) {
-  if (!sourceImageData || paletteColors.length === 0) {
-    return [];
-  }
-
-  const colorCounts = new Map(paletteColors.map((color) => [color.id, 0]));
-  const { width, height, data } = sourceImageData;
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      if (!isImagePixelInsidePreviewCircle(x, y, imageCenter, imageScale, previewSize)) {
-        continue;
-      }
-
-      const offset = (y * width + x) * 4;
-      const nearestColor = getNearestPaletteMatch(
-        data[offset],
-        data[offset + 1],
-        data[offset + 2],
-        paletteColors,
-      );
-      if (!nearestColor) {
-        continue;
-      }
-
-      colorCounts.set(nearestColor.id, (colorCounts.get(nearestColor.id) ?? 0) + 1);
-    }
-  }
-
-  return paletteColors.map((color) => ({
-    ...color,
-    pixelCount: colorCounts.get(color.id) ?? 0,
-  }));
-}
-
-function countPixelsByCurrentPaletteSource(
-  sourceImageData,
-  paletteColors,
-  useFloydSteinbergDithering = false,
-  imageCenter,
-  imageScale,
-  previewSize,
-) {
-  if (!sourceImageData || paletteColors.length === 0) {
-    return [];
-  }
-
-  const quantizedImageData = createPalettePreviewImageData(
-    sourceImageData,
-    paletteColors,
-    useFloydSteinbergDithering,
-    null,
-    false,
-  );
-  if (!quantizedImageData) {
-    return [];
-  }
-
-  const colorCounts = new Map(paletteColors.map((color) => [color.id, 0]));
-  const rgbToColorId = new Map(
-    paletteColors
-      .filter((color) => color.rgb)
-      .map((color) => [`${color.rgb.r}-${color.rgb.g}-${color.rgb.b}`, color.id]),
-  );
-
-  let totalPixelCount = 0;
-  for (let y = 0; y < quantizedImageData.height; y += 1) {
-    for (let x = 0; x < quantizedImageData.width; x += 1) {
-      if (!isImagePixelInsidePreviewCircle(x, y, imageCenter, imageScale, previewSize)) {
-        continue;
-      }
-
-      totalPixelCount += 1;
-      const offset = (y * quantizedImageData.width + x) * 4;
-      const colorId = rgbToColorId.get(
-        `${quantizedImageData.data[offset]}-${quantizedImageData.data[offset + 1]}-${quantizedImageData.data[offset + 2]}`,
-      );
-      if (!colorId) {
-        continue;
-      }
-
-      colorCounts.set(colorId, (colorCounts.get(colorId) ?? 0) + 1);
-    }
-  }
-  const totalTenths = 1000;
-  const percentageAllocations = paletteColors
-    .map((color) => {
-      const pixelCount = colorCounts.get(color.id) ?? 0;
-      const exactTenths = totalPixelCount > 0 ? (pixelCount / totalPixelCount) * totalTenths : 0;
-      const roundedTenths = Math.floor(exactTenths);
-      return {
-        id: color.id,
-        pixelCount,
-        exactTenths,
-        roundedTenths,
-        remainder: exactTenths - roundedTenths,
-      };
-    })
-    .sort((firstColor, secondColor) => {
-      if (secondColor.remainder !== firstColor.remainder) {
-        return secondColor.remainder - firstColor.remainder;
-      }
-
-      return secondColor.pixelCount - firstColor.pixelCount;
-    });
-
-  let tenthsRemaining =
-    totalTenths -
-    percentageAllocations.reduce((sum, color) => sum + color.roundedTenths, 0);
-  for (const color of percentageAllocations) {
-    if (tenthsRemaining <= 0) {
-      break;
-    }
-
-    color.roundedTenths += 1;
-    tenthsRemaining -= 1;
-  }
-
-  const percentageTenthsById = new Map(
-    percentageAllocations.map((color) => [color.id, color.roundedTenths]),
-  );
-
-  return paletteColors.map((color) => {
-    const pixelCount = colorCounts.get(color.id) ?? 0;
-    const percentageTenths = percentageTenthsById.get(color.id) ?? 0;
-    return {
-      ...color,
-      pixelCount,
-      percentageTenths,
-      percentage: percentageTenths / 10,
-      percentageLabel: `${(percentageTenths / 10).toFixed(1)}%`,
-    };
-  });
-}
-
-function allocateWholeUnitsByWeight(items, totalUnits, getWeight) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return [];
-  }
-
-  const safeTotalUnits = Math.max(
-    0,
-    Math.round(Number.isFinite(totalUnits) ? totalUnits : 0),
-  );
-  const weightedItems = items.map((item) => ({
-    item,
-    weight: Math.max(0, getWeight(item)),
-  }));
-  const totalWeight = weightedItems.reduce((sum, weightedItem) => sum + weightedItem.weight, 0);
-
-  if (safeTotalUnits === 0 || totalWeight <= 0) {
-    return items.map((item) => ({
-      ...item,
-      allocatedUnits: 0,
-    }));
-  }
-
-  const allocations = weightedItems
-    .map(({ item, weight }) => {
-      const exactUnits = (weight / totalWeight) * safeTotalUnits;
-      const allocatedUnits = Math.floor(exactUnits);
-      return {
-        id: item.id,
-        weight,
-        allocatedUnits,
-        remainder: exactUnits - allocatedUnits,
-      };
-    })
-    .sort((firstItem, secondItem) => {
-      if (secondItem.remainder !== firstItem.remainder) {
-        return secondItem.remainder - firstItem.remainder;
-      }
-
-      return secondItem.weight - firstItem.weight;
-    });
-
-  let unitsRemaining =
-    safeTotalUnits -
-    allocations.reduce((sum, allocation) => sum + allocation.allocatedUnits, 0);
-  for (const allocation of allocations) {
-    if (unitsRemaining <= 0) {
-      break;
-    }
-
-    allocation.allocatedUnits += 1;
-    unitsRemaining -= 1;
-  }
-
-  const allocatedUnitsById = new Map(
-    allocations.map((allocation) => [allocation.id, allocation.allocatedUnits]),
-  );
-
-  return items.map((item) => ({
-    ...item,
-    allocatedUnits: allocatedUnitsById.get(item.id) ?? 0,
-  }));
-}
-
-function drawImageDataToCanvas(canvas, imageData) {
-  if (!canvas || !imageData) {
-    return;
-  }
-
-  canvas.width = imageData.width;
-  canvas.height = imageData.height;
-  const context = canvas.getContext('2d');
-  context?.putImageData(imageData, 0, 0);
-}
-
-function writeProcessedImageData(
-  context,
-  sourceImageData,
-  width,
-  height,
-  contrastPercent,
-  lineBoostMap,
-) {
-  const nextImage = context.createImageData(width, height);
-  const sourceData = sourceImageData.data;
-  const nextData = nextImage.data;
-  const contrastFactor = clamp(
-    Number.isFinite(contrastPercent) ? contrastPercent : DEFAULT_CONTRAST,
-    MIN_CONTRAST,
-    MAX_CONTRAST,
-  ) / 100;
-
-  for (let pixelIndex = 0, offset = 0; offset < sourceData.length; offset += 4, pixelIndex += 1) {
-    const lineBoost = lineBoostMap?.[pixelIndex] ?? 0;
-    nextData[offset] = clamp(
-      Math.round((sourceData[offset] - 128) * contrastFactor + 128) + lineBoost,
-      0,
-      255,
-    );
-    nextData[offset + 1] = clamp(
-      Math.round((sourceData[offset + 1] - 128) * contrastFactor + 128) + lineBoost,
-      0,
-      255,
-    );
-    nextData[offset + 2] = clamp(
-      Math.round((sourceData[offset + 2] - 128) * contrastFactor + 128) + lineBoost,
-      0,
-      255,
-    );
-    nextData[offset + 3] = sourceData[offset + 3];
-  }
-
-  context.putImageData(nextImage, 0, 0);
-}
 
 function App() {
   const [imageName, setImageName] = useState('');
@@ -711,7 +94,7 @@ function App() {
   const [hoveredPixel, setHoveredPixel] = useState(null);
   const [isBrushMode, setIsBrushMode] = useState(false);
   const [brushRadius, setBrushRadius] = useState(6);
-  const [pixelGroups, setPixelGroups] = useState([createPixelGroup(1)]);
+  const [pixelGroups, setPixelGroups] = useState([createPixelGroup(1, GROUP_COLORS)]);
   const [activeGroupId, setActiveGroupId] = useState('group-1');
   const [nextGroupNumber, setNextGroupNumber] = useState(2);
   const [isMulticolorLabEnabled, setIsMulticolorLabEnabled] = useState(true);
@@ -956,6 +339,9 @@ function App() {
       imageSize.height,
       Number.parseInt(contrast, 10),
       lineBoostMapRef.current,
+      MIN_CONTRAST,
+      MAX_CONTRAST,
+      DEFAULT_CONTRAST,
     );
     syncVisibleCanvas();
   }, [contrast, imageSize, isPerformingSteps]);
@@ -1147,7 +533,7 @@ function App() {
     setHoveredPixel(null);
     setIsStepLoopPaused(false);
     setHiddenPreviewLineKey(null);
-    setPixelGroups([createPixelGroup(1)]);
+    setPixelGroups([createPixelGroup(1, GROUP_COLORS)]);
     setActiveGroupId('group-1');
     setNextGroupNumber(2);
     groupPixelsRef.current = new Map([[1, new Set()]]);
@@ -1200,6 +586,9 @@ function App() {
           img.height,
           Number.parseInt(contrast, 10),
           lineBoostMapRef.current,
+          MIN_CONTRAST,
+          MAX_CONTRAST,
+          DEFAULT_CONTRAST,
         );
       }
       window.requestAnimationFrame(() => {
@@ -1215,89 +604,39 @@ function App() {
   };
 
   const getPreviewFramePoint = (clientX, clientY) => {
-    const previewElement = previewRef.current;
-    const previewRect = previewElement?.getBoundingClientRect();
-    if (!previewElement || !previewRect || previewSize <= 0) {
-      return null;
-    }
-
-    const offsetWidth = previewElement.offsetWidth;
-    const offsetHeight = previewElement.offsetHeight;
-    const clientWidth = previewElement.clientWidth;
-    const clientHeight = previewElement.clientHeight;
-    if (offsetWidth <= 0 || offsetHeight <= 0 || clientWidth <= 0 || clientHeight <= 0) {
-      return null;
-    }
-
-    const scaleX = previewRect.width / offsetWidth;
-    const scaleY = previewRect.height / offsetHeight;
-    const contentRect = {
-      left: previewRect.left + previewElement.clientLeft * scaleX,
-      top: previewRect.top + previewElement.clientTop * scaleY,
-      width: clientWidth * scaleX,
-      height: clientHeight * scaleY,
-    };
-
-    return {
-      previewRect,
-      contentRect,
-      x: ((clientX - contentRect.left) / contentRect.width) * previewSize,
-      y: ((clientY - contentRect.top) / contentRect.height) * previewSize,
-    };
+    return getPreviewFramePointForElement(
+      previewRef.current,
+      previewSize,
+      clientX,
+      clientY,
+    );
   };
 
   const isPointInsideCircle = (clientX, clientY) => {
     const previewPoint = getPreviewFramePoint(clientX, clientY);
-    if (!previewPoint) {
-      return false;
-    }
-
-    const centerX = previewSize / 2;
-    const centerY = previewSize / 2;
-    const radius = previewSize / 2;
-    return (
-      Math.hypot(previewPoint.x - centerX, previewPoint.y - centerY) <= radius
-    );
+    return isPreviewPointInsideCircle(previewPoint, previewSize);
   };
 
   const getImagePointFromClientPosition = (clientX, clientY) => {
     const previewPoint = getPreviewFramePoint(clientX, clientY);
-    if (!previewPoint || !imageSize || imageScale <= 0) {
-      return null;
-    }
-
-    const imageX =
-      imageCenter.x + (previewPoint.x - previewSize / 2) / imageScale;
-    const imageY =
-      imageCenter.y + (previewPoint.y - previewSize / 2) / imageScale;
-
-    if (
-      imageX < 0 ||
-      imageY < 0 ||
-      imageX >= imageSize.width ||
-      imageY >= imageSize.height
-    ) {
-      return null;
-    }
-
-    return {
-      contentRect: previewPoint.contentRect,
-      imageX,
-      imageY,
-      pixelColumn: Math.floor(imageX),
-      pixelRow: Math.floor(imageY),
-    };
+    return getImagePointFromPreviewPoint(
+      previewPoint,
+      imageSize,
+      imageScale,
+      imageCenter,
+      previewSize,
+    );
   };
 
   const getPreviewCoordinatesForPixel = (pixelX, pixelY) => {
-    if (!imageSize || previewSize <= 0) {
-      return null;
-    }
-
-    return {
-      x: previewSize / 2 + ((pixelX + 0.5) - imageCenter.x) * imageScale,
-      y: previewSize / 2 + ((pixelY + 0.5) - imageCenter.y) * imageScale,
-    };
+    return getPreviewCoordinatesForPixelFromState(
+      pixelX,
+      pixelY,
+      imageSize,
+      previewSize,
+      imageCenter,
+      imageScale,
+    );
   };
 
   const isImagePixelInsideCircle = (pixelX, pixelY) => {
@@ -1447,7 +786,7 @@ function App() {
   };
 
   const handleAddPixelGroup = () => {
-    const nextGroup = createPixelGroup(nextGroupNumber);
+    const nextGroup = createPixelGroup(nextGroupNumber, GROUP_COLORS);
     groupPixelsRef.current.set(nextGroup.groupNumber, new Set());
     setPixelGroups((currentGroups) => [...currentGroups, nextGroup]);
     setActiveGroupId(nextGroup.id);
@@ -1599,26 +938,26 @@ function App() {
     }
 
     if (dragState.mode === 'preview') {
-      const nextPreviewOffset = {
-        x: dragState.startOffset.x + event.clientX - dragState.pointerStart.x,
-        y: dragState.startOffset.y + event.clientY - dragState.pointerStart.y,
-      };
+      const nextPreviewOffset = getDraggedPreviewOffset(
+        dragState.startOffset,
+        dragState.pointerStart,
+        event.clientX,
+        event.clientY,
+      );
       previewOffsetRef.current = nextPreviewOffset;
       setPreviewOffset(nextPreviewOffset);
       updateHoveredPixel(event);
       return;
     }
 
-    const nextImageCenter = {
-      x:
-        dragState.startCenter.x -
-        (event.clientX - dragState.pointerStart.x) /
-          ((previewScaleRef.current / 100) * imageScaleRef.current),
-      y:
-        dragState.startCenter.y -
-        (event.clientY - dragState.pointerStart.y) /
-          ((previewScaleRef.current / 100) * imageScaleRef.current),
-    };
+    const nextImageCenter = getDraggedImageCenter(
+      dragState.startCenter,
+      dragState.pointerStart,
+      event.clientX,
+      event.clientY,
+      previewScaleRef.current,
+      imageScaleRef.current,
+    );
     imageCenterRef.current = nextImageCenter;
     setImageCenter(nextImageCenter);
     updateHoveredPixel(event);
@@ -1638,30 +977,22 @@ function App() {
       return;
     }
 
-    const zoomFactor = Math.exp(-event.deltaY * 0.0015);
+    const zoomFactor = getZoomFactor(event.deltaY);
 
     if (!event.shiftKey) {
-      const currentPreviewScale = previewScaleRef.current;
-      const nextPreviewScale = Math.max(
-        Math.round(currentPreviewScale * zoomFactor),
+      const nextPreviewState = getZoomedPreviewState(
+        previewScaleRef.current,
+        previewOffsetRef.current,
+        event.clientX,
+        event.clientY,
+        previewRect,
+        zoomFactor,
         MIN_PREVIEW_SCALE,
       );
-      const previewRatio = nextPreviewScale / currentPreviewScale;
-      const previewCenterX = previewRect.left + previewRect.width / 2;
-      const previewCenterY = previewRect.top + previewRect.height / 2;
-
-      const nextPreviewOffset = {
-        x:
-          previewOffsetRef.current.x +
-          (1 - previewRatio) * (event.clientX - previewCenterX),
-        y:
-          previewOffsetRef.current.y +
-          (1 - previewRatio) * (event.clientY - previewCenterY),
-      };
-      previewOffsetRef.current = nextPreviewOffset;
-      previewScaleRef.current = nextPreviewScale;
-      setPreviewOffset(nextPreviewOffset);
-      setPreviewScale(nextPreviewScale);
+      previewOffsetRef.current = nextPreviewState.previewOffset;
+      previewScaleRef.current = nextPreviewState.previewScale;
+      setPreviewOffset(nextPreviewState.previewOffset);
+      setPreviewScale(nextPreviewState.previewScale);
       return;
     }
 
@@ -1674,22 +1005,20 @@ function App() {
       return;
     }
 
-    const currentImageScale = imageScaleRef.current;
-    const currentImageCenter = imageCenterRef.current;
-    const nextImageScale = clamp(currentImageScale * zoomFactor, MIN_SCALE, MAX_SCALE);
-    const anchorImageX =
-      currentImageCenter.x + (previewPoint.x - previewSize / 2) / currentImageScale;
-    const anchorImageY =
-      currentImageCenter.y + (previewPoint.y - previewSize / 2) / currentImageScale;
-
-    const nextImageCenter = {
-      x: anchorImageX - (previewPoint.x - previewSize / 2) / nextImageScale,
-      y: anchorImageY - (previewPoint.y - previewSize / 2) / nextImageScale,
-    };
-    imageCenterRef.current = nextImageCenter;
-    imageScaleRef.current = nextImageScale;
-    setImageCenter(nextImageCenter);
-    setImageScale(nextImageScale);
+    const nextImageState = getZoomedImageState(
+      imageScaleRef.current,
+      imageCenterRef.current,
+      previewPoint,
+      previewSize,
+      zoomFactor,
+      MIN_SCALE,
+      MAX_SCALE,
+      clamp,
+    );
+    imageCenterRef.current = nextImageState.imageCenter;
+    imageScaleRef.current = nextImageState.imageScale;
+    setImageCenter(nextImageState.imageCenter);
+    setImageScale(nextImageState.imageScale);
   }, [hasLoadedImage, previewSize]);
 
   useEffect(() => {
@@ -2053,23 +1382,11 @@ function App() {
     cursor: dragState?.mode === 'preview' ? 'grabbing' : 'default',
   };
   const inversePreviewScale = 100 / previewScale;
-  const nailRadius = 0.8 * inversePreviewScale;
-  const nailOrbitRadius = 50 - nailRadius;
-  const nailLabelRadius = 50 + 2.6 * inversePreviewScale;
-  const nailFontSize = 2.2 * inversePreviewScale;
-
-  const nails = Array.from({ length: nailsCount }, (_, index) => {
-    const angle = (index / nailsCount) * Math.PI * 2 - Math.PI / 2;
-
-    return {
-      key: `nail-${index}`,
-      cx: 50 + Math.cos(angle) * nailOrbitRadius,
-      cy: 50 + Math.sin(angle) * nailOrbitRadius,
-      labelX: 50 + Math.cos(angle) * nailLabelRadius,
-      labelY: 50 + Math.sin(angle) * nailLabelRadius,
-      number: index + 1,
-    };
-  });
+  const {
+    nailFontSize,
+    nailRadius,
+    nails,
+  } = buildNails(nailsCount, inversePreviewScale);
 
   const fromIndex = Number.parseInt(lineFrom, 10);
   const toIndex = Number.parseInt(lineTo, 10);
@@ -2170,23 +1487,7 @@ function App() {
   }, [minimumDarkness, darkestNailsKey]);
 
   const artLineSegments = isArtMode
-    ? savedNailSequence.reduce((segments, nailNumber, index) => {
-        const startNailNumber = index === 0 ? 1 : savedNailSequence[index - 1];
-        const startNail = nails[startNailNumber - 1];
-        const endNail = nails[nailNumber - 1];
-
-        if (startNail && endNail) {
-          segments.push({
-            key: `art-line-${index}-${startNailNumber}-${nailNumber}`,
-            x1: startNail.cx,
-            y1: startNail.cy,
-            x2: endNail.cx,
-            y2: endNail.cy,
-          });
-        }
-
-        return segments;
-      }, [])
+    ? buildArtLineSegments(savedNailSequence, nails)
     : [];
   const activeGroup =
     pixelGroups.find((group) => group.id === activeGroupId) ?? pixelGroups[0] ?? null;
@@ -2214,6 +1515,9 @@ function App() {
       imageSize.height,
       Number.parseInt(contrast, 10),
       lineBoostMapRef.current,
+      MIN_CONTRAST,
+      MAX_CONTRAST,
+      DEFAULT_CONTRAST,
     );
     syncVisibleCanvas();
     setSavedNailSequence([]);
@@ -2533,562 +1837,115 @@ function App() {
               export nail list
             </button>
           </div>
-          <div className="brush-panel">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={isBrushMode}
-                onChange={(event) => setIsBrushMode(event.target.checked)}
-                disabled={!hasLoadedImage || isArtMode}
-              />
-              <span>Brush select</span>
-            </label>
-            <label className="slider-control brush-radius-control">
-              <span>Brush radius: {brushRadius}px</span>
-              <input
-                type="range"
-                min={MIN_BRUSH_RADIUS}
-                max={MAX_BRUSH_RADIUS}
-                step="1"
-                value={brushRadius}
-                onChange={(event) => {
-                  setBrushRadius(
-                    clamp(Number(event.target.value), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
-                  );
-                }}
-                disabled={!hasLoadedImage || isArtMode}
-              />
-            </label>
-            <button
-              className="action-button action-button-secondary"
-              type="button"
-              onClick={handleAddPixelGroup}
-              disabled={!hasLoadedImage || isArtMode}
-            >
-              add group
-            </button>
-            <div className="group-list">
-              {pixelGroups.map((group) => {
-                const isActiveGroup = group.id === activeGroupId;
-                return (
-                  <div
-                    key={group.id}
-                    className={`group-card ${isActiveGroup ? 'is-active' : ''}`}
-                  >
-                    <button
-                      className="group-select-button"
-                      type="button"
-                      onClick={() => setActiveGroupId(group.id)}
-                    >
-                      <span
-                        className="group-swatch"
-                        style={{ backgroundColor: group.color }}
-                      />
-                      <span>{group.name}</span>
-                    </button>
-                    <label className="group-value-control">
-                      <span>Weight: {group.value}</span>
-                      <input
-                        type="range"
-                        min={MIN_GROUP_VALUE}
-                        max={MAX_GROUP_VALUE}
-                        step={GROUP_VALUE_STEP}
-                        value={group.value}
-                        onChange={(event) => {
-                          const parsedValue = Number.parseFloat(event.target.value);
-                          handleGroupValueChange(
-                            group.id,
-                            Number.isFinite(parsedValue) ? parsedValue : 0,
-                          );
-                        }}
-                      />
-                    </label>
-                    <p className="group-meta">
-                      {group.pixelCount} pixels
-                    </p>
-                    <button
-                      className="action-button action-button-secondary group-remove-button"
-                      type="button"
-                      onClick={() => handleRemovePixelGroup(group.id)}
-                    >
-                      remove
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="brush-summary">
-              {activeGroup
-                ? `${activeGroup.name}: ${activeGroup.pixelCount} pixels, value ${activeGroup.value.toFixed(2)}`
-                : 'No active group'}
-            </p>
-          </div>
-          <div className="multicolor-lab">
-            <div className="multicolor-lab-header">
-              <h2>Multicolor lab</h2>
-              <p>
-                Isolated staging area for the slow multicolor port. Solver behavior stays untouched;
-                preview changes here are display-only.
-              </p>
-            </div>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={isMulticolorLabEnabled}
-                onChange={(event) => setIsMulticolorLabEnabled(event.target.checked)}
-              />
-              <span>Enable multicolor lab</span>
-            </label>
-            {isMulticolorLabEnabled && (
-              <div className="multicolor-lab-body">
-                <div className="multicolor-lab-placeholder">
-                  <span className="multicolor-lab-label">Debug view</span>
-                  <div
-                    className="multicolor-debug-toggle-group"
-                    role="radiogroup"
-                    aria-label="Multicolor debug view"
-                  >
-                    {MULTICOLOR_DEBUG_VIEWS.map((view) => {
-                      const isActive = multicolorDebugView === view.id;
-                      return (
-                        <button
-                          key={view.id}
-                          className={[
-                            'multicolor-debug-toggle',
-                            isActive ? 'is-active' : '',
-                          ].filter(Boolean).join(' ')}
-                          type="button"
-                          role="radio"
-                          aria-checked={isActive}
-                          onClick={() => setMulticolorDebugView(view.id)}
-                        >
-                          {view.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="multicolor-lab-placeholder">
-                  <span className="multicolor-lab-label">Palette preset</span>
-                  <div
-                    className="multicolor-debug-toggle-group"
-                    role="radiogroup"
-                    aria-label="Multicolor palette preset"
-                  >
-                    {MULTICOLOR_PALETTE_PRESETS.map((preset) => {
-                      const isActive = multicolorPalettePreset.id === preset.id;
-                      return (
-                        <button
-                          key={preset.id}
-                          className={[
-                            'multicolor-debug-toggle',
-                            isActive ? 'is-active' : '',
-                          ].filter(Boolean).join(' ')}
-                          type="button"
-                          role="radio"
-                          aria-checked={isActive}
-                          onClick={() => {
-                            setMulticolorPalettePresetId(preset.id);
-                            setMulticolorPaletteColors(clonePalettePreset(preset).colors);
-                            setActivePaletteColorId(preset.colors[0]?.id ?? null);
-                          }}
-                        >
-                          {preset.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="multicolor-lab-helper">
-                    Active preset: {multicolorPalettePreset.name}
-                  </p>
-                  <div className="multicolor-palette-list">
-                    {multicolorPaletteColors.map((color) => (
-                      <div
-                        key={color.id}
-                        className={[
-                          'multicolor-palette-row',
-                          color.enabled ? '' : 'is-disabled',
-                          color.id === activePaletteColorId ? 'is-active' : '',
-                        ].filter(Boolean).join(' ')}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={color.enabled}
-                          onChange={(event) => {
-                            setMulticolorPaletteColors((currentColors) =>
-                              currentColors.map((currentColor) =>
-                                currentColor.id === color.id
-                                  ? {
-                                      ...currentColor,
-                                      enabled: event.target.checked,
-                                    }
-                                  : currentColor,
-                              ),
-                            );
-                          }}
-                        />
-                        <button
-                          className={[
-                            'multicolor-palette-swatch-button',
-                            color.id === activePaletteColorId ? 'is-active' : '',
-                          ].filter(Boolean).join(' ')}
-                          type="button"
-                          onClick={() => setActivePaletteColorId(color.id)}
-                          aria-label={`Set active palette color ${color.label}`}
-                          title={`Active color: ${color.label}`}
-                        >
-                          <span
-                            className="multicolor-palette-swatch"
-                            style={{ backgroundColor: color.hex }}
-                          />
-                        </button>
-                        <span className="multicolor-palette-value">{color.hex}</span>
-                        <span className="multicolor-palette-count-value">
-                          {originalImageDataRef.current
-                            ? `${(multicolorPalettePixelCountMap.get(color.id) ?? 0).toLocaleString()} px`
-                            : '-'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  {isActiveColorOnlyControlVisible && (
-                    <>
-                      <label className="checkbox-row multicolor-lab-helper-row">
-                        <input
-                          type="checkbox"
-                          checked={isActivePaletteColorOnlyEnabled}
-                          onChange={(event) => setIsActivePaletteColorOnlyEnabled(event.target.checked)}
-                          disabled={!activePaletteColor || enabledPalettePreviewColors.length === 0}
-                        />
-                        <span>
-                          Show active color only
-                          {activePaletteColor ? ` (${activePaletteColor.hex})` : ''}
-                        </span>
-                      </label>
-                      <p className="multicolor-lab-helper">
-                        Click a swatch to make it active. This mode hides all non-active palette
-                        matches in the palette preview.
-                      </p>
-                    </>
-                  )}
-                </div>
-                <label className="checkbox-row multicolor-lab-placeholder">
-                  <input
-                    type="checkbox"
-                    checked={isPaletteDitheringEnabled}
-                    onChange={(event) => setIsPaletteDitheringEnabled(event.target.checked)}
-                    disabled={!isPalettePreviewEnabled}
-                  />
-                  <span>Use Floyd-Steinberg dithering preview</span>
-                </label>
-                <p className="multicolor-lab-note">
-                  {MULTICOLOR_DEBUG_VIEWS.find((view) => view.id === multicolorDebugView)?.label}
-                  {' '}
-                  using {palettePreviewModeLabel.toLowerCase()}.
-                </p>
-                <div className="multicolor-lab-placeholder">
-                  <span className="multicolor-lab-label">Mask source coverage</span>
-                  {multicolorPaletteCoverage.length > 0 ? (
-                    <div className="multicolor-histogram-list">
-                      {multicolorPaletteCoverageWithSuggestions.map((color) => (
-                        <div
-                          key={color.id}
-                          className="multicolor-histogram-row"
-                        >
-                          <div className="multicolor-histogram-meta">
-                            <span
-                              className="multicolor-palette-swatch"
-                              style={{ backgroundColor: color.hex }}
-                            />
-                            <span className="multicolor-histogram-name">{color.label}</span>
-                            <span className="multicolor-histogram-value">
-                              {color.percentageLabel}
-                            </span>
-                            <span className="multicolor-histogram-lines">
-                              {color.allocatedUnits.toLocaleString()} lines
-                            </span>
-                          </div>
-                          <div className="multicolor-histogram-bar-track">
-                            <div
-                              className="multicolor-histogram-bar-fill"
-                              style={{
-                                width: `${color.percentage}%`,
-                                backgroundColor: color.hex,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                      <p className="multicolor-histogram-total">
-                        Total: {(totalPaletteCoverageTenths / 10).toFixed(1)}%
-                      </p>
-                      <p className="multicolor-histogram-total">
-                        Suggested split: {totalAllocatedSuggestedLines.toLocaleString()} /{' '}
-                        {totalSuggestedMulticolorLines.toLocaleString()} lines
-                      </p>
-                      <p className="multicolor-lab-helper multicolor-histogram-helper">
-                        Read-only suggestion based on the current monochrome sequence length.
-                        {totalSuggestedMulticolorLines === 0
-                          ? ' Save some lines first to get non-zero per-color suggestions.'
-                          : ''}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="multicolor-lab-helper">
-                      Load an image and keep at least one palette color enabled to see coverage
-                      percentages for the current {palettePreviewModeLabel.toLowerCase()} source.
-                    </p>
-                  )}
-                </div>
-                <div className="multicolor-lab-placeholder">
-                  <label className="slider-control">
-                    <span>Mask blur radius: {maskBlurRadius}</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="12"
-                      step="1"
-                      value={maskBlurRadius}
-                      onChange={(event) => {
-                        setMaskBlurRadius(Math.max(0, Number(event.target.value) || 0));
-                      }}
-                      disabled={!isPaletteMaskVisible}
-                    />
-                  </label>
-                </div>
-                {isPaletteMaskVisible && (
-                  <p className="multicolor-lab-helper">
-                    Showing a black/white mask for the active palette color using the current
-                    {` ${palettePreviewModeLabel.toLowerCase()}`} source. Set the blur radius to{' '}
-                    <code>0</code> for the raw mask and increase it to preview a softened version.
-                  </p>
-                )}
-                {shouldShowPaletteComparison && (
-                  <div className="multicolor-lab-placeholder">
-                    <span className="multicolor-lab-label">Palette comparison</span>
-                    <div className="multicolor-comparison-grid">
-                      <figure className="multicolor-comparison-card">
-                        <figcaption>Original RGB</figcaption>
-                        <canvas
-                          ref={originalComparisonCanvasRef}
-                          className="multicolor-comparison-canvas"
-                        />
-                      </figure>
-                      <figure className="multicolor-comparison-card">
-                        <figcaption>Nearest-palette preview</figcaption>
-                        <canvas
-                          ref={paletteComparisonCanvasRef}
-                          className="multicolor-comparison-canvas"
-                        />
-                      </figure>
-                      {isPaletteDitheringEnabled && (
-                        <figure className="multicolor-comparison-card">
-                          <figcaption>Floyd-Steinberg preview</figcaption>
-                          <canvas
-                            ref={ditheredComparisonCanvasRef}
-                            className="multicolor-comparison-canvas"
-                          />
-                        </figure>
-                      )}
-                    </div>
-                  </div>
-                )}
-                <label className="checkbox-row multicolor-lab-placeholder">
-                  <input
-                    type="checkbox"
-                    checked={isPalettePreviewEnabled}
-                    onChange={(event) => setIsPalettePreviewEnabled(event.target.checked)}
-                  />
-                  <span>Use palette preview</span>
-                </label>
-              </div>
-            )}
-          </div>
+          <BrushPanel
+            activeGroup={activeGroup}
+            activeGroupId={activeGroupId}
+            brushRadius={brushRadius}
+            groupValueStep={GROUP_VALUE_STEP}
+            hasLoadedImage={hasLoadedImage}
+            isArtMode={isArtMode}
+            isBrushMode={isBrushMode}
+            maxBrushRadius={MAX_BRUSH_RADIUS}
+            maxGroupValue={MAX_GROUP_VALUE}
+            minBrushRadius={MIN_BRUSH_RADIUS}
+            minGroupValue={MIN_GROUP_VALUE}
+            onActiveGroupChange={setActiveGroupId}
+            onAddPixelGroup={handleAddPixelGroup}
+            onBrushModeChange={setIsBrushMode}
+            onBrushRadiusChange={(nextValue) => {
+              setBrushRadius(
+                clamp(Number(nextValue), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
+              );
+            }}
+            onGroupValueChange={(groupId, nextValue) => {
+              const parsedValue = Number.parseFloat(nextValue);
+              handleGroupValueChange(
+                groupId,
+                Number.isFinite(parsedValue) ? parsedValue : 0,
+              );
+            }}
+            onRemovePixelGroup={handleRemovePixelGroup}
+            pixelGroups={pixelGroups}
+          />
+          <MulticolorLab
+            activePaletteColor={activePaletteColor}
+            activePaletteColorId={activePaletteColorId}
+            ditheredComparisonCanvasRef={ditheredComparisonCanvasRef}
+            enabledPalettePreviewColors={enabledPalettePreviewColors}
+            hasOriginalImage={Boolean(originalImageDataRef.current)}
+            isActiveColorOnlyControlVisible={isActiveColorOnlyControlVisible}
+            isActivePaletteColorOnlyEnabled={isActivePaletteColorOnlyEnabled}
+            isMulticolorLabEnabled={isMulticolorLabEnabled}
+            isPaletteDitheringEnabled={isPaletteDitheringEnabled}
+            isPaletteMaskVisible={isPaletteMaskVisible}
+            isPalettePreviewEnabled={isPalettePreviewEnabled}
+            maskBlurRadius={maskBlurRadius}
+            multicolorDebugView={multicolorDebugView}
+            multicolorPaletteColors={multicolorPaletteColors}
+            multicolorPaletteCoverage={multicolorPaletteCoverage}
+            multicolorPaletteCoverageWithSuggestions={multicolorPaletteCoverageWithSuggestions}
+            multicolorPalettePixelCountMap={multicolorPalettePixelCountMap}
+            multicolorPalettePreset={multicolorPalettePreset}
+            originalComparisonCanvasRef={originalComparisonCanvasRef}
+            paletteComparisonCanvasRef={paletteComparisonCanvasRef}
+            palettePreviewModeLabel={palettePreviewModeLabel}
+            setActivePaletteColorId={setActivePaletteColorId}
+            setIsActivePaletteColorOnlyEnabled={setIsActivePaletteColorOnlyEnabled}
+            setIsMulticolorLabEnabled={setIsMulticolorLabEnabled}
+            setIsPaletteDitheringEnabled={setIsPaletteDitheringEnabled}
+            setIsPalettePreviewEnabled={setIsPalettePreviewEnabled}
+            setMaskBlurRadius={setMaskBlurRadius}
+            setMulticolorDebugView={setMulticolorDebugView}
+            setMulticolorPaletteColors={setMulticolorPaletteColors}
+            setMulticolorPalettePresetId={setMulticolorPalettePresetId}
+            shouldShowPaletteComparison={shouldShowPaletteComparison}
+            totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
+            totalPaletteCoverageTenths={totalPaletteCoverageTenths}
+            totalSuggestedMulticolorLines={totalSuggestedMulticolorLines}
+          />
         </div>
 
       </aside>
 
-      <main className="workspace">
-        <div
-          className="preview-shell"
-          style={previewStyle}
-        >
-          {nailsCount > 0 && showNailNumbers && (
-            <svg
-              className="nails-labels-layer"
-              aria-hidden="true"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              {nails.map((nail) => (
-                <text
-                  key={`${nail.key}-label`}
-                  className="nail-number"
-                  x={nail.labelX}
-                  y={nail.labelY}
-                  fontSize={nailFontSize}
-                >
-                  {nail.number}
-                </text>
-              ))}
-            </svg>
-          )}
-          <div
-            ref={previewRef}
-            className={`preview-frame ${cropToCircle ? 'is-circle' : ''}`}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={stopDragging}
-            onPointerLeave={(event) => {
-              stopDragging(event);
-              setHoveredPixel(null);
-            }}
-            onPointerCancel={(event) => {
-              stopDragging(event);
-              setHoveredPixel(null);
-            }}
-          >
-            {isArtMode ? (
-              <>
-                {nailsCount > 0 && (
-                  <svg
-                    className="art-lines-layer"
-                    aria-hidden="true"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                  >
-                    {artLineSegments.map((segment) => (
-                      <line
-                        key={segment.key}
-                        className="nail-line"
-                        x1={segment.x1}
-                        y1={segment.y1}
-                        x2={segment.x2}
-                        y2={segment.y2}
-                      />
-                    ))}
-                  </svg>
-                )}
-                {nailsCount > 0 && (
-                  <svg
-                    className="nails-layer"
-                    aria-hidden="true"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                  >
-                    {nails.map((nail) => (
-                      <g key={nail.key}>
-                        <circle
-                          className="nail"
-                          cx={nail.cx}
-                          cy={nail.cy}
-                          r={nailRadius}
-                        />
-                      </g>
-                    ))}
-                  </svg>
-                )}
-              </>
-            ) : hasLoadedImage ? (
-              <>
-                <canvas
-                  ref={imageRef}
-                  className="preview-image"
-                  width={imageSize.width}
-                  height={imageSize.height}
-                  style={imageStyle}
-                />
-                <canvas
-                  ref={selectionOverlayRef}
-                  className="brush-selection-layer"
-                  aria-hidden="true"
-                  width={imageSize.width}
-                  height={imageSize.height}
-                  style={imageLayerStyle}
-                />
-                {linePixels.length > 0 && (
-                  <svg
-                    className="line-pixels-layer"
-                    aria-hidden="true"
-                    viewBox={`0 0 ${imageSize.width} ${imageSize.height}`}
-                    style={imageLayerStyle}
-                  >
-                    {linePixels.map((pixel) => (
-                      <rect
-                        key={pixel.key}
-                        className="line-pixel"
-                        x={pixel.x}
-                        y={pixel.y}
-                        width="1"
-                        height="1"
-                      />
-                    ))}
-                  </svg>
-                )}
-                {nailsCount > 0 && (
-                  <svg
-                    className="nails-layer"
-                    aria-hidden="true"
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                  >
-                    {shouldShowPreviewLine && (
-                      <line
-                        className="nail-line"
-                        x1={lineStart.cx}
-                        y1={lineStart.cy}
-                        x2={lineEnd.cx}
-                        y2={lineEnd.cy}
-                      />
-                    )}
-                    {nails.map((nail) => (
-                      <g key={nail.key}>
-                        <circle
-                          className="nail"
-                          cx={nail.cx}
-                          cy={nail.cy}
-                          r={nailRadius}
-                        />
-                      </g>
-                    ))}
-                  </svg>
-                )}
-              </>
-            ) : (
-              <div className="empty-state">
-                <p>Choose an image to start.</p>
-                <p>The preview will appear here.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-      {hoveredPixel && !isArtMode && (
-        <>
-          <div
-            className="pixel-outline"
-            style={{
-              left: hoveredPixel.left,
-              top: hoveredPixel.top,
-              width: hoveredPixel.width,
-              height: hoveredPixel.height,
-            }}
-          />
-          <div
-            className="pixel-hint"
-            style={{
-              left: hoveredPixel.x,
-              top: hoveredPixel.y - 16,
-            }}
-          >
-            {isBrushMode
-              ? `${hoveredPixel.pixelX},${hoveredPixel.pixelY}`
-              : isBlackAndWhite
-                ? `Darkness ${hoveredPixel.darkness}`
-                : `RGB(${hoveredPixel.r}, ${hoveredPixel.g}, ${hoveredPixel.b})`}
-          </div>
-        </>
-      )}
+      <PreviewWorkspace
+        artLineSegments={artLineSegments}
+        cropToCircle={cropToCircle}
+        handlePointerDown={handlePointerDown}
+        handlePointerMove={handlePointerMove}
+        hasLoadedImage={hasLoadedImage}
+        imageLayerStyle={imageLayerStyle}
+        imageRef={imageRef}
+        imageSize={imageSize}
+        imageStyle={imageStyle}
+        isArtMode={isArtMode}
+        lineEnd={lineEnd}
+        linePixels={linePixels}
+        lineStart={lineStart}
+        nailFontSize={nailFontSize}
+        nailRadius={nailRadius}
+        nails={nails}
+        nailsCount={nailsCount}
+        onPointerCancel={(event) => {
+          stopDragging(event);
+          setHoveredPixel(null);
+        }}
+        onPointerLeave={(event) => {
+          stopDragging(event);
+          setHoveredPixel(null);
+        }}
+        onPointerUp={stopDragging}
+        previewRef={previewRef}
+        previewStyle={previewStyle}
+        selectionOverlayRef={selectionOverlayRef}
+        shouldShowPreviewLine={shouldShowPreviewLine}
+        showNailNumbers={showNailNumbers}
+      />
+      <HoveredPixelOverlay
+        hoveredPixel={hoveredPixel}
+        isArtMode={isArtMode}
+        isBlackAndWhite={isBlackAndWhite}
+        isBrushMode={isBrushMode}
+      />
     </div>
   );
 }
