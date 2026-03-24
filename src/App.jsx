@@ -405,25 +405,64 @@ function blurMaskImageData(sourceImageData, radius = 0) {
   return new ImageData(nextData, width, height);
 }
 
-function countPixelsByNearestPaletteColor(sourceImageData, paletteColors) {
+function isImagePixelInsidePreviewCircle(
+  pixelX,
+  pixelY,
+  imageCenter,
+  imageScale,
+  previewSize,
+) {
+  if (
+    !imageCenter ||
+    !Number.isFinite(imageCenter.x) ||
+    !Number.isFinite(imageCenter.y) ||
+    !Number.isFinite(imageScale) ||
+    imageScale <= 0 ||
+    !Number.isFinite(previewSize) ||
+    previewSize <= 0
+  ) {
+    return false;
+  }
+
+  const previewRadius = previewSize / 2;
+  const previewX = previewRadius + ((pixelX + 0.5) - imageCenter.x) * imageScale;
+  const previewY = previewRadius + ((pixelY + 0.5) - imageCenter.y) * imageScale;
+  return Math.hypot(previewX - previewRadius, previewY - previewRadius) <= previewRadius;
+}
+
+function countPixelsByNearestPaletteColor(
+  sourceImageData,
+  paletteColors,
+  imageCenter,
+  imageScale,
+  previewSize,
+) {
   if (!sourceImageData || paletteColors.length === 0) {
     return [];
   }
 
   const colorCounts = new Map(paletteColors.map((color) => [color.id, 0]));
+  const { width, height, data } = sourceImageData;
 
-  for (let offset = 0; offset < sourceImageData.data.length; offset += 4) {
-    const nearestColor = getNearestPaletteMatch(
-      sourceImageData.data[offset],
-      sourceImageData.data[offset + 1],
-      sourceImageData.data[offset + 2],
-      paletteColors,
-    );
-    if (!nearestColor) {
-      continue;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (!isImagePixelInsidePreviewCircle(x, y, imageCenter, imageScale, previewSize)) {
+        continue;
+      }
+
+      const offset = (y * width + x) * 4;
+      const nearestColor = getNearestPaletteMatch(
+        data[offset],
+        data[offset + 1],
+        data[offset + 2],
+        paletteColors,
+      );
+      if (!nearestColor) {
+        continue;
+      }
+
+      colorCounts.set(nearestColor.id, (colorCounts.get(nearestColor.id) ?? 0) + 1);
     }
-
-    colorCounts.set(nearestColor.id, (colorCounts.get(nearestColor.id) ?? 0) + 1);
   }
 
   return paletteColors.map((color) => ({
@@ -436,6 +475,9 @@ function countPixelsByCurrentPaletteSource(
   sourceImageData,
   paletteColors,
   useFloydSteinbergDithering = false,
+  imageCenter,
+  imageScale,
+  previewSize,
 ) {
   if (!sourceImageData || paletteColors.length === 0) {
     return [];
@@ -459,18 +501,25 @@ function countPixelsByCurrentPaletteSource(
       .map((color) => [`${color.rgb.r}-${color.rgb.g}-${color.rgb.b}`, color.id]),
   );
 
-  for (let offset = 0; offset < quantizedImageData.data.length; offset += 4) {
-    const colorId = rgbToColorId.get(
-      `${quantizedImageData.data[offset]}-${quantizedImageData.data[offset + 1]}-${quantizedImageData.data[offset + 2]}`,
-    );
-    if (!colorId) {
-      continue;
+  let totalPixelCount = 0;
+  for (let y = 0; y < quantizedImageData.height; y += 1) {
+    for (let x = 0; x < quantizedImageData.width; x += 1) {
+      if (!isImagePixelInsidePreviewCircle(x, y, imageCenter, imageScale, previewSize)) {
+        continue;
+      }
+
+      totalPixelCount += 1;
+      const offset = (y * quantizedImageData.width + x) * 4;
+      const colorId = rgbToColorId.get(
+        `${quantizedImageData.data[offset]}-${quantizedImageData.data[offset + 1]}-${quantizedImageData.data[offset + 2]}`,
+      );
+      if (!colorId) {
+        continue;
+      }
+
+      colorCounts.set(colorId, (colorCounts.get(colorId) ?? 0) + 1);
     }
-
-    colorCounts.set(colorId, (colorCounts.get(colorId) ?? 0) + 1);
   }
-
-  const totalPixelCount = quantizedImageData.width * quantizedImageData.height;
   const totalTenths = 1000;
   const percentageAllocations = paletteColors
     .map((color) => {
@@ -941,21 +990,46 @@ function App() {
   ]);
 
   useEffect(() => {
-    if (!originalImageDataRef.current || enabledPalettePreviewColors.length === 0) {
+    if (!imageCanvasRef.current || !imageSize || enabledPalettePreviewColors.length === 0) {
+      setMulticolorPalettePixelCounts([]);
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    if (!context) {
       setMulticolorPalettePixelCounts([]);
       return;
     }
 
     setMulticolorPalettePixelCounts(
       countPixelsByNearestPaletteColor(
-        originalImageDataRef.current,
+        context.getImageData(0, 0, imageSize.width, imageSize.height),
         enabledPalettePreviewColors,
+        imageCenter,
+        imageScale,
+        previewSize,
       ),
     );
-  }, [imageName, imageSize, multicolorPaletteColors]);
+  }, [
+    contrast,
+    imageName,
+    imageSize,
+    imageCenter.x,
+    imageCenter.y,
+    imageScale,
+    multicolorPaletteColors,
+    previewSize,
+  ]);
 
   useEffect(() => {
-    if (!imageCanvasRef.current || !imageSize || enabledPalettePreviewColors.length === 0) {
+    if (
+      !imageCanvasRef.current ||
+      !imageSize ||
+      enabledPalettePreviewColors.length === 0 ||
+      previewSize <= 0
+    ) {
       setMulticolorPaletteCoverage([]);
       return;
     }
@@ -974,14 +1048,21 @@ function App() {
         sourceImageData,
         enabledPalettePreviewColors,
         isPaletteDitheringEnabled,
+        imageCenter,
+        imageScale,
+        previewSize,
       ),
     );
   }, [
     contrast,
     imageName,
     imageSize,
+    imageCenter.x,
+    imageCenter.y,
+    imageScale,
     isPaletteDitheringEnabled,
     multicolorPaletteColors,
+    previewSize,
   ]);
 
   const clearSelectionOverlay = () => {
@@ -1220,16 +1301,12 @@ function App() {
   };
 
   const isImagePixelInsideCircle = (pixelX, pixelY) => {
-    const previewCoordinates = getPreviewCoordinatesForPixel(pixelX, pixelY);
-    if (!previewCoordinates) {
-      return false;
-    }
-
-    return (
-      Math.hypot(
-        previewCoordinates.x - previewSize / 2,
-        previewCoordinates.y - previewSize / 2,
-      ) <= previewSize / 2
+    return isImagePixelInsidePreviewCircle(
+      pixelX,
+      pixelY,
+      imageCenter,
+      imageScale,
+      previewSize,
     );
   };
 
