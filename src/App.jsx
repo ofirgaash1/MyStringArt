@@ -522,6 +522,69 @@ function countPixelsByCurrentPaletteSource(
   });
 }
 
+function allocateWholeUnitsByWeight(items, totalUnits, getWeight) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+
+  const safeTotalUnits = Math.max(
+    0,
+    Math.round(Number.isFinite(totalUnits) ? totalUnits : 0),
+  );
+  const weightedItems = items.map((item) => ({
+    item,
+    weight: Math.max(0, getWeight(item)),
+  }));
+  const totalWeight = weightedItems.reduce((sum, weightedItem) => sum + weightedItem.weight, 0);
+
+  if (safeTotalUnits === 0 || totalWeight <= 0) {
+    return items.map((item) => ({
+      ...item,
+      allocatedUnits: 0,
+    }));
+  }
+
+  const allocations = weightedItems
+    .map(({ item, weight }) => {
+      const exactUnits = (weight / totalWeight) * safeTotalUnits;
+      const allocatedUnits = Math.floor(exactUnits);
+      return {
+        id: item.id,
+        weight,
+        allocatedUnits,
+        remainder: exactUnits - allocatedUnits,
+      };
+    })
+    .sort((firstItem, secondItem) => {
+      if (secondItem.remainder !== firstItem.remainder) {
+        return secondItem.remainder - firstItem.remainder;
+      }
+
+      return secondItem.weight - firstItem.weight;
+    });
+
+  let unitsRemaining =
+    safeTotalUnits -
+    allocations.reduce((sum, allocation) => sum + allocation.allocatedUnits, 0);
+  for (const allocation of allocations) {
+    if (unitsRemaining <= 0) {
+      break;
+    }
+
+    allocation.allocatedUnits += 1;
+    unitsRemaining -= 1;
+  }
+
+  const allocatedUnitsById = new Map(
+    allocations.map((allocation) => [allocation.id, allocation.allocatedUnits]),
+  );
+
+  return items.map((item) => ({
+    ...item,
+    allocatedUnits: allocatedUnitsById.get(item.id) ?? 0,
+  }));
+}
+
 function drawImageDataToCanvas(canvas, imageData) {
   if (!canvas || !imageData) {
     return;
@@ -710,6 +773,16 @@ function App() {
   );
   const totalPaletteCoverageTenths = multicolorPaletteCoverage.reduce(
     (sum, color) => sum + color.percentageTenths,
+    0,
+  );
+  const totalSuggestedMulticolorLines = savedNailSequence.length;
+  const multicolorPaletteCoverageWithSuggestions = allocateWholeUnitsByWeight(
+    multicolorPaletteCoverage,
+    totalSuggestedMulticolorLines,
+    (color) => color.pixelCount,
+  );
+  const totalAllocatedSuggestedLines = multicolorPaletteCoverageWithSuggestions.reduce(
+    (sum, color) => sum + color.allocatedUnits,
     0,
   );
   const isPalettePreviewVisible =
@@ -2629,7 +2702,7 @@ function App() {
                   <span className="multicolor-lab-label">Mask source coverage</span>
                   {multicolorPaletteCoverage.length > 0 ? (
                     <div className="multicolor-histogram-list">
-                      {multicolorPaletteCoverage.map((color) => (
+                      {multicolorPaletteCoverageWithSuggestions.map((color) => (
                         <div
                           key={color.id}
                           className="multicolor-histogram-row"
@@ -2642,6 +2715,9 @@ function App() {
                             <span className="multicolor-histogram-name">{color.label}</span>
                             <span className="multicolor-histogram-value">
                               {color.percentageLabel}
+                            </span>
+                            <span className="multicolor-histogram-lines">
+                              {color.allocatedUnits.toLocaleString()} lines
                             </span>
                           </div>
                           <div className="multicolor-histogram-bar-track">
@@ -2657,6 +2733,16 @@ function App() {
                       ))}
                       <p className="multicolor-histogram-total">
                         Total: {(totalPaletteCoverageTenths / 10).toFixed(1)}%
+                      </p>
+                      <p className="multicolor-histogram-total">
+                        Suggested split: {totalAllocatedSuggestedLines.toLocaleString()} /{' '}
+                        {totalSuggestedMulticolorLines.toLocaleString()} lines
+                      </p>
+                      <p className="multicolor-lab-helper multicolor-histogram-helper">
+                        Read-only suggestion based on the current monochrome sequence length.
+                        {totalSuggestedMulticolorLines === 0
+                          ? ' Save some lines first to get non-zero per-color suggestions.'
+                          : ''}
                       </p>
                     </div>
                   ) : (

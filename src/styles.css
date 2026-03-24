@@ -313,7 +313,7 @@ label {
 
 .multicolor-histogram-meta {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   color: #7c2d12;
@@ -329,6 +329,13 @@ label {
   font-family: Consolas, "Courier New", monospace;
   font-weight: 700;
   color: #9a3412;
+}
+
+.multicolor-histogram-lines {
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 700;
+  color: #7c2d12;
+  text-align: right;
 }
 
 .multicolor-histogram-bar-track {
@@ -353,6 +360,10 @@ label {
   font-weight: 700;
   color: #9a3412;
   text-align: right;
+}
+
+.multicolor-histogram-helper {
+  margin-bottom: 0;
 }
 
 .brush-radius-control {
