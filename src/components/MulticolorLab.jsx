@@ -9,7 +9,9 @@ function MulticolorLab({
   activePaletteColorId,
   ditheredComparisonCanvasRef,
   enabledPalettePreviewColors,
+  canUseActiveColorMaskForLineScoring,
   isActiveColorOnlyControlVisible,
+  isActiveColorMaskScoringEnabled,
   isActivePaletteColorOnlyEnabled,
   isMulticolorLabEnabled,
   isPaletteDitheringEnabled,
@@ -19,7 +21,9 @@ function MulticolorLab({
   multicolorDebugView,
   multicolorPaletteColors,
   multicolorPaletteCoverage,
+  multicolorPaletteCoverageWithLineAllocation,
   multicolorPaletteCoverageWithSuggestions,
+  multicolorLockedLineOverride,
   multicolorPalettePixelCountMap,
   multicolorPalettePreset,
   originalComparisonCanvasRef,
@@ -27,11 +31,13 @@ function MulticolorLab({
   palettePreviewModeLabel,
   setActivePaletteColorId,
   setIsActivePaletteColorOnlyEnabled,
+  setIsActiveColorMaskScoringEnabled,
   setIsMulticolorLabEnabled,
   setIsPaletteDitheringEnabled,
   setIsPalettePreviewEnabled,
   setMaskBlurRadius,
   setMulticolorDebugView,
+  setMulticolorLockedLineOverride,
   setMulticolorPaletteColors,
   setMulticolorPalettePresetId,
   shouldShowPaletteComparison,
@@ -42,6 +48,9 @@ function MulticolorLab({
 }) {
   const selectedDebugView = MULTICOLOR_DEBUG_VIEWS.find(
     (view) => view.id === multicolorDebugView,
+  );
+  const suggestedLinesByColorId = new Map(
+    multicolorPaletteCoverageWithSuggestions.map((color) => [color.id, color.allocatedUnits]),
   );
 
   return (
@@ -210,7 +219,7 @@ function MulticolorLab({
             <span className="multicolor-lab-label">Mask source coverage</span>
             {multicolorPaletteCoverage.length > 0 ? (
               <div className="multicolor-histogram-list">
-                {multicolorPaletteCoverageWithSuggestions.map((color) => (
+                {multicolorPaletteCoverageWithLineAllocation.map((color) => (
                   <div
                     key={color.id}
                     className="multicolor-histogram-row"
@@ -225,6 +234,7 @@ function MulticolorLab({
                         {color.percentageLabel}
                       </span>
                       <span className="multicolor-histogram-lines">
+                        {color.isLocked ? 'Locked ' : ''}
                         {color.allocatedUnits.toLocaleString()} lines
                       </span>
                     </div>
@@ -237,17 +247,65 @@ function MulticolorLab({
                         }}
                       />
                     </div>
+                    <div className="multicolor-histogram-controls">
+                      <label className="checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={multicolorLockedLineOverride?.colorId === color.id}
+                          onChange={(event) => {
+                            if (!event.target.checked) {
+                              setMulticolorLockedLineOverride((currentOverride) =>
+                                currentOverride?.colorId === color.id ? null : currentOverride,
+                              );
+                              return;
+                            }
+
+                            setMulticolorLockedLineOverride({
+                              colorId: color.id,
+                              lineCount: suggestedLinesByColorId.get(color.id) ?? 0,
+                            });
+                          }}
+                        />
+                        <span>Lock line count</span>
+                      </label>
+                      <label className="multicolor-histogram-input">
+                        <span>Manual lines</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max={totalSuggestedMulticolorLines}
+                          step="1"
+                          value={
+                            multicolorLockedLineOverride?.colorId === color.id
+                              ? multicolorLockedLineOverride.lineCount
+                              : suggestedLinesByColorId.get(color.id) ?? 0
+                          }
+                          onChange={(event) => {
+                            const parsedValue = Number.parseInt(event.target.value, 10);
+                            setMulticolorLockedLineOverride({
+                              colorId: color.id,
+                              lineCount: Number.isFinite(parsedValue) ? parsedValue : 0,
+                            });
+                          }}
+                          disabled={multicolorLockedLineOverride?.colorId !== color.id}
+                        />
+                      </label>
+                      <span className="multicolor-histogram-auto-lines">
+                        Auto: {(suggestedLinesByColorId.get(color.id) ?? 0).toLocaleString()} lines
+                      </span>
+                    </div>
                   </div>
                 ))}
                 <p className="multicolor-histogram-total">
                   Total: {(totalPaletteCoverageTenths / 10).toFixed(1)}%
                 </p>
                 <p className="multicolor-histogram-total">
-                  Suggested split: {totalAllocatedSuggestedLines.toLocaleString()} /{' '}
+                  Displayed split: {totalAllocatedSuggestedLines.toLocaleString()} /{' '}
                   {totalSuggestedMulticolorLines.toLocaleString()} lines
                 </p>
                 <p className="multicolor-lab-helper multicolor-histogram-helper">
-                  Read-only suggestion based on the current monochrome sequence length.
+                  Auto suggestions are based on the current monochrome sequence length. Locking one
+                  color only changes this preview allocation; the solver still ignores it.
                   {totalSuggestedMulticolorLines === 0
                     ? ' Save some lines first to get non-zero per-color suggestions.'
                     : ''}
@@ -276,6 +334,20 @@ function MulticolorLab({
               />
             </label>
           </div>
+          <label className="checkbox-row multicolor-lab-placeholder">
+            <input
+              type="checkbox"
+              checked={isActiveColorMaskScoringEnabled}
+              onChange={(event) => setIsActiveColorMaskScoringEnabled(event.target.checked)}
+              disabled={!canUseActiveColorMaskForLineScoring}
+            />
+            <span>Use active color mask for line scoring</span>
+          </label>
+          <p className="multicolor-lab-helper">
+            Dev toggle. The darkness chart and next-nail selection read from the active palette
+            color mask instead of the grayscale target. Existing rendering and export flow stay
+            unchanged.
+          </p>
           {isPaletteMaskVisible && (
             <p className="multicolor-lab-helper">
               Showing a black/white mask for the active palette color using the current

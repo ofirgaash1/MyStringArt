@@ -353,6 +353,42 @@ label {
   opacity: 0.9;
 }
 
+.multicolor-histogram-controls {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.multicolor-histogram-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #7c2d12;
+  font-size: 0.84rem;
+}
+
+.multicolor-histogram-input input {
+  width: 88px;
+  padding: 5px 7px;
+  border: 1px solid rgba(194, 65, 12, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 247, 237, 0.9);
+  color: #7c2d12;
+  font: inherit;
+}
+
+.multicolor-histogram-input input:disabled {
+  opacity: 0.55;
+}
+
+.multicolor-histogram-auto-lines {
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
 .multicolor-histogram-total {
   margin: 2px 0 0;
   font-family: Consolas, "Courier New", monospace;

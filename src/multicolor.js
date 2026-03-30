@@ -525,6 +525,57 @@ export function allocateWholeUnitsByWeight(items, totalUnits, getWeight) {
   }));
 }
 
+export function allocateWholeUnitsByWeightWithLock(
+  items,
+  totalUnits,
+  getWeight,
+  lockedAllocation = null,
+) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+
+  const safeTotalUnits = Math.max(
+    0,
+    Math.round(Number.isFinite(totalUnits) ? totalUnits : 0),
+  );
+  const hasLockedAllocation =
+    lockedAllocation &&
+    items.some((item) => item.id === lockedAllocation.id) &&
+    Number.isFinite(lockedAllocation.allocatedUnits);
+
+  if (!hasLockedAllocation) {
+    return allocateWholeUnitsByWeight(items, safeTotalUnits, getWeight).map((item) => ({
+      ...item,
+      isLocked: false,
+    }));
+  }
+
+  const normalizedLockedUnits = Math.min(
+    safeTotalUnits,
+    Math.max(0, Math.round(lockedAllocation.allocatedUnits)),
+  );
+  const unlockedItems = items.filter((item) => item.id !== lockedAllocation.id);
+  const remainingUnits = Math.max(0, safeTotalUnits - normalizedLockedUnits);
+  const unlockedAllocations = allocateWholeUnitsByWeight(
+    unlockedItems,
+    remainingUnits,
+    getWeight,
+  );
+  const allocatedUnitsById = new Map(
+    unlockedAllocations.map((item) => [item.id, item.allocatedUnits]),
+  );
+
+  return items.map((item) => ({
+    ...item,
+    allocatedUnits:
+      item.id === lockedAllocation.id
+        ? normalizedLockedUnits
+        : allocatedUnitsById.get(item.id) ?? 0,
+    isLocked: item.id === lockedAllocation.id,
+  }));
+}
+
 export function drawImageDataToCanvas(canvas, imageData) {
   if (!canvas || !imageData) {
     return;

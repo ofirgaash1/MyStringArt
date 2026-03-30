@@ -28,6 +28,7 @@ import {
 } from './stringArtMath';
 import {
   allocateWholeUnitsByWeight,
+  allocateWholeUnitsByWeightWithLock,
   blurMaskImageData,
   clonePalettePreset,
   countPixelsByCurrentPaletteSource,
@@ -109,6 +110,8 @@ function App() {
   const [isPaletteDitheringEnabled, setIsPaletteDitheringEnabled] = useState(false);
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
   const [multicolorPaletteCoverage, setMulticolorPaletteCoverage] = useState([]);
+  const [multicolorLockedLineOverride, setMulticolorLockedLineOverride] = useState(null);
+  const [isActiveColorMaskScoringEnabled, setIsActiveColorMaskScoringEnabled] = useState(false);
   const [activePaletteColorId, setActivePaletteColorId] = useState(
     MULTICOLOR_PALETTE_PRESETS[0].colors[0].id,
   );
@@ -127,6 +130,7 @@ function App() {
   const paletteComparisonCanvasRef = useRef(null);
   const ditheredComparisonCanvasRef = useRef(null);
   const originalImageDataRef = useRef(null);
+  const activeColorMaskScoringImageDataRef = useRef(null);
   const sourceUrlRef = useRef(null);
   const animationFrameRef = useRef(null);
   const isMountedRef = useRef(true);
@@ -200,6 +204,11 @@ function App() {
   const activePalettePreviewColor = enabledPalettePreviewColors.find(
     (color) => color.id === activePaletteColorId,
   ) ?? null;
+  const canUseActiveColorMaskForLineScoring =
+    isMulticolorLabEnabled &&
+    isPalettePreviewEnabled &&
+    Boolean(imageSize) &&
+    Boolean(activePalettePreviewColor);
   const multicolorPalettePixelCountMap = new Map(
     multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
   );
@@ -213,7 +222,27 @@ function App() {
     totalSuggestedMulticolorLines,
     (color) => color.pixelCount,
   );
-  const totalAllocatedSuggestedLines = multicolorPaletteCoverageWithSuggestions.reduce(
+  const lockedColorSuggestion = multicolorPaletteCoverageWithSuggestions.find(
+    (color) => color.id === multicolorLockedLineOverride?.colorId,
+  );
+  const normalizedLockedLineOverride =
+    multicolorLockedLineOverride && lockedColorSuggestion
+      ? {
+          id: multicolorLockedLineOverride.colorId,
+          allocatedUnits: clamp(
+            multicolorLockedLineOverride.lineCount,
+            0,
+            totalSuggestedMulticolorLines,
+          ),
+        }
+      : null;
+  const multicolorPaletteCoverageWithLineAllocation = allocateWholeUnitsByWeightWithLock(
+    multicolorPaletteCoverage,
+    totalSuggestedMulticolorLines,
+    (color) => color.pixelCount,
+    normalizedLockedLineOverride,
+  );
+  const totalAllocatedSuggestedLines = multicolorPaletteCoverageWithLineAllocation.reduce(
     (sum, color) => sum + color.allocatedUnits,
     0,
   );
@@ -240,6 +269,37 @@ function App() {
     isPalettePreviewVisible &&
     Boolean(originalImageDataRef.current);
 
+  const buildActiveColorMaskScoringImageData = useCallback((sourceImageData = null) => {
+    if (
+      !imageSize ||
+      enabledPalettePreviewColors.length === 0 ||
+      !activePalettePreviewColor ||
+      !imageCanvasRef.current
+    ) {
+      return null;
+    }
+
+    const nextSourceImageData = sourceImageData ?? imageCanvasRef.current
+      .getContext('2d', { willReadFrequently: true })
+      ?.getImageData(0, 0, imageSize.width, imageSize.height);
+
+    if (!nextSourceImageData) {
+      return null;
+    }
+
+    return createPaletteMaskImageData(
+      nextSourceImageData,
+      enabledPalettePreviewColors,
+      isPaletteDitheringEnabled,
+      activePalettePreviewColor.id,
+    );
+  }, [
+    imageSize,
+    enabledPalettePreviewColors,
+    activePalettePreviewColor,
+    isPaletteDitheringEnabled,
+  ]);
+
   useEffect(() => {
     const currentActiveColor = multicolorPaletteColors.find((color) => color.id === activePaletteColorId);
     if (currentActiveColor?.enabled) {
@@ -256,6 +316,71 @@ function App() {
       setActivePaletteColorId(multicolorPaletteColors[0].id);
     }
   }, [activePaletteColorId, multicolorPaletteColors]);
+
+  useEffect(() => {
+    if (canUseActiveColorMaskForLineScoring) {
+      return;
+    }
+
+    activeColorMaskScoringImageDataRef.current = null;
+    if (isActiveColorMaskScoringEnabled) {
+      setIsActiveColorMaskScoringEnabled(false);
+    }
+  }, [canUseActiveColorMaskForLineScoring, isActiveColorMaskScoringEnabled]);
+
+  useEffect(() => {
+    if (!isActiveColorMaskScoringEnabled) {
+      activeColorMaskScoringImageDataRef.current = null;
+      return;
+    }
+
+    activeColorMaskScoringImageDataRef.current = buildActiveColorMaskScoringImageData();
+  }, [
+    buildActiveColorMaskScoringImageData,
+    contrast,
+    imageName,
+    imageSize,
+    isActiveColorMaskScoringEnabled,
+    isPaletteDitheringEnabled,
+    isPalettePreviewEnabled,
+    isMulticolorLabEnabled,
+    multicolorPaletteColors,
+    activePaletteColorId,
+  ]);
+
+  useEffect(() => {
+    if (!multicolorLockedLineOverride) {
+      return;
+    }
+
+    const lockedColorStillVisible = multicolorPaletteCoverageWithSuggestions.some(
+      (color) => color.id === multicolorLockedLineOverride.colorId,
+    );
+    if (!lockedColorStillVisible) {
+      setMulticolorLockedLineOverride(null);
+      return;
+    }
+
+    const clampedLineCount = clamp(
+      multicolorLockedLineOverride.lineCount,
+      0,
+      totalSuggestedMulticolorLines,
+    );
+    if (clampedLineCount !== multicolorLockedLineOverride.lineCount) {
+      setMulticolorLockedLineOverride((currentOverride) =>
+        currentOverride
+          ? {
+              ...currentOverride,
+              lineCount: clampedLineCount,
+            }
+          : currentOverride,
+      );
+    }
+  }, [
+    multicolorLockedLineOverride,
+    multicolorPaletteCoverageWithSuggestions,
+    totalSuggestedMulticolorLines,
+  ]);
 
   const syncVisibleCanvas = () => {
     if (!imageRef.current || !imageCanvasRef.current || !imageSize) {
@@ -1225,6 +1350,14 @@ function App() {
       lineDarknessStep,
       lineBoostMapRef.current,
     );
+    if (isActiveColorMaskScoringEnabled && activeColorMaskScoringImageDataRef.current) {
+      applyLineToImageData(
+        activeColorMaskScoringImageDataRef.current.data,
+        startIndex,
+        endIndex,
+        lineDarknessStep,
+      );
+    }
     usedLineKeysRef.current.add(lineKey);
 
     context.putImageData(canvasImage, 0, 0);
@@ -1276,6 +1409,12 @@ function App() {
 
     const lineDarknessStep = getLineDarknessStep();
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
+    let activeColorMaskScoringImage = isActiveColorMaskScoringEnabled
+      ? activeColorMaskScoringImageDataRef.current ?? buildActiveColorMaskScoringImageData(canvasImage)
+      : null;
+    if (isActiveColorMaskScoringEnabled) {
+      activeColorMaskScoringImageDataRef.current = activeColorMaskScoringImage;
+    }
     let currentFromIndex = fromIndex;
     let stepIndex = 0;
 
@@ -1299,7 +1438,10 @@ function App() {
           !pauseRequestedRef.current &&
           performance.now() - frameStart < sliceBudgetMs
         ) {
-          const nextNail = getNextNailForImageData(currentFromIndex, canvasImage.data);
+          const nextNail = getNextNailForImageData(
+            currentFromIndex,
+            activeColorMaskScoringImage?.data ?? canvasImage.data,
+          );
           if (nextNail === null) {
             stepIndex = 9000;
             break;
@@ -1315,6 +1457,14 @@ function App() {
           if (!didApplyLine) {
             stepIndex = 9000;
             break;
+          }
+          if (activeColorMaskScoringImage) {
+            applyLineToImageData(
+              activeColorMaskScoringImage.data,
+              currentFromIndex,
+              nextNail,
+              lineDarknessStep,
+            );
           }
 
           usedLineKeysRef.current.add(getNormalizedLineKey(currentFromIndex, nextNail));
@@ -1411,6 +1561,9 @@ function App() {
           .getContext('2d', { willReadFrequently: true })
           ?.getImageData(0, 0, imageSize.width, imageSize.height).data ?? null
       : null;
+  const lineScoringImageData = isActiveColorMaskScoringEnabled
+    ? activeColorMaskScoringImageDataRef.current?.data ?? null
+    : imageData;
 
   const linePixels = shouldComputeAverageDarkness
     ? getLinePixelsForIndexes(fromIndex, toIndex)
@@ -1427,20 +1580,20 @@ function App() {
     !isCurrentLineUsed;
 
   let averageLineDarkness = null;
-  if (linePixels.length > 0 && imageData && imageSize) {
-    const weightedDarkness = getWeightedAverageDarkness(imageData, linePixels);
+  if (linePixels.length > 0 && lineScoringImageData && imageSize) {
+    const weightedDarkness = getWeightedAverageDarkness(lineScoringImageData, linePixels);
     averageLineDarkness =
       weightedDarkness === null ? null : Math.round(weightedDarkness);
   }
 
   let darknessSeries = [];
-  if (shouldComputeNextNail && imageData) {
+  if (shouldComputeNextNail && lineScoringImageData) {
     darknessSeries = nails.map((targetNail) => {
       const isUsedLine = usedLineKeysRef.current.has(
         getNormalizedLineKey(fromIndex, targetNail.number),
       );
       const pixels = getLinePixelsForIndexes(fromIndex, targetNail.number);
-      const weightedDarkness = getWeightedAverageDarkness(imageData, pixels);
+      const weightedDarkness = getWeightedAverageDarkness(lineScoringImageData, pixels);
 
       return {
         nail: targetNail.number,
@@ -1477,7 +1630,7 @@ function App() {
       ? []
       : eligibleDarknessSeries.filter((point) => point.darkness === minimumDarkness);
   const nextNailNumber =
-    shouldComputeNextNail && imageData
+    shouldComputeNextNail && lineScoringImageData
       ? darkestNails[0]?.nail ?? null
       : null;
   const darkestNailsKey = darkestNails.map((point) => point.nail).join(',');
@@ -1519,6 +1672,11 @@ function App() {
       MAX_CONTRAST,
       DEFAULT_CONTRAST,
     );
+    activeColorMaskScoringImageDataRef.current = isActiveColorMaskScoringEnabled
+      ? buildActiveColorMaskScoringImageData(
+          context.getImageData(0, 0, imageSize.width, imageSize.height),
+        )
+      : null;
     syncVisibleCanvas();
     setSavedNailSequence([]);
     setIsStepLoopPaused(false);
@@ -1875,6 +2033,8 @@ function App() {
             hasOriginalImage={Boolean(originalImageDataRef.current)}
             isActiveColorOnlyControlVisible={isActiveColorOnlyControlVisible}
             isActivePaletteColorOnlyEnabled={isActivePaletteColorOnlyEnabled}
+            isActiveColorMaskScoringEnabled={isActiveColorMaskScoringEnabled}
+            canUseActiveColorMaskForLineScoring={canUseActiveColorMaskForLineScoring}
             isMulticolorLabEnabled={isMulticolorLabEnabled}
             isPaletteDitheringEnabled={isPaletteDitheringEnabled}
             isPaletteMaskVisible={isPaletteMaskVisible}
@@ -1883,7 +2043,9 @@ function App() {
             multicolorDebugView={multicolorDebugView}
             multicolorPaletteColors={multicolorPaletteColors}
             multicolorPaletteCoverage={multicolorPaletteCoverage}
+            multicolorPaletteCoverageWithLineAllocation={multicolorPaletteCoverageWithLineAllocation}
             multicolorPaletteCoverageWithSuggestions={multicolorPaletteCoverageWithSuggestions}
+            multicolorLockedLineOverride={multicolorLockedLineOverride}
             multicolorPalettePixelCountMap={multicolorPalettePixelCountMap}
             multicolorPalettePreset={multicolorPalettePreset}
             originalComparisonCanvasRef={originalComparisonCanvasRef}
@@ -1891,11 +2053,13 @@ function App() {
             palettePreviewModeLabel={palettePreviewModeLabel}
             setActivePaletteColorId={setActivePaletteColorId}
             setIsActivePaletteColorOnlyEnabled={setIsActivePaletteColorOnlyEnabled}
+            setIsActiveColorMaskScoringEnabled={setIsActiveColorMaskScoringEnabled}
             setIsMulticolorLabEnabled={setIsMulticolorLabEnabled}
             setIsPaletteDitheringEnabled={setIsPaletteDitheringEnabled}
             setIsPalettePreviewEnabled={setIsPalettePreviewEnabled}
             setMaskBlurRadius={setMaskBlurRadius}
             setMulticolorDebugView={setMulticolorDebugView}
+            setMulticolorLockedLineOverride={setMulticolorLockedLineOverride}
             setMulticolorPaletteColors={setMulticolorPaletteColors}
             setMulticolorPalettePresetId={setMulticolorPalettePresetId}
             shouldShowPaletteComparison={shouldShowPaletteComparison}
