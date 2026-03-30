@@ -72,7 +72,7 @@ function PreviewWorkspace({
                   {artLineSegments.map((segment) => (
                     <line
                       key={segment.key}
-                      className="nail-line"
+                      className="art-line"
                       x1={segment.x1}
                       y1={segment.y1}
                       x2={segment.x2}
@@ -146,7 +146,7 @@ function PreviewWorkspace({
                 >
                   {shouldShowPreviewLine && (
                     <line
-                      className="nail-line"
+                      className="preview-debug-line"
                       x1={lineStart.cx}
                       y1={lineStart.cy}
                       x2={lineEnd.cx}

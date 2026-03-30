@@ -209,6 +209,9 @@ function App() {
     isPalettePreviewEnabled &&
     Boolean(imageSize) &&
     Boolean(activePalettePreviewColor);
+  const lineScoringModeLabel = isActiveColorMaskScoringEnabled
+    ? `active color mask${activePaletteColor ? ` (${activePaletteColor.label})` : ''}`
+    : 'grayscale';
   const multicolorPalettePixelCountMap = new Map(
     multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
   );
@@ -1816,6 +1819,9 @@ function App() {
           <p className="line-darkness">
             Average darkness: {averageLineDarknessDisplay}
           </p>
+          <p className="line-darkness-source">
+            Scoring source: {lineScoringModeLabel}
+          </p>
           {darknessSeries.length > 0 && (
             <div className="darkness-chart">
               <svg
@@ -2051,6 +2057,7 @@ function App() {
             originalComparisonCanvasRef={originalComparisonCanvasRef}
             paletteComparisonCanvasRef={paletteComparisonCanvasRef}
             palettePreviewModeLabel={palettePreviewModeLabel}
+            lineScoringModeLabel={lineScoringModeLabel}
             setActivePaletteColorId={setActivePaletteColorId}
             setIsActivePaletteColorOnlyEnabled={setIsActivePaletteColorOnlyEnabled}
             setIsActiveColorMaskScoringEnabled={setIsActiveColorMaskScoringEnabled}

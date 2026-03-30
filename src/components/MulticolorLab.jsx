@@ -29,6 +29,7 @@ function MulticolorLab({
   originalComparisonCanvasRef,
   paletteComparisonCanvasRef,
   palettePreviewModeLabel,
+  lineScoringModeLabel,
   setActivePaletteColorId,
   setIsActivePaletteColorOnlyEnabled,
   setIsActiveColorMaskScoringEnabled,
@@ -334,19 +335,44 @@ function MulticolorLab({
               />
             </label>
           </div>
-          <label className="checkbox-row multicolor-lab-placeholder">
-            <input
-              type="checkbox"
-              checked={isActiveColorMaskScoringEnabled}
-              onChange={(event) => setIsActiveColorMaskScoringEnabled(event.target.checked)}
-              disabled={!canUseActiveColorMaskForLineScoring}
-            />
-            <span>Use active color mask for line scoring</span>
-          </label>
+          <div className="multicolor-lab-placeholder">
+            <span className="multicolor-lab-label">Line scoring source</span>
+            <div
+              className="multicolor-debug-toggle-group"
+              role="radiogroup"
+              aria-label="Line scoring source"
+            >
+              <button
+                className={[
+                  'multicolor-debug-toggle',
+                  !isActiveColorMaskScoringEnabled ? 'is-active' : '',
+                ].filter(Boolean).join(' ')}
+                type="button"
+                role="radio"
+                aria-checked={!isActiveColorMaskScoringEnabled}
+                onClick={() => setIsActiveColorMaskScoringEnabled(false)}
+              >
+                score from grayscale
+              </button>
+              <button
+                className={[
+                  'multicolor-debug-toggle',
+                  isActiveColorMaskScoringEnabled ? 'is-active' : '',
+                ].filter(Boolean).join(' ')}
+                type="button"
+                role="radio"
+                aria-checked={isActiveColorMaskScoringEnabled}
+                onClick={() => setIsActiveColorMaskScoringEnabled(true)}
+                disabled={!canUseActiveColorMaskForLineScoring}
+              >
+                score from active color mask
+              </button>
+            </div>
+          </div>
           <p className="multicolor-lab-helper">
-            Dev toggle. The darkness chart and next-nail selection read from the active palette
-            color mask instead of the grayscale target. Existing rendering and export flow stay
-            unchanged.
+            Comparison mode. The darkness chart and next-nail selection read from{' '}
+            <strong>{lineScoringModeLabel}</strong>. Switching source changes scoring only;
+            rendering and export stay unchanged.
           </p>
           {isPaletteMaskVisible && (
             <p className="multicolor-lab-helper">

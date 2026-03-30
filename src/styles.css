@@ -532,6 +532,12 @@ label {
   font-weight: 600;
 }
 
+.line-darkness-source {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
 .panel-footer-actions {
   margin-top: auto;
   padding-top: 8px;
@@ -697,9 +703,15 @@ label {
   fill: #020617;
 }
 
-.nail-line {
+.art-line {
   stroke: #020617;
   stroke-width: 0.18;
+  vector-effect: non-scaling-stroke;
+}
+
+.preview-debug-line {
+  stroke: #0ea5e9;
+  stroke-width: 0.22;
   vector-effect: non-scaling-stroke;
 }
 
