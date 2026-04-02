@@ -1703,14 +1703,36 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <label className="upload-field">
-          <span>Choose image</span>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-          />
-        </label>
+        <div className="sidebar-top-row">
+          <label className="upload-field">
+            <span>Choose image</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+            />
+          </label>
+          <form
+            action="https://www.paypal.com/donate"
+            method="post"
+            target="_top"
+            className="donate-form"
+          >
+            <input
+              type="hidden"
+              name="hosted_button_id"
+              value="MRJF9A83YR2BE"
+            />
+            <input
+              type="image"
+              alt="Donate with PayPal button"
+              src="https://www.paypalobjects.com/en_US/IL/i/btn/btn_donateCC_LG.gif"
+              border="0"
+              name="submit"
+              title="PayPal - The safer, easier way to pay online!"
+            />
+          </form>
+        </div>
 
         <div className="panel">
           <div className="nail-controls">

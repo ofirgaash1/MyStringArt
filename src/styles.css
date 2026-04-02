@@ -49,6 +49,24 @@ label {
   scrollbar-gutter: stable;
 }
 
+.sidebar-top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.donate-form {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.donate-form input[type="image"] {
+  display: block;
+  max-width: 150px;
+  height: auto;
+}
+
 .sidebar h1,
 .sidebar h2,
 .sidebar p {
@@ -72,6 +90,12 @@ label {
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+}
+
+.sidebar-top-row .upload-field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
 }
 
 .upload-field span {
