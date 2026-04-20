@@ -637,6 +637,19 @@ label {
   gap: 8px;
 }
 
+.multicolor-bucket-panel-footer {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(194, 65, 12, 0.12);
+}
+
+.multicolor-bucket-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .multicolor-bucket-panel-header .multicolor-lab-label {
   margin-bottom: 0;
 }
