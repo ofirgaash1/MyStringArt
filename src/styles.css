@@ -153,6 +153,10 @@ label {
   font-size: 0.92rem;
 }
 
+.multicolor-lab-toggle-row {
+  margin-top: 10px;
+}
+
 .multicolor-lab-body {
   display: grid;
   gap: 10px;
@@ -161,16 +165,71 @@ label {
   border-top: 1px solid rgba(194, 65, 12, 0.14);
 }
 
+.multicolor-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.multicolor-status-chip {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(194, 65, 12, 0.14);
+  color: #7c2d12;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.multicolor-lab-section {
+  display: grid;
+  gap: 8px;
+}
+
+.multicolor-lab-section-head {
+  display: grid;
+  gap: 2px;
+}
+
+.multicolor-lab-section-head h3 {
+  margin: 0;
+  color: #9a3412;
+  font-size: 0.96rem;
+}
+
+.multicolor-lab-section-head p {
+  color: #7c2d12;
+  font-size: 0.85rem;
+}
+
+.multicolor-lab-section-card,
 .multicolor-lab-placeholder {
+  display: grid;
+  gap: 10px;
   padding: 10px;
   border: 1px dashed rgba(194, 65, 12, 0.28);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
 }
 
+.multicolor-lab-section-card.is-inactive,
+.multicolor-lab-placeholder.is-inactive {
+  border-color: rgba(148, 163, 184, 0.32);
+  background: rgba(241, 245, 249, 0.72);
+}
+
+.multicolor-lab-section-card.is-inactive .multicolor-lab-label,
+.multicolor-lab-placeholder.is-inactive .multicolor-lab-label {
+  color: #64748b;
+}
+
+.multicolor-lab-section-card.is-inactive .multicolor-lab-helper,
+.multicolor-lab-placeholder.is-inactive .multicolor-lab-helper {
+  color: #475569;
+}
+
 .multicolor-lab-label {
   display: block;
-  margin-bottom: 8px;
   font-weight: 600;
   color: #9a3412;
 }
@@ -191,10 +250,47 @@ label {
   gap: 8px;
 }
 
+.multicolor-inline-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.multicolor-inspect-block {
+  display: grid;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(194, 65, 12, 0.1);
+}
+
+.multicolor-inline-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.multicolor-inline-stat {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(251, 146, 60, 0.14);
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.multicolor-mini-note {
+  color: #7c2d12;
+  font-size: 0.83rem;
+}
+
 .multicolor-debug-toggle-group {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.multicolor-debug-toggle-group.is-inactive {
+  opacity: 0.8;
 }
 
 .multicolor-debug-toggle {
@@ -205,6 +301,32 @@ label {
   color: #7c2d12;
   font-weight: 600;
   cursor: pointer;
+}
+
+.multicolor-debug-toggle:disabled {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(226, 232, 240, 0.9),
+    rgba(226, 232, 240, 0.9) 8px,
+    rgba(241, 245, 249, 0.95) 8px,
+    rgba(241, 245, 249, 0.95) 16px
+  );
+  color: #94a3b8;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.multicolor-debug-toggle.is-active:disabled {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(226, 232, 240, 0.9),
+    rgba(226, 232, 240, 0.9) 8px,
+    rgba(241, 245, 249, 0.95) 8px,
+    rgba(241, 245, 249, 0.95) 16px
+  );
+  color: #64748b;
 }
 
 .multicolor-debug-toggle.is-active {
@@ -253,6 +375,19 @@ label {
   background: rgba(255, 255, 255, 0.92);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+
+.multicolor-comparison-empty {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(248, 250, 252, 0.92);
+  color: #64748b;
+  font-size: 0.84rem;
+  text-align: center;
 }
 
 .multicolor-palette-list {
@@ -323,6 +458,12 @@ label {
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.84rem;
   color: #9a3412;
+}
+
+.multicolor-palette-name {
+  min-width: 0;
+  color: #7c2d12;
+  font-weight: 700;
 }
 
 .multicolor-histogram-list {
@@ -424,6 +565,132 @@ label {
 
 .multicolor-histogram-helper {
   margin-bottom: 0;
+}
+
+.multicolor-mask-header {
+  display: grid;
+  gap: 8px;
+}
+
+.multicolor-mask-nav {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.multicolor-mask-current {
+  min-width: 0;
+  color: #7c2d12;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.multicolor-mask-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.multicolor-mask-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.multicolor-mask-card-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #7c2d12;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.multicolor-experiment-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.multicolor-experiment-summary {
+  margin-bottom: 0;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.multicolor-bucket-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(194, 65, 12, 0.12);
+}
+
+.multicolor-bucket-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.multicolor-bucket-panel-header .multicolor-lab-label {
+  margin-bottom: 0;
+}
+
+.multicolor-bucket-list {
+  display: grid;
+  gap: 8px;
+}
+
+.multicolor-bucket-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.multicolor-bucket-row.is-active {
+  border-color: rgba(194, 65, 12, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.18);
+}
+
+.multicolor-bucket-row.is-disabled {
+  opacity: 0.6;
+}
+
+.multicolor-bucket-row-main {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.multicolor-bucket-name {
+  min-width: 0;
+  color: #7c2d12;
+  font-weight: 700;
+}
+
+.multicolor-bucket-stat,
+.multicolor-bucket-status {
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.multicolor-bucket-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: #7c2d12;
 }
 
 .brush-radius-control {
@@ -808,6 +1075,10 @@ label {
   }
 
   .multicolor-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .multicolor-mask-nav {
     grid-template-columns: 1fr;
   }
 }

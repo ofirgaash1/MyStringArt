@@ -223,3 +223,23 @@ export function buildArtLineSegments(savedNailSequence, nails) {
     return segments;
   }, []);
 }
+
+export function buildManualArtLineSegments(lines, nails, keyPrefix = 'manual-art-line') {
+  return lines.reduce((segments, line, index) => {
+    const startNail = nails[line.startNailNumber - 1];
+    const endNail = nails[line.endNailNumber - 1];
+
+    if (startNail && endNail) {
+      segments.push({
+        key: `${keyPrefix}-${index}-${line.startNailNumber}-${line.endNailNumber}`,
+        x1: startNail.cx,
+        y1: startNail.cy,
+        x2: endNail.cx,
+        y2: endNail.cy,
+        stroke: line.stroke ?? null,
+      });
+    }
+
+    return segments;
+  }, []);
+}

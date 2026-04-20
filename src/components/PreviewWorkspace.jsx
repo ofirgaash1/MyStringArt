@@ -72,11 +72,12 @@ function PreviewWorkspace({
                   {artLineSegments.map((segment) => (
                     <line
                       key={segment.key}
-                      className="art-line"
+                      className={segment.className ?? 'art-line'}
                       x1={segment.x1}
                       y1={segment.y1}
                       x2={segment.x2}
                       y2={segment.y2}
+                      style={segment.stroke ? { stroke: segment.stroke } : undefined}
                     />
                   ))}
                 </svg>

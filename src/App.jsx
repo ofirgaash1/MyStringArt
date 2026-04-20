@@ -5,6 +5,7 @@ import MulticolorLab from './components/MulticolorLab';
 import PreviewWorkspace from './components/PreviewWorkspace';
 import {
   buildArtLineSegments,
+  buildManualArtLineSegments,
   buildNails,
   getDraggedImageCenter,
   getDraggedPreviewOffset,
@@ -33,6 +34,7 @@ import {
   clonePalettePreset,
   countPixelsByCurrentPaletteSource,
   countPixelsByNearestPaletteColor,
+  createPaletteMaskImageCollection,
   createPaletteMaskImageData,
   createPalettePreviewImageData,
   drawImageDataToCanvas,
@@ -68,6 +70,18 @@ const GROUP_COLORS = [
   '#8b5cf6',
   '#facc15',
 ];
+
+function createMulticolorLineBuckets(paletteColors) {
+  return paletteColors.map((color) => ({
+    colorId: color.id,
+    label: color.label,
+    hex: color.hex,
+    enabled: color.enabled,
+    visible: true,
+    lastNailNumber: null,
+    lines: [],
+  }));
+}
 
 function App() {
   const [imageName, setImageName] = useState('');
@@ -111,12 +125,19 @@ function App() {
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
   const [multicolorPaletteCoverage, setMulticolorPaletteCoverage] = useState([]);
   const [multicolorLockedLineOverride, setMulticolorLockedLineOverride] = useState(null);
-  const [isActiveColorMaskScoringEnabled, setIsActiveColorMaskScoringEnabled] = useState(false);
+  const [multicolorTargetTotalLines, setMulticolorTargetTotalLines] = useState(0);
   const [activePaletteColorId, setActivePaletteColorId] = useState(
     MULTICOLOR_PALETTE_PRESETS[0].colors[0].id,
   );
   const [isActivePaletteColorOnlyEnabled, setIsActivePaletteColorOnlyEnabled] = useState(false);
   const [maskBlurRadius, setMaskBlurRadius] = useState(0);
+  const [multicolorLineBuckets, setMulticolorLineBuckets] = useState(() =>
+    createMulticolorLineBuckets(MULTICOLOR_PALETTE_PRESETS[0].colors),
+  );
+  const [isExperimentalColorLinesOnlyPreviewEnabled, setIsExperimentalColorLinesOnlyPreviewEnabled] = useState(false);
+  const [multicolorExperimentalSteppingMode, setMulticolorExperimentalSteppingMode] = useState('single-color');
+  const [multicolorRoundRobinNextColorId, setMulticolorRoundRobinNextColorId] = useState(null);
+  const [multicolorMaskImages, setMulticolorMaskImages] = useState([]);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -209,6 +230,9 @@ function App() {
     isPalettePreviewEnabled &&
     Boolean(imageSize) &&
     Boolean(activePalettePreviewColor);
+  const isActiveColorMaskScoringEnabled =
+    multicolorDebugView === 'color-mask' &&
+    canUseActiveColorMaskForLineScoring;
   const lineScoringModeLabel = isActiveColorMaskScoringEnabled
     ? `active color mask${activePaletteColor ? ` (${activePaletteColor.label})` : ''}`
     : 'grayscale';
@@ -219,10 +243,9 @@ function App() {
     (sum, color) => sum + color.percentageTenths,
     0,
   );
-  const totalSuggestedMulticolorLines = savedNailSequence.length;
   const multicolorPaletteCoverageWithSuggestions = allocateWholeUnitsByWeight(
     multicolorPaletteCoverage,
-    totalSuggestedMulticolorLines,
+    multicolorTargetTotalLines,
     (color) => color.pixelCount,
   );
   const lockedColorSuggestion = multicolorPaletteCoverageWithSuggestions.find(
@@ -235,13 +258,13 @@ function App() {
           allocatedUnits: clamp(
             multicolorLockedLineOverride.lineCount,
             0,
-            totalSuggestedMulticolorLines,
+            multicolorTargetTotalLines,
           ),
         }
       : null;
   const multicolorPaletteCoverageWithLineAllocation = allocateWholeUnitsByWeightWithLock(
     multicolorPaletteCoverage,
-    totalSuggestedMulticolorLines,
+    multicolorTargetTotalLines,
     (color) => color.pixelCount,
     normalizedLockedLineOverride,
   );
@@ -249,6 +272,27 @@ function App() {
     (sum, color) => sum + color.allocatedUnits,
     0,
   );
+  const activeMulticolorLineBucket = multicolorLineBuckets.find(
+    (bucket) => bucket.colorId === activePaletteColorId,
+  ) ?? null;
+  const enabledMulticolorLineBuckets = multicolorLineBuckets.filter((bucket) => bucket.enabled);
+  const experimentalMulticolorLines = multicolorLineBuckets.flatMap((bucket) =>
+    bucket.lines.map((line, index) => ({
+      ...line,
+      colorId: bucket.colorId,
+      label: bucket.label,
+      hex: bucket.hex,
+      visible: bucket.visible,
+      key: `${bucket.colorId}-line-${index}-${line.startNailNumber}-${line.endNailNumber}`,
+    })),
+  );
+  const totalExperimentalMulticolorLines = experimentalMulticolorLines.length;
+  const activeMaskImage = multicolorMaskImages.find(
+    (color) => color.id === activePaletteColorId,
+  ) ?? null;
+  const blurredActiveMaskImage = activeMaskImage?.imageData
+    ? blurMaskImageData(activeMaskImage.imageData, maskBlurRadius)
+    : null;
   const isActiveColorOnlyControlVisible = multicolorDebugView === 'palette-preview';
   const shouldShowOriginalDebugView =
     isMulticolorLabEnabled && multicolorDebugView === 'original';
@@ -265,18 +309,15 @@ function App() {
     multicolorDebugView === 'color-mask' &&
     enabledPalettePreviewColors.length > 0 &&
     Boolean(activePalettePreviewColor);
-  const palettePreviewModeLabel = isPaletteDitheringEnabled
-    ? 'Floyd-Steinberg dithered preview'
-    : 'Nearest-palette preview';
   const shouldShowPaletteComparison =
     isPalettePreviewVisible &&
     Boolean(originalImageDataRef.current);
 
-  const buildActiveColorMaskScoringImageData = useCallback((sourceImageData = null) => {
+  const buildColorMaskScoringImageData = useCallback((colorId, sourceImageData = null) => {
     if (
       !imageSize ||
       enabledPalettePreviewColors.length === 0 ||
-      !activePalettePreviewColor ||
+      !colorId ||
       !imageCanvasRef.current
     ) {
       return null;
@@ -294,14 +335,21 @@ function App() {
       nextSourceImageData,
       enabledPalettePreviewColors,
       isPaletteDitheringEnabled,
-      activePalettePreviewColor.id,
+      colorId,
     );
   }, [
     imageSize,
     enabledPalettePreviewColors,
-    activePalettePreviewColor,
     isPaletteDitheringEnabled,
   ]);
+
+  const buildActiveColorMaskScoringImageData = useCallback((sourceImageData = null) => {
+    if (!activePalettePreviewColor) {
+      return null;
+    }
+
+    return buildColorMaskScoringImageData(activePalettePreviewColor.id, sourceImageData);
+  }, [activePalettePreviewColor, buildColorMaskScoringImageData]);
 
   useEffect(() => {
     const currentActiveColor = multicolorPaletteColors.find((color) => color.id === activePaletteColorId);
@@ -321,15 +369,46 @@ function App() {
   }, [activePaletteColorId, multicolorPaletteColors]);
 
   useEffect(() => {
-    if (canUseActiveColorMaskForLineScoring) {
+    setMulticolorLineBuckets((currentBuckets) => {
+      const currentBucketsByColorId = new Map(
+        currentBuckets.map((bucket) => [bucket.colorId, bucket]),
+      );
+
+      return multicolorPaletteColors.map((color) => {
+        const existingBucket = currentBucketsByColorId.get(color.id);
+        return {
+          colorId: color.id,
+          label: color.label,
+          hex: color.hex,
+          enabled: color.enabled,
+          visible: existingBucket?.visible ?? true,
+          lastNailNumber: existingBucket?.lastNailNumber ?? null,
+          lines: existingBucket?.lines ?? [],
+        };
+      });
+    });
+  }, [multicolorPaletteColors]);
+
+  useEffect(() => {
+    if (enabledMulticolorLineBuckets.length === 0) {
+      setMulticolorRoundRobinNextColorId(null);
       return;
     }
 
-    activeColorMaskScoringImageDataRef.current = null;
-    if (isActiveColorMaskScoringEnabled) {
-      setIsActiveColorMaskScoringEnabled(false);
+    const nextRoundRobinColorStillEnabled = enabledMulticolorLineBuckets.some(
+      (bucket) => bucket.colorId === multicolorRoundRobinNextColorId,
+    );
+    if (!nextRoundRobinColorStillEnabled) {
+      setMulticolorRoundRobinNextColorId(
+        enabledMulticolorLineBuckets.find((bucket) => bucket.colorId === activePaletteColorId)?.colorId ??
+        enabledMulticolorLineBuckets[0].colorId,
+      );
     }
-  }, [canUseActiveColorMaskForLineScoring, isActiveColorMaskScoringEnabled]);
+  }, [
+    activePaletteColorId,
+    enabledMulticolorLineBuckets,
+    multicolorRoundRobinNextColorId,
+  ]);
 
   useEffect(() => {
     if (!isActiveColorMaskScoringEnabled) {
@@ -367,7 +446,7 @@ function App() {
     const clampedLineCount = clamp(
       multicolorLockedLineOverride.lineCount,
       0,
-      totalSuggestedMulticolorLines,
+      multicolorTargetTotalLines,
     );
     if (clampedLineCount !== multicolorLockedLineOverride.lineCount) {
       setMulticolorLockedLineOverride((currentOverride) =>
@@ -382,7 +461,7 @@ function App() {
   }, [
     multicolorLockedLineOverride,
     multicolorPaletteCoverageWithSuggestions,
-    totalSuggestedMulticolorLines,
+    multicolorTargetTotalLines,
   ]);
 
   const syncVisibleCanvas = () => {
@@ -579,6 +658,35 @@ function App() {
     previewSize,
   ]);
 
+  useEffect(() => {
+    if (!imageCanvasRef.current || !imageSize || enabledPalettePreviewColors.length === 0) {
+      setMulticolorMaskImages([]);
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    if (!context) {
+      setMulticolorMaskImages([]);
+      return;
+    }
+
+    setMulticolorMaskImages(
+      createPaletteMaskImageCollection(
+        context.getImageData(0, 0, imageSize.width, imageSize.height),
+        enabledPalettePreviewColors,
+        isPaletteDitheringEnabled,
+      ),
+    );
+  }, [
+    contrast,
+    imageName,
+    imageSize,
+    isPaletteDitheringEnabled,
+    multicolorPaletteColors,
+  ]);
+
   const clearSelectionOverlay = () => {
     if (!selectionOverlayRef.current || !imageSize) {
       return;
@@ -669,6 +777,12 @@ function App() {
     pixelWeightMapRef.current = null;
     lineBoostMapRef.current = null;
     usedLineKeysRef.current = new Set();
+    setMulticolorLineBuckets(createMulticolorLineBuckets(multicolorPaletteColors));
+    setMulticolorLockedLineOverride(null);
+    setMulticolorTargetTotalLines(0);
+    setIsExperimentalColorLinesOnlyPreviewEnabled(false);
+    setMulticolorExperimentalSteppingMode('single-color');
+    setMulticolorRoundRobinNextColorId(null);
     originalImageDataRef.current = null;
     linePixelsCacheRef.current.clear();
     clearSelectionOverlay();
@@ -1293,6 +1407,42 @@ function App() {
       : DEFAULT_LINE_STRENGTH;
   };
 
+  const getCanvasImageData = () => {
+    if (!imageCanvasRef.current || !imageSize) {
+      return null;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    return context?.getImageData(0, 0, imageSize.width, imageSize.height) ?? null;
+  };
+
+  const getExperimentalStartNailNumberForBucket = (bucket) => {
+    if (!bucket) {
+      return hasValidFromIndex ? fromIndex : 1;
+    }
+
+    return bucket.lastNailNumber ?? (hasValidFromIndex ? fromIndex : 1);
+  };
+
+  const getNextRoundRobinColorId = (currentColorId) => {
+    if (enabledMulticolorLineBuckets.length === 0) {
+      return null;
+    }
+
+    const currentColorIndex = enabledMulticolorLineBuckets.findIndex(
+      (bucket) => bucket.colorId === currentColorId,
+    );
+    if (currentColorIndex < 0) {
+      return enabledMulticolorLineBuckets[0].colorId;
+    }
+
+    return enabledMulticolorLineBuckets[
+      (currentColorIndex + 1) % enabledMulticolorLineBuckets.length
+    ].colorId;
+  };
+
   const waitForNextWorkSlice = () =>
     new Promise((resolve) => {
       if (!document.hidden) {
@@ -1391,6 +1541,71 @@ function App() {
     }
     setLineFrom(nextNailValue);
     setSavedNailSequence((currentSequence) => [...currentSequence, nextNailNumber]);
+  };
+
+  const handleApplyExperimentalStep = () => {
+    if (enabledMulticolorLineBuckets.length === 0) {
+      return;
+    }
+
+    const targetColorId =
+      multicolorExperimentalSteppingMode === 'round-robin'
+        ? (
+            multicolorRoundRobinNextColorId ??
+            enabledMulticolorLineBuckets.find((bucket) => bucket.colorId === activePaletteColorId)?.colorId ??
+            enabledMulticolorLineBuckets[0].colorId
+          )
+        : activePaletteColorId;
+    const targetBucket = multicolorLineBuckets.find((bucket) => bucket.colorId === targetColorId);
+    if (!targetBucket) {
+      return;
+    }
+
+    const targetStartNailNumber = getExperimentalStartNailNumberForBucket(targetBucket);
+    const canvasImageData = getCanvasImageData();
+    const targetColorMaskImageData = buildColorMaskScoringImageData(targetColorId, canvasImageData);
+    const targetNextNailNumber = targetColorMaskImageData
+      ? getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data)
+      : null;
+    if (targetNextNailNumber === null) {
+      return;
+    }
+
+    const didApplyLine = handleMakeLinePermanent(targetStartNailNumber, targetNextNailNumber);
+    if (!didApplyLine) {
+      return;
+    }
+
+    activeColorMaskScoringImageDataRef.current = buildColorMaskScoringImageData(
+      targetColorId,
+      getCanvasImageData(),
+    );
+
+    const experimentalLine = {
+      startNailNumber: targetStartNailNumber,
+      endNailNumber: targetNextNailNumber,
+    };
+    setMulticolorLineBuckets((currentBuckets) =>
+      currentBuckets.map((bucket) =>
+        bucket.colorId === targetColorId
+          ? {
+              ...bucket,
+              lastNailNumber: targetNextNailNumber,
+              lines: [...bucket.lines, experimentalLine],
+            }
+          : bucket,
+      ),
+    );
+    setActivePaletteColorId(targetColorId);
+    setLineTo(String(targetNextNailNumber));
+    setLineFrom(String(targetNextNailNumber));
+    setHiddenPreviewLineKey(
+      getNormalizedLineKey(targetStartNailNumber, targetNextNailNumber),
+    );
+
+    if (multicolorExperimentalSteppingMode === 'round-robin') {
+      setMulticolorRoundRobinNextColorId(getNextRoundRobinColorId(targetColorId));
+    }
   };
 
   const handlePerform9000Steps = async () => {
@@ -1554,6 +1769,9 @@ function App() {
   const lineEnd = hasValidLine ? nails[toIndex - 1] : null;
   const hasValidFromIndex =
     Number.isInteger(fromIndex) && fromIndex >= 1 && fromIndex <= nailsCount;
+  const activeColorExperimentFromIndex =
+    activeMulticolorLineBucket?.lastNailNumber ??
+    (hasValidFromIndex ? fromIndex : 1);
   const shouldComputeAlgorithmView = !isArtMode && hasLoadedImage;
   const shouldComputeAverageDarkness = !isArtMode && hasLoadedImage && lineStart && lineEnd;
   const shouldComputeNextNail = hasLoadedImage && hasValidFromIndex && Boolean(imageSize);
@@ -1567,6 +1785,18 @@ function App() {
   const lineScoringImageData = isActiveColorMaskScoringEnabled
     ? activeColorMaskScoringImageDataRef.current?.data ?? null
     : imageData;
+  let activeColorExperimentScoringImageData = null;
+  if (canUseActiveColorMaskForLineScoring) {
+    activeColorExperimentScoringImageData = activeColorMaskScoringImageDataRef.current?.data ?? null;
+    if (!activeColorExperimentScoringImageData) {
+      const canvasImageData = getCanvasImageData();
+      const generatedMaskImageData = buildActiveColorMaskScoringImageData(canvasImageData);
+      if (generatedMaskImageData) {
+        activeColorMaskScoringImageDataRef.current = generatedMaskImageData;
+        activeColorExperimentScoringImageData = generatedMaskImageData.data;
+      }
+    }
+  }
 
   const linePixels = shouldComputeAverageDarkness
     ? getLinePixelsForIndexes(fromIndex, toIndex)
@@ -1636,14 +1866,39 @@ function App() {
     shouldComputeNextNail && lineScoringImageData
       ? darkestNails[0]?.nail ?? null
       : null;
+  const activeColorExperimentNextNailNumber =
+    activeColorExperimentScoringImageData
+      ? getNextNailForImageData(activeColorExperimentFromIndex, activeColorExperimentScoringImageData)
+      : null;
   const darkestNailsKey = darkestNails.map((point) => point.nail).join(',');
 
   useEffect(() => {
     setIsMinimumDarknessExpanded(false);
   }, [minimumDarkness, darkestNailsKey]);
 
+  const monochromeArtLineSegments = buildArtLineSegments(savedNailSequence, nails);
+  const renderedExperimentalLines = experimentalMulticolorLines.filter((line) => {
+    if (!line.visible) {
+      return false;
+    }
+    return true;
+  });
+  const experimentalArtLineSegments = buildManualArtLineSegments(
+    renderedExperimentalLines
+      .map((line) => ({
+        startNailNumber: line.startNailNumber,
+        endNailNumber: line.endNailNumber,
+        stroke: line.hex,
+      })),
+    nails,
+    'experimental-art-line',
+  );
   const artLineSegments = isArtMode
-    ? buildArtLineSegments(savedNailSequence, nails)
+    ? (
+        isExperimentalColorLinesOnlyPreviewEnabled
+          ? experimentalArtLineSegments
+          : [...monochromeArtLineSegments, ...experimentalArtLineSegments]
+      )
     : [];
   const activeGroup =
     pixelGroups.find((group) => group.id === activeGroupId) ?? pixelGroups[0] ?? null;
@@ -1682,9 +1937,45 @@ function App() {
       : null;
     syncVisibleCanvas();
     setSavedNailSequence([]);
+    setMulticolorLineBuckets(createMulticolorLineBuckets(multicolorPaletteColors));
+    setIsExperimentalColorLinesOnlyPreviewEnabled(false);
+    setMulticolorExperimentalSteppingMode('single-color');
+    setMulticolorRoundRobinNextColorId(null);
     setIsStepLoopPaused(false);
     setHiddenPreviewLineKey(currentPreviewLineKey);
     setHoveredPixel(null);
+  };
+
+  const handleToggleMulticolorBucketVisibility = (colorId, isVisible) => {
+    setMulticolorLineBuckets((currentBuckets) =>
+      currentBuckets.map((bucket) =>
+        bucket.colorId === colorId
+          ? {
+              ...bucket,
+              visible: isVisible,
+            }
+          : bucket,
+      ),
+    );
+  };
+
+  const handleSoloMulticolorBucket = (colorId) => {
+    setMulticolorLineBuckets((currentBuckets) =>
+      currentBuckets.map((bucket) => ({
+        ...bucket,
+        visible: bucket.colorId === colorId,
+      })),
+    );
+    setActivePaletteColorId(colorId);
+  };
+
+  const handleShowAllMulticolorBuckets = () => {
+    setMulticolorLineBuckets((currentBuckets) =>
+      currentBuckets.map((bucket) => ({
+        ...bucket,
+        visible: true,
+      })),
+    );
   };
 
   const handleExportNailList = () => {
@@ -2056,19 +2347,22 @@ function App() {
           <MulticolorLab
             activePaletteColor={activePaletteColor}
             activePaletteColorId={activePaletteColorId}
+            activeColorExperimentFromIndex={activeColorExperimentFromIndex}
             ditheredComparisonCanvasRef={ditheredComparisonCanvasRef}
             enabledPalettePreviewColors={enabledPalettePreviewColors}
             hasOriginalImage={Boolean(originalImageDataRef.current)}
             isActiveColorOnlyControlVisible={isActiveColorOnlyControlVisible}
             isActivePaletteColorOnlyEnabled={isActivePaletteColorOnlyEnabled}
-            isActiveColorMaskScoringEnabled={isActiveColorMaskScoringEnabled}
             canUseActiveColorMaskForLineScoring={canUseActiveColorMaskForLineScoring}
+            isExperimentalRoundRobinSteppingEnabled={multicolorExperimentalSteppingMode === 'round-robin'}
             isMulticolorLabEnabled={isMulticolorLabEnabled}
             isPaletteDitheringEnabled={isPaletteDitheringEnabled}
             isPaletteMaskVisible={isPaletteMaskVisible}
             isPalettePreviewEnabled={isPalettePreviewEnabled}
             maskBlurRadius={maskBlurRadius}
             multicolorDebugView={multicolorDebugView}
+            multicolorLineBuckets={multicolorLineBuckets}
+            multicolorMaskImages={multicolorMaskImages}
             multicolorPaletteColors={multicolorPaletteColors}
             multicolorPaletteCoverage={multicolorPaletteCoverage}
             multicolorPaletteCoverageWithLineAllocation={multicolorPaletteCoverageWithLineAllocation}
@@ -2078,11 +2372,28 @@ function App() {
             multicolorPalettePreset={multicolorPalettePreset}
             originalComparisonCanvasRef={originalComparisonCanvasRef}
             paletteComparisonCanvasRef={paletteComparisonCanvasRef}
-            palettePreviewModeLabel={palettePreviewModeLabel}
-            lineScoringModeLabel={lineScoringModeLabel}
+            rawActiveMaskImage={activeMaskImage?.imageData ?? null}
+            blurredActiveMaskImage={blurredActiveMaskImage}
+            activeColorExperimentNextNailNumber={activeColorExperimentNextNailNumber}
+            activeExperimentalLineCount={activeMulticolorLineBucket?.lines.length ?? 0}
+            isExperimentalColorLinesOnlyPreviewEnabled={isExperimentalColorLinesOnlyPreviewEnabled}
+            onShowAllMulticolorBuckets={handleShowAllMulticolorBuckets}
+            onSoloMulticolorBucket={handleSoloMulticolorBucket}
+            onToggleMulticolorBucketVisibility={handleToggleMulticolorBucketVisibility}
             setActivePaletteColorId={setActivePaletteColorId}
+            onApplyActiveColorExperimentStep={handleApplyExperimentalStep}
             setIsActivePaletteColorOnlyEnabled={setIsActivePaletteColorOnlyEnabled}
-            setIsActiveColorMaskScoringEnabled={setIsActiveColorMaskScoringEnabled}
+            setIsExperimentalColorLinesOnlyPreviewEnabled={setIsExperimentalColorLinesOnlyPreviewEnabled}
+            setIsExperimentalRoundRobinSteppingEnabled={(nextValue) => {
+              setMulticolorExperimentalSteppingMode(nextValue ? 'round-robin' : 'single-color');
+              if (nextValue) {
+                setMulticolorRoundRobinNextColorId(
+                  enabledMulticolorLineBuckets.find((bucket) => bucket.colorId === activePaletteColorId)?.colorId ??
+                  enabledMulticolorLineBuckets[0]?.colorId ??
+                  null,
+                );
+              }
+            }}
             setIsMulticolorLabEnabled={setIsMulticolorLabEnabled}
             setIsPaletteDitheringEnabled={setIsPaletteDitheringEnabled}
             setIsPalettePreviewEnabled={setIsPalettePreviewEnabled}
@@ -2091,10 +2402,12 @@ function App() {
             setMulticolorLockedLineOverride={setMulticolorLockedLineOverride}
             setMulticolorPaletteColors={setMulticolorPaletteColors}
             setMulticolorPalettePresetId={setMulticolorPalettePresetId}
+            setMulticolorTargetTotalLines={setMulticolorTargetTotalLines}
             shouldShowPaletteComparison={shouldShowPaletteComparison}
+            multicolorTargetTotalLines={multicolorTargetTotalLines}
+            totalExperimentalMulticolorLines={totalExperimentalMulticolorLines}
             totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
             totalPaletteCoverageTenths={totalPaletteCoverageTenths}
-            totalSuggestedMulticolorLines={totalSuggestedMulticolorLines}
           />
         </div>
 

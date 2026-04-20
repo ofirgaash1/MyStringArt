@@ -202,25 +202,17 @@ export function createPalettePreviewImageData(
       );
 }
 
-export function createPaletteMaskImageData(
-  sourceImageData,
+function createPaletteMaskImageDataFromQuantizedImageData(
+  quantizedImageData,
   paletteColors,
-  useFloydSteinbergDithering = false,
   activeColorId = null,
 ) {
-  if (!sourceImageData || paletteColors.length === 0 || !activeColorId) {
+  if (!quantizedImageData || paletteColors.length === 0 || !activeColorId) {
     return null;
   }
 
-  const quantizedImageData = createPalettePreviewImageData(
-    sourceImageData,
-    paletteColors,
-    useFloydSteinbergDithering,
-    null,
-    false,
-  );
   const activeColor = paletteColors.find((color) => color.id === activeColorId);
-  if (!quantizedImageData || !activeColor?.rgb) {
+  if (!activeColor?.rgb) {
     return null;
   }
 
@@ -239,6 +231,60 @@ export function createPaletteMaskImageData(
   }
 
   return new ImageData(nextData, quantizedImageData.width, quantizedImageData.height);
+}
+
+export function createPaletteMaskImageData(
+  sourceImageData,
+  paletteColors,
+  useFloydSteinbergDithering = false,
+  activeColorId = null,
+) {
+  if (!sourceImageData || paletteColors.length === 0 || !activeColorId) {
+    return null;
+  }
+
+  const quantizedImageData = createPalettePreviewImageData(
+    sourceImageData,
+    paletteColors,
+    useFloydSteinbergDithering,
+    null,
+    false,
+  );
+  return createPaletteMaskImageDataFromQuantizedImageData(
+    quantizedImageData,
+    paletteColors,
+    activeColorId,
+  );
+}
+
+export function createPaletteMaskImageCollection(
+  sourceImageData,
+  paletteColors,
+  useFloydSteinbergDithering = false,
+) {
+  if (!sourceImageData || paletteColors.length === 0) {
+    return [];
+  }
+
+  const quantizedImageData = createPalettePreviewImageData(
+    sourceImageData,
+    paletteColors,
+    useFloydSteinbergDithering,
+    null,
+    false,
+  );
+  if (!quantizedImageData) {
+    return [];
+  }
+
+  return paletteColors.map((color) => ({
+    ...color,
+    imageData: createPaletteMaskImageDataFromQuantizedImageData(
+      quantizedImageData,
+      paletteColors,
+      color.id,
+    ),
+  }));
 }
 
 export function blurMaskImageData(sourceImageData, radius = 0) {
@@ -577,12 +623,19 @@ export function allocateWholeUnitsByWeightWithLock(
 }
 
 export function drawImageDataToCanvas(canvas, imageData) {
-  if (!canvas || !imageData) {
+  if (!canvas) {
+    return;
+  }
+
+  const context = canvas.getContext('2d');
+  if (!imageData) {
+    canvas.width = 1;
+    canvas.height = 1;
+    context?.clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
 
   canvas.width = imageData.width;
   canvas.height = imageData.height;
-  const context = canvas.getContext('2d');
   context?.putImageData(imageData, 0, 0);
 }
