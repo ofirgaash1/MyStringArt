@@ -19,10 +19,13 @@ function MulticolorLab({
   activeColorExperimentFromIndex,
   activeColorExperimentNextNailNumber,
   activeExperimentalLineCount,
+  activeBucketPlannedLineCount,
+  activeBucketRemainingLineCount,
   blurredActiveMaskImage,
+  canApplyExperimentalStep,
+  currentActiveTargetImage,
   ditheredComparisonCanvasRef,
   enabledPalettePreviewColors,
-  canUseActiveColorMaskForLineScoring,
   hasOriginalImage,
   isActiveColorOnlyControlVisible,
   isExperimentalColorLinesOnlyPreviewEnabled,
@@ -49,6 +52,10 @@ function MulticolorLab({
   onToggleMulticolorBucketVisibility,
   originalComparisonCanvasRef,
   onApplyActiveColorExperimentStep,
+  onExportMulticolorSession,
+  onImportMulticolorSession,
+  onResetAllMulticolorState,
+  onResetMulticolorBucket,
   paletteComparisonCanvasRef,
   rawActiveMaskImage,
   setActivePaletteColorId,
@@ -71,7 +78,9 @@ function MulticolorLab({
 }) {
   const rawMaskCanvasRef = useRef(null);
   const blurredMaskCanvasRef = useRef(null);
+  const currentTargetCanvasRef = useRef(null);
   const maskGridCanvasRefs = useRef(new Map());
+  const sessionImportInputRef = useRef(null);
   const selectedDebugView = MULTICOLOR_DEBUG_VIEWS.find(
     (view) => view.id === multicolorDebugView,
   );
@@ -90,13 +99,6 @@ function MulticolorLab({
   const hasActiveCoverage = (activeCoverage?.pixelCount ?? 0) > 0;
   const visibleExperimentalBucketCount = multicolorLineBuckets.filter((bucket) => bucket.visible).length;
   const enabledBucketCount = multicolorLineBuckets.filter((bucket) => bucket.enabled).length;
-  const canApplyActiveColorExperimentStep =
-    canUseActiveColorMaskForLineScoring &&
-    (
-      isExperimentalRoundRobinSteppingEnabled
-        ? enabledBucketCount > 0
-        : activeColorExperimentNextNailNumber !== null
-    );
   const sourceLabel = isPaletteDitheringEnabled ? 'dithered' : 'nearest';
   const steppingModeLabel = isExperimentalRoundRobinSteppingEnabled ? 'round-robin' : 'single';
   const scoringModeShortLabel = selectedDebugViewLabel === 'isolate' ? 'active color' : 'grayscale';
@@ -115,6 +117,13 @@ function MulticolorLab({
     }
     drawImageDataToCanvas(blurredMaskCanvasRef.current, blurredActiveMaskImage);
   }, [isPaletteMaskVisible, blurredActiveMaskImage]);
+
+  useEffect(() => {
+    if (!isPaletteMaskVisible) {
+      return;
+    }
+    drawImageDataToCanvas(currentTargetCanvasRef.current, currentActiveTargetImage);
+  }, [currentActiveTargetImage, isPaletteMaskVisible]);
 
   useEffect(() => {
     for (const maskColor of visibleMaskImages) {
@@ -397,6 +406,22 @@ function MulticolorLab({
                     </figure>
                     <figure className="multicolor-comparison-card">
                       <figcaption>
+                        Current target
+                        {activePaletteColor ? ` for ${activePaletteColor.label}` : ''}
+                      </figcaption>
+                      {hasActiveCoverage && currentActiveTargetImage ? (
+                        <canvas
+                          ref={currentTargetCanvasRef}
+                          className="multicolor-comparison-canvas"
+                        />
+                      ) : (
+                        <div className="multicolor-comparison-empty">
+                          No current target preview for this color.
+                        </div>
+                      )}
+                    </figure>
+                    <figure className="multicolor-comparison-card">
+                      <figcaption>
                         Softened isolate
                         {activePaletteColor ? ` for ${activePaletteColor.label}` : ''}
                       </figcaption>
@@ -413,8 +438,8 @@ function MulticolorLab({
                     </figure>
                   </div>
                   <p className="multicolor-mini-note">
-                    The cards below are all raw isolates. The top-left card matches the currently
-                    active color from the palette.
+                    Raw isolate shows the current source split. Current target shows what remains
+                    for the active color after applied lines. The cards below are all raw isolates.
                   </p>
                   <div className="multicolor-mask-grid">
                     {visibleMaskImages.map((maskColor) => (
@@ -588,7 +613,9 @@ function MulticolorLab({
               <div className="multicolor-inline-controls">
                 <span className="multicolor-lab-label">Line source</span>
                 <span className="multicolor-inline-stat">
-                  {selectedDebugViewLabel === 'isolate' ? 'active isolate' : 'whole image'}
+                  {selectedDebugViewLabel === 'isolate'
+                    ? `active isolate (${sourceLabel})`
+                    : 'whole image (grayscale)'}
                 </span>
               </div>
 
@@ -632,12 +659,14 @@ function MulticolorLab({
                   className="action-button"
                   type="button"
                   onClick={onApplyActiveColorExperimentStep}
-                  disabled={!canApplyActiveColorExperimentStep}
+                  disabled={!canApplyExperimentalStep}
                 >
                   {isExperimentalRoundRobinSteppingEnabled
                     ? 'Apply one round-robin line'
-                    : activeColorExperimentNextNailNumber === null
-                      ? 'Apply one line'
+                    : activeBucketRemainingLineCount <= 0
+                      ? 'Active bucket is at target'
+                      : activeColorExperimentNextNailNumber === null
+                        ? 'Apply one line'
                       : `Apply line ${activeColorExperimentFromIndex} -> ${activeColorExperimentNextNailNumber}`}
                 </button>
                 <label className="checkbox-row">
@@ -655,15 +684,22 @@ function MulticolorLab({
 
               <div className="multicolor-inline-stats">
                 <span className="multicolor-inline-stat">
-                  Active bucket {activeExperimentalLineCount.toLocaleString()} lines
+                  Active {activeExperimentalLineCount.toLocaleString()} /{' '}
+                  {activeBucketPlannedLineCount.toLocaleString()} planned
                 </span>
                 <span className="multicolor-inline-stat">
                   Total {totalExperimentalMulticolorLines.toLocaleString()} lines
                 </span>
+                <span className="multicolor-inline-stat">
+                  Remaining {activeBucketRemainingLineCount.toLocaleString()}
+                </span>
               </div>
               <p className="multicolor-mini-note">
-                Line source follows the current view. <code>isolate</code> uses the active color;
-                every other view uses grayscale.
+                <code>isolate</code> uses the active color from the current
+                {' '}
+                <code>{sourceLabel}</code>
+                {' '}
+                source. Every other view uses grayscale.
               </p>
             </div>
           </section>
@@ -755,6 +791,14 @@ function MulticolorLab({
                         >
                           solo
                         </button>
+                        <button
+                          className="multicolor-debug-toggle"
+                          type="button"
+                          onClick={() => onResetMulticolorBucket(bucket.colorId)}
+                          disabled={bucket.lines.length === 0}
+                        >
+                          reset
+                        </button>
                         <span className="multicolor-bucket-status">
                           {bucket.enabled ? 'enabled' : 'disabled'}
                         </span>
@@ -762,6 +806,53 @@ function MulticolorLab({
                     </div>
                   );
                 })}
+              </div>
+              <div className="multicolor-bucket-panel-footer">
+                <div className="multicolor-inline-stats">
+                  <span className="multicolor-inline-stat">
+                    Planned {multicolorTargetTotalLines.toLocaleString()}
+                  </span>
+                  <span className="multicolor-inline-stat">
+                    Actual {totalExperimentalMulticolorLines.toLocaleString()}
+                  </span>
+                </div>
+                <div className="multicolor-bucket-session-actions">
+                  <button
+                    className="multicolor-debug-toggle"
+                    type="button"
+                    onClick={onResetAllMulticolorState}
+                    disabled={totalExperimentalMulticolorLines === 0}
+                  >
+                    reset multicolor
+                  </button>
+                  <button
+                    className="multicolor-debug-toggle"
+                    type="button"
+                    onClick={onExportMulticolorSession}
+                  >
+                    export session
+                  </button>
+                  <button
+                    className="multicolor-debug-toggle"
+                    type="button"
+                    onClick={() => sessionImportInputRef.current?.click()}
+                  >
+                    import session
+                  </button>
+                  <input
+                    ref={sessionImportInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    hidden
+                    onChange={(event) => {
+                      const nextFile = event.target.files?.[0] ?? null;
+                      if (nextFile) {
+                        onImportMulticolorSession(nextFile);
+                      }
+                      event.target.value = '';
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </section>
