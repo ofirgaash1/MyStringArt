@@ -1,0 +1,215 @@
+Multicolor Port Plan
+
+Reference pipeline observed in `computational-thread-art-v2-main/imageColor.py`:
+1. Start from original RGB image.
+2. Reduce image to a fixed palette.
+3. Optionally Floyd-Steinberg dither into that palette.
+4. Split the result into one monochrome mask per palette color.
+5. Optionally blur each monochrome mask.
+6. Estimate how many lines each color should get.
+7. Run the line solver separately per color mask.
+8. Interleave the per-color line groups into one final colored render.
+
+Rules for this port:
+- Default everything OFF.
+- Add one visible change at a time.
+- Every milestone must leave the current monochrome flow usable.
+- Every milestone must have a clear on/off toggle or isolated preview mode.
+- Do not merge stages just because they are logically related.
+- Prefer fake or hardcoded data first, then real algorithm wiring.
+- Do not change export or final sequence format until the preview stages are understood.
+
+Milestones
+
+[x] 01. Create a "multicolor lab" section in the UI with a single master toggle.
+Success check: turning it on shows only placeholder controls; turning it off changes nothing else.
+
+[x] 02. Add debug view toggles only: `original`, `current grayscale`, `future quantized`, `future mask`.
+Success check: all new toggles can exist before any new image math exists.
+
+[x] 03. Add palette state with one hardcoded preset, but do not use it anywhere yet.
+Success check: swatches render in the UI and can be enabled/disabled without affecting the image.
+
+[x] 04. Add a second hardcoded preset.
+Success check: switching presets changes only the swatch display, not the algorithm.
+
+[x] 05. Add a "use palette preview" toggle that recolors the preview image by nearest palette color only.
+Success check: this is a display-only transform; line selection remains exactly the current monochrome behavior.
+
+[x] 06. Add a side-by-side or toggleable comparison between original RGB and nearest-palette preview.
+Success check: we can inspect whether the palette is even plausible before touching dithering.
+
+[x] 07. Add a tiny per-color pixel count readout for the nearest-palette preview.
+Success check: counts update when preset changes; no solver changes yet.
+
+[x] 08. Add a "show active palette color only" preview mode.
+Success check: selecting one palette color isolates only those pixels in the quantized preview.
+
+[ ] 09. [cancled - all good]
+
+[x] 10. Add real Floyd-Steinberg dithering as a separate preview path, behind its own toggle.
+Success check: nearest-palette preview and dithered preview can be compared instantly.
+
+[x] 11. Add a quick toggle between `nearest palette` and `dithered palette`.
+Success check: no line logic changes; this is still image preprocessing only.
+
+[x] 12. Add per-color monochrome mask generation from the quantized/dithered result.
+Success check: for each palette color we can show a black/white mask.
+
+[x] 13. Add a mask viewer with next/previous color controls.
+Success check: we can inspect every monochrome mask one by one.
+
+[x] 14. Add a "grid of masks" preview.
+Success check: all color masks can be inspected at once.
+
+[x] 15. Add a toggle for which source produces masks: `nearest palette` or `dithered palette`.
+Success check: mask boundaries visibly change when the source changes.
+
+[x] 16. Add a blur slider for masks, but only apply it in preview.
+Success check: one selected mask can be viewed before/after blur without any solver change.
+
+[x] 17. Add a split preview for `raw mask` vs `blurred mask`.
+Success check: we can judge whether blur helps or destroys detail.
+
+[x] 18. Add a simple histogram panel that shows color coverage percentages from the current mask source.
+Success check: percentages sum correctly and react to palette/dither changes.
+
+[x] 19. Add a suggested `lines per color` readout derived from those percentages.
+Success check: still read-only; nothing about line placement changes.
+
+[x] 20. Add a lock so the user can override one color's line count manually.
+Success check: display updates, but solver still untouched.
+
+[x] 21. Add a dev toggle: `use active color mask for line scoring`.
+Success check: with multicolor on, we can pick one color and temporarily drive the existing monochrome solver from that mask only.
+
+[x] 22. Keep rendering the preview line in a single debug color even when a color mask is active.
+Success check: this isolates scoring changes from rendering-color changes.
+
+[x] 23. Add an "active solver color" selector.
+Success check: switching active color changes the chosen mask for scoring, not the draw color yet.
+
+[x] 24. Add a comparison mode: `score from grayscale` vs `score from active color mask`.
+Success check: the darkness chart visibly changes when the scoring source changes.
+
+[x] 25. Add a one-step action that applies exactly one line using the active color mask.
+Success check: only one step changes, so we can inspect whether the chosen nail feels sensible.
+
+[x] 26. Store those experimental lines separately from the normal monochrome sequence.
+Success check: we can clear the experiment without touching current saved output.
+
+[x] 27. Add a preview mode that shows only the experimental active-color lines.
+Success check: isolate line geometry before mixing colors together.
+
+[x] 28. Add per-color line buckets in state, but do not auto-fill them yet.
+Success check: data model exists for `red lines`, `blue lines`, etc.
+
+[x] 29. Route the one-step action into the selected color bucket.
+Success check: a single manual line can now belong to a specific palette color.
+
+[x] 30. Render those stored lines using their palette color in art mode.
+Success check: one colored line appears correctly; monochrome path still works.
+
+[x] 31. Add a toggle to hide/show each color bucket independently.
+Success check: final art can be inspected one color at a time.
+
+[x] 32. Add a "solo color" button for each bucket.
+Success check: one-click inspection of each monochrome contribution.
+
+[x] 33. Add a combined render mode with all visible color buckets.
+Success check: this is the first true multi-color art preview.
+
+[x] 34. Add a simple round-robin color order for automatic stepping.
+Success check: one auto-step per click chooses the next enabled color, nothing smarter yet.
+
+[x] 35. Add a toggle to compare `single-color stepping` vs `round-robin stepping`.
+Success check: sequence behavior differences become inspectable.
+
+[x] 36. Add independent starting nail memory per color bucket.
+Success check: each color can continue from its own previous endpoint.
+
+[x] 37. Add a tiny per-color stats panel: line count, last nail, visibility, enabled state.
+Success check: enough visibility to debug multi-color state.
+
+[x] 38. Add a multicolor `target total lines` control independent of the grayscale run.
+Success check: multicolor planning no longer depends on `savedNailSequence.length`.
+
+[x] 39. Make coverage planning use the multicolor target total.
+Success check: suggested per-color line counts appear even before any grayscale run exists.
+
+[x] 40. Show `planned` vs `actual` lines for each color bucket.
+Success check: the user can compare target allocation against stored multicolor lines at a glance.
+
+[x] 41. Use planned per-color counts as generation quotas for multicolor stepping.
+Success check: a bucket stops receiving new multicolor lines once it reaches its planned target.
+
+[x] 42. Add a separate preview for "current target image" per active color after line subtraction.
+Success check: we can see how each color mask is being consumed over time.
+
+[x] 43. Add a reset button for one color bucket only.
+Success check: redo one color without wiping the entire experiment.
+
+[x] 44. Add a reset button for all multicolor experimental state only.
+Success check: current monochrome workflow remains untouched.
+
+[x] 45. Add export of multicolor session state as JSON only.
+Success check: no nail-list/export format decisions yet.
+
+[x] 46. Add import of that JSON session state.
+Success check: we can pause and resume experiments safely.
+
+Current findings
+
+- We timed `Apply one round-robin line` in browser automation using `mona_lisa.PNG`, `View: isolate`, `Source: dithered`, `Step mode: round-robin`, `Target total lines: 40`.
+- In `vite preview` headless Chromium, the first 4 clicks took `244 ms`, `252 ms`, `244 ms`, `239 ms`. Average: `244.75 ms`.
+- In `vite preview` headed Chromium, the first 4 clicks took `235 ms`, `211 ms`, `218 ms`, `206 ms`. Average: `217.5 ms`.
+- In `vite dev` headed Chromium, the first 4 clicks took `5758 ms`, `6701 ms`, `6549 ms`, `6355 ms`. Average: `6340.75 ms`.
+- Story so far: first we suspected rendering cost, so we tested real browser clicks in preview/headless and preview/headed. Those were both fast. Then we repeated the same browser-flow test in `vite dev`, and the slowdown reproduced immediately. Current conclusion: the painful delay is primarily dev-mode overhead and/or dev-mode rerender churn, not production algorithm cost alone.
+
+[ ] 47. Profile one `vite dev` click with Chrome Performance and identify the largest time buckets.
+Success check: we can say how much time is spent in solver math, quantization/dithering, React rerendering, layout/paint, and Vite/HMR/dev instrumentation.
+
+[ ] 48. Profile one `vite dev` click with React DevTools Profiler and record which components rerender and why.
+Success check: we can name the components causing the biggest commit cost and whether those rerenders are necessary.
+
+[ ] 49. Compare `Apply line` vs `Apply one round-robin line` in `vite dev` under the same browser-automation setup.
+Success check: we know whether round-robin adds real extra algorithm cost or whether both modes are mostly paying the same dev overhead.
+
+[ ] 50. Compare `nearest` vs `dithered` source under the same browser-automation setup.
+Success check: we know how much of the step cost comes specifically from dithering-based mask recomputation.
+
+[ ] 51. Add temporary instrumentation around the multicolor step path.
+Success check: the app can log per-click timings for mask rebuild, next-nail search, line application, canvas sync, and React state updates.
+
+[ ] 52. Decide which optimizations are safe because they preserve exact output and which would change behavior.
+Success check: we have an explicit list of exact caches/reuse opportunities versus approximations we should avoid.
+
+[ ] 53. Only after the diagnostics above, decide whether to port the reference's `group_orders` concept.
+Success check: we understand whether static group interleaving is even needed in this app.
+
+[ ] 54. If `group_orders` is still wanted, add a fake read-only preview of color interleave order first.
+Success check: inspect order without changing any line generation.
+
+[ ] 55. Then add editable color interleave order.
+Success check: combined art can be re-rendered from existing per-color buckets without recomputing lines.
+
+[ ] 56. Add a global toggle: `share used-line exclusion across all colors` vs `per-color only`.
+Success check: we can inspect whether line reuse rules are helping or harming the result.
+
+[ ] 57. Add a global toggle: `shared line strength` vs `per-color line strength`.
+Success check: inspect whether some colors need different subtraction strength.
+
+[ ] 58. Add a global toggle: `shared min distance` vs `per-color min distance`.
+Success check: inspect whether spacing constraints should diverge by color.
+
+[ ] 59. Only after all preview tooling is trusted, consider multicolor nail-list/export behavior.
+Success check: export is informed by actual use, not guessed too early.
+
+[ ] 60. Final checkpoint: compare our results against the reference stages one by one.
+Success check: palette reduction, dithering, masks, per-color solve, and interleaving can each be turned on/off independently.
+
+Possible cuts if this is still too fast:
+- Split palette state into: add preset list, render swatches, select preset, edit one color.
+- Split quantized preview into: nearest-color math, full-image render, active-color isolate, dim-others mode.
+- Split mask work into: binary mask, mask viewer, grid viewer, blur preview.
+- Split solver work into: choose active mask, chart from mask, one-step line, stored colored line, auto stepping.
