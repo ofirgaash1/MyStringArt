@@ -189,6 +189,8 @@ Current findings
 - Follow-up after manual Chrome timing: the duplicate `render ...` rows were from React StrictMode in dev. Temporarily removing StrictMode reduced but did not eliminate the delay.
 - Added layout-effect timing to split the old `react state commit` bucket. In a 4-click headless `vite dev` run for `round-robin / dithered`, averages were: click `1769.74 ms`, handler `30.4 ms`, total-through-commit `1656.65 ms`, React render `25 ms`, React layout commit `55.08 ms`, and `paint/passive wait` `1571.17 ms`.
 - Current corrected interpretation: solver math, mask generation, React render, and React DOM commit are all small enough. The remaining delay is primarily the browser/dev-mode wait until passive effects after paint. Chrome Performance is now the right tool to identify what is happening in that paint/passive interval.
+- Added an opt-in `Fast stepping` mode for multicolor experiments. It preserves exact line generation and bucket state, but defers visible canvas sync, active target preview refresh, `lineFrom`/`lineTo` debug syncing, preview-line overlay, and darkness-chart recompute while stepping. Use `refresh previews` to manually sync the visual inspection canvases afterward.
+- Single-mode timing after fast stepping: in headless `vite dev`, `single / dithered` normal averaged `614.16 ms` per click; `single / dithered` with `Fast stepping` averaged `97.55 ms` per click. In fast mode, `paint/passive wait` dropped from `428.73 ms` to `0.55 ms`.
 
 [ ] 47. Profile one `vite dev` click with Chrome Performance and identify the largest time buckets.
 Success check: we can say how much time is spent in solver math, quantization/dithering, React rerendering, layout/paint, and Vite/HMR/dev instrumentation.
