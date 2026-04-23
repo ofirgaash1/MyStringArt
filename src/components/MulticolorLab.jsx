@@ -31,6 +31,7 @@ function MulticolorLab({
   isExperimentalColorLinesOnlyPreviewEnabled,
   isExperimentalRoundRobinSteppingEnabled,
   isActivePaletteColorOnlyEnabled,
+  isMulticolorFastSteppingEnabled,
   isMulticolorStepProfilingEnabled,
   isMulticolorLabEnabled,
   isPaletteDitheringEnabled,
@@ -55,6 +56,7 @@ function MulticolorLab({
   onApplyActiveColorExperimentStep,
   onExportMulticolorSession,
   onImportMulticolorSession,
+  onRefreshMulticolorPreviews,
   onResetAllMulticolorState,
   onResetMulticolorBucket,
   onProfileEffect,
@@ -64,6 +66,7 @@ function MulticolorLab({
   setIsActivePaletteColorOnlyEnabled,
   setIsExperimentalColorLinesOnlyPreviewEnabled,
   setIsExperimentalRoundRobinSteppingEnabled,
+  setIsMulticolorFastSteppingEnabled,
   setIsMulticolorStepProfilingEnabled,
   setIsMulticolorLabEnabled,
   setIsPaletteDitheringEnabled,
@@ -682,6 +685,24 @@ function MulticolorLab({
                   />
                   <span>Log step timings</span>
                 </label>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={isMulticolorFastSteppingEnabled}
+                    onChange={(event) =>
+                      setIsMulticolorFastSteppingEnabled(event.target.checked)
+                    }
+                  />
+                  <span>Fast stepping</span>
+                </label>
+                <button
+                  className="multicolor-debug-toggle"
+                  type="button"
+                  onClick={onRefreshMulticolorPreviews}
+                  disabled={!isMulticolorFastSteppingEnabled}
+                >
+                  refresh previews
+                </button>
               </div>
 
               <div className="multicolor-experiment-actions">
