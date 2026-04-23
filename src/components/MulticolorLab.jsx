@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   clonePalettePreset,
   drawImageDataToCanvas,
@@ -31,6 +31,7 @@ function MulticolorLab({
   isExperimentalColorLinesOnlyPreviewEnabled,
   isExperimentalRoundRobinSteppingEnabled,
   isActivePaletteColorOnlyEnabled,
+  isMulticolorStepProfilingEnabled,
   isMulticolorLabEnabled,
   isPaletteDitheringEnabled,
   isPaletteMaskVisible,
@@ -56,12 +57,14 @@ function MulticolorLab({
   onImportMulticolorSession,
   onResetAllMulticolorState,
   onResetMulticolorBucket,
+  onProfileEffect,
   paletteComparisonCanvasRef,
   rawActiveMaskImage,
   setActivePaletteColorId,
   setIsActivePaletteColorOnlyEnabled,
   setIsExperimentalColorLinesOnlyPreviewEnabled,
   setIsExperimentalRoundRobinSteppingEnabled,
+  setIsMulticolorStepProfilingEnabled,
   setIsMulticolorLabEnabled,
   setIsPaletteDitheringEnabled,
   setIsPalettePreviewEnabled,
@@ -86,13 +89,22 @@ function MulticolorLab({
   );
   const selectedDebugViewLabel =
     DEBUG_VIEW_LABELS[multicolorDebugView] ?? selectedDebugView?.label ?? multicolorDebugView;
-  const suggestedLinesByColorId = new Map(
-    multicolorPaletteCoverageWithSuggestions.map((color) => [color.id, color.allocatedUnits]),
+  const suggestedLinesByColorId = useMemo(
+    () => new Map(
+      multicolorPaletteCoverageWithSuggestions.map((color) => [color.id, color.allocatedUnits]),
+    ),
+    [multicolorPaletteCoverageWithSuggestions],
   );
-  const plannedLinesByColorId = new Map(
-    multicolorPaletteCoverageWithLineAllocation.map((color) => [color.id, color.allocatedUnits]),
+  const plannedLinesByColorId = useMemo(
+    () => new Map(
+      multicolorPaletteCoverageWithLineAllocation.map((color) => [color.id, color.allocatedUnits]),
+    ),
+    [multicolorPaletteCoverageWithLineAllocation],
   );
-  const visibleMaskImages = multicolorMaskImages.filter((color) => color.imageData);
+  const visibleMaskImages = useMemo(
+    () => multicolorMaskImages.filter((color) => color.imageData),
+    [multicolorMaskImages],
+  );
   const activeCoverage = multicolorPaletteCoverage.find(
     (color) => color.id === activePaletteColorId,
   ) ?? null;
@@ -108,31 +120,39 @@ function MulticolorLab({
     if (!isPaletteMaskVisible) {
       return;
     }
-    drawImageDataToCanvas(rawMaskCanvasRef.current, rawActiveMaskImage);
-  }, [isPaletteMaskVisible, rawActiveMaskImage]);
+    onProfileEffect('lab raw mask canvas draw', () => {
+      drawImageDataToCanvas(rawMaskCanvasRef.current, rawActiveMaskImage);
+    });
+  }, [isPaletteMaskVisible, onProfileEffect, rawActiveMaskImage]);
 
   useEffect(() => {
     if (!isPaletteMaskVisible) {
       return;
     }
-    drawImageDataToCanvas(blurredMaskCanvasRef.current, blurredActiveMaskImage);
-  }, [isPaletteMaskVisible, blurredActiveMaskImage]);
+    onProfileEffect('lab blurred mask canvas draw', () => {
+      drawImageDataToCanvas(blurredMaskCanvasRef.current, blurredActiveMaskImage);
+    });
+  }, [blurredActiveMaskImage, isPaletteMaskVisible, onProfileEffect]);
 
   useEffect(() => {
     if (!isPaletteMaskVisible) {
       return;
     }
-    drawImageDataToCanvas(currentTargetCanvasRef.current, currentActiveTargetImage);
-  }, [currentActiveTargetImage, isPaletteMaskVisible]);
+    onProfileEffect('lab current target canvas draw', () => {
+      drawImageDataToCanvas(currentTargetCanvasRef.current, currentActiveTargetImage);
+    });
+  }, [currentActiveTargetImage, isPaletteMaskVisible, onProfileEffect]);
 
   useEffect(() => {
-    for (const maskColor of visibleMaskImages) {
-      drawImageDataToCanvas(
-        maskGridCanvasRefs.current.get(maskColor.id),
-        maskColor.imageData,
-      );
-    }
-  }, [visibleMaskImages]);
+    onProfileEffect('lab mask grid canvas draw', () => {
+      for (const maskColor of visibleMaskImages) {
+        drawImageDataToCanvas(
+          maskGridCanvasRefs.current.get(maskColor.id),
+          maskColor.imageData,
+        );
+      }
+    });
+  }, [onProfileEffect, visibleMaskImages]);
 
   return (
     <div className="multicolor-lab">
@@ -652,6 +672,16 @@ function MulticolorLab({
                     round-robin
                   </button>
                 </div>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={isMulticolorStepProfilingEnabled}
+                    onChange={(event) =>
+                      setIsMulticolorStepProfilingEnabled(event.target.checked)
+                    }
+                  />
+                  <span>Log step timings</span>
+                </label>
               </div>
 
               <div className="multicolor-experiment-actions">

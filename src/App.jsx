@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Profiler, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import BrushPanel from './components/BrushPanel';
 import HoveredPixelOverlay from './components/HoveredPixelOverlay';
 import MulticolorLab from './components/MulticolorLab';
@@ -139,6 +139,7 @@ function App() {
   const [multicolorRoundRobinNextColorId, setMulticolorRoundRobinNextColorId] = useState(null);
   const [multicolorMaskImages, setMulticolorMaskImages] = useState([]);
   const [activeMulticolorTargetImage, setActiveMulticolorTargetImage] = useState(null);
+  const [isMulticolorStepProfilingEnabled, setIsMulticolorStepProfilingEnabled] = useState(false);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -163,6 +164,8 @@ function App() {
   const usedLineKeysRef = useRef(new Set());
   const currentCanvasRevisionRef = useRef(0);
   const currentCanvasMaskCollectionCacheRef = useRef({ key: '', masks: [] });
+  const pendingMulticolorStepProfileRef = useRef(null);
+  const skipNextActiveTargetImageEffectRef = useRef(false);
   const pixelOwnerMapRef = useRef(null);
   const groupPixelsRef = useRef(new Map([[1, new Set()]]));
   const previewSize = previewRef.current?.clientWidth ?? 0;
@@ -217,13 +220,20 @@ function App() {
   const multicolorPalettePreset = MULTICOLOR_PALETTE_PRESETS.find(
     (preset) => preset.id === multicolorPalettePresetId,
   ) ?? MULTICOLOR_PALETTE_PRESETS[0];
-  const enabledPaletteColors = multicolorPaletteColors.filter((color) => color.enabled);
-  const enabledPalettePreviewColors = enabledPaletteColors
-    .map((color) => ({
-      ...color,
-      rgb: hexToRgb(color.hex),
-    }))
-    .filter((color) => color.rgb);
+  const enabledPaletteColors = useMemo(
+    () => multicolorPaletteColors.filter((color) => color.enabled),
+    [multicolorPaletteColors],
+  );
+  const enabledPalettePreviewColors = useMemo(
+    () =>
+      enabledPaletteColors
+        .map((color) => ({
+          ...color,
+          rgb: hexToRgb(color.hex),
+        }))
+        .filter((color) => color.rgb),
+    [enabledPaletteColors],
+  );
   const activePaletteColor = multicolorPaletteColors.find((color) => color.id === activePaletteColorId) ?? null;
   const activePalettePreviewColor = enabledPalettePreviewColors.find(
     (color) => color.id === activePaletteColorId,
@@ -373,6 +383,60 @@ function App() {
     return masks;
   }
 
+  function createMulticolorStepProfile(meta) {
+    if (!isMulticolorStepProfilingEnabled) {
+      return null;
+    }
+
+    return {
+      startedAt: performance.now(),
+      handlerEndAt: null,
+      layoutCommitAt: null,
+      rows: [],
+      reactProfiles: [],
+      meta,
+      measure(bucket, callback) {
+        const startTime = performance.now();
+        const result = callback();
+        this.rows.push({
+          bucket,
+          ms: performance.now() - startTime,
+        });
+        return result;
+      },
+    };
+  }
+
+  function measurePendingMulticolorRender(bucket, callback) {
+    const pendingProfile = pendingMulticolorStepProfileRef.current;
+    if (!pendingProfile) {
+      return callback();
+    }
+
+    const startTime = performance.now();
+    const result = callback();
+    pendingProfile.rows.push({
+      bucket: `render ${bucket}`,
+      ms: performance.now() - startTime,
+    });
+    return result;
+  }
+
+  function measurePendingMulticolorEffect(bucket, callback) {
+    const pendingProfile = pendingMulticolorStepProfileRef.current;
+    if (!pendingProfile) {
+      return callback();
+    }
+
+    const startTime = performance.now();
+    const result = callback();
+    pendingProfile.rows.push({
+      bucket: `effect ${bucket}`,
+      ms: performance.now() - startTime,
+    });
+    return result;
+  }
+
   const buildColorMaskScoringImageData = useCallback((colorId, sourceImageData = null) => {
     if (
       !imageSize ||
@@ -472,7 +536,10 @@ function App() {
       return;
     }
 
-    activeColorMaskScoringImageDataRef.current = buildActiveColorMaskScoringImageData();
+    activeColorMaskScoringImageDataRef.current = measurePendingMulticolorEffect(
+      'active mask scoring refresh',
+      buildActiveColorMaskScoringImageData,
+    );
   }, [
     buildActiveColorMaskScoringImageData,
     contrast,
@@ -488,13 +555,28 @@ function App() {
 
   useEffect(() => {
     if (!canUseActiveColorMaskForLineScoring) {
+      skipNextActiveTargetImageEffectRef.current = false;
       setActiveMulticolorTargetImage(null);
       return;
     }
 
-    const canvasImageData = getCanvasImageData();
-    const nextTargetImage = buildActiveColorMaskScoringImageData(canvasImageData);
-    setActiveMulticolorTargetImage(nextTargetImage);
+    if (skipNextActiveTargetImageEffectRef.current) {
+      skipNextActiveTargetImageEffectRef.current = false;
+      measurePendingMulticolorEffect('active target refresh skipped', () => {});
+      return;
+    }
+
+    const canvasImageData = measurePendingMulticolorEffect(
+      'active target canvas read',
+      getCanvasImageData,
+    );
+    const nextTargetImage = measurePendingMulticolorEffect(
+      'active target rebuild',
+      () => buildActiveColorMaskScoringImageData(canvasImageData),
+    );
+    measurePendingMulticolorEffect('active target state scheduling', () => {
+      setActiveMulticolorTargetImage(nextTargetImage);
+    });
   }, [
     buildActiveColorMaskScoringImageData,
     canUseActiveColorMaskForLineScoring,
@@ -504,6 +586,106 @@ function App() {
     multicolorLineBuckets,
     savedNailSequence,
   ]);
+
+  useLayoutEffect(() => {
+    const pendingProfile = pendingMulticolorStepProfileRef.current;
+    if (!pendingProfile || pendingProfile.layoutCommitAt !== null) {
+      return;
+    }
+
+    pendingProfile.layoutCommitAt = performance.now();
+  });
+
+  useEffect(() => {
+    const pendingProfile = pendingMulticolorStepProfileRef.current;
+    if (!pendingProfile) {
+      return;
+    }
+
+    pendingMulticolorStepProfileRef.current = null;
+    const commitTime = performance.now();
+    const layoutCommitMs =
+      pendingProfile.layoutCommitAt === null
+        ? null
+        : pendingProfile.layoutCommitAt - pendingProfile.handlerEndAt;
+    const paintAndPassiveWaitMs =
+      pendingProfile.layoutCommitAt === null
+        ? null
+        : commitTime - pendingProfile.layoutCommitAt;
+    const reactCommitMs = commitTime - pendingProfile.handlerEndAt;
+    const totalUntilCommitMs = commitTime - pendingProfile.startedAt;
+    const rows = [
+      ...pendingProfile.rows,
+      ...pendingProfile.reactProfiles.map((profile) => ({
+        bucket: `react render ${profile.id}`,
+        ms: profile.actualDuration,
+      })),
+      ...(layoutCommitMs === null
+        ? []
+        : [
+            { bucket: 'react layout commit', ms: layoutCommitMs },
+            { bucket: 'paint/passive wait', ms: paintAndPassiveWaitMs },
+          ]),
+      { bucket: 'react state commit', ms: reactCommitMs },
+      { bucket: 'total through commit', ms: totalUntilCommitMs },
+    ];
+    const profileSummary = {
+      ...pendingProfile.meta,
+      rows: rows.map((row) => ({
+        bucket: row.bucket,
+        ms: Number(row.ms.toFixed(2)),
+      })),
+      handlerMs: Number((pendingProfile.handlerEndAt - pendingProfile.startedAt).toFixed(2)),
+      reactCommitMs: Number(reactCommitMs.toFixed(2)),
+      totalUntilCommitMs: Number(totalUntilCommitMs.toFixed(2)),
+    };
+    window.__multicolorStepProfiles = window.__multicolorStepProfiles ?? [];
+    window.__multicolorStepProfiles.push(profileSummary);
+
+    console.groupCollapsed(
+      `[multicolor step] ${pendingProfile.meta.mode} ${pendingProfile.meta.source} ${pendingProfile.meta.colorLabel}`,
+    );
+    console.table(profileSummary.rows);
+    console.log(profileSummary);
+    console.groupEnd();
+  }, [
+    activeMulticolorTargetImage,
+    activePaletteColorId,
+    hiddenPreviewLineKey,
+    lineFrom,
+    lineTo,
+    multicolorLineBuckets,
+    multicolorRoundRobinNextColorId,
+  ]);
+
+  const handleReactProfile = useCallback((id, phase, actualDuration, baseDuration) => {
+    const pendingProfile = pendingMulticolorStepProfileRef.current;
+    if (!pendingProfile) {
+      return;
+    }
+
+    pendingProfile.reactProfiles.push({
+      id,
+      phase,
+      actualDuration,
+      baseDuration,
+    });
+  }, []);
+
+  const handleProfileEffect = useCallback((bucket, callback) => {
+    const pendingProfile = pendingMulticolorStepProfileRef.current;
+    if (!pendingProfile) {
+      return callback();
+    }
+
+    const startTime = performance.now();
+    const result = callback();
+    pendingProfile.rows.push({
+      bucket: `effect ${bucket}`,
+      ms: performance.now() - startTime,
+    });
+    return result;
+  }, []);
 
   useEffect(() => {
     if (!multicolorLockedLineOverride) {
@@ -1650,9 +1832,12 @@ function App() {
     }
   };
 
-  const handleMakeLinePermanent = (startIndex = fromIndex, endIndex = toIndex) => {
+  const handleMakeLinePermanent = (startIndex = fromIndex, endIndex = toIndex, options = {}) => {
+    const stepProfile = options.profile ?? null;
     const lineKey = getNormalizedLineKey(startIndex, endIndex);
-    const targetLinePixels = getLinePixelsForIndexes(startIndex, endIndex);
+    const targetLinePixels = stepProfile
+      ? stepProfile.measure('line pixel lookup', () => getLinePixelsForIndexes(startIndex, endIndex))
+      : getLinePixelsForIndexes(startIndex, endIndex);
     if (
       !lineKey ||
       usedLineKeysRef.current.has(lineKey) ||
@@ -1671,27 +1856,63 @@ function App() {
       return false;
     }
 
-    const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
-    applyLineToImageData(
-      canvasImage.data,
-      startIndex,
-      endIndex,
-      lineDarknessStep,
-      lineBoostMapRef.current,
-    );
+    const canvasImage = stepProfile
+      ? stepProfile.measure('canvas read', () =>
+          context.getImageData(0, 0, imageSize.width, imageSize.height),
+        )
+      : context.getImageData(0, 0, imageSize.width, imageSize.height);
+    const didApplyLine = stepProfile
+      ? stepProfile.measure('line application', () =>
+          applyLineToImageData(
+            canvasImage.data,
+            startIndex,
+            endIndex,
+            lineDarknessStep,
+            lineBoostMapRef.current,
+          ),
+        )
+      : applyLineToImageData(
+          canvasImage.data,
+          startIndex,
+          endIndex,
+          lineDarknessStep,
+          lineBoostMapRef.current,
+        );
+    if (!didApplyLine) {
+      return false;
+    }
     if (isActiveColorMaskScoringEnabled && activeColorMaskScoringImageDataRef.current) {
-      applyLineToImageData(
-        activeColorMaskScoringImageDataRef.current.data,
-        startIndex,
-        endIndex,
-        lineDarknessStep,
-      );
+      if (stepProfile) {
+        stepProfile.measure('active mask line application', () =>
+          applyLineToImageData(
+            activeColorMaskScoringImageDataRef.current.data,
+            startIndex,
+            endIndex,
+            lineDarknessStep,
+          ),
+        );
+      } else {
+        applyLineToImageData(
+          activeColorMaskScoringImageDataRef.current.data,
+          startIndex,
+          endIndex,
+          lineDarknessStep,
+        );
+      }
     }
     usedLineKeysRef.current.add(lineKey);
 
-    context.putImageData(canvasImage, 0, 0);
+    if (stepProfile) {
+      stepProfile.measure('canvas write', () => context.putImageData(canvasImage, 0, 0));
+    } else {
+      context.putImageData(canvasImage, 0, 0);
+    }
     invalidateCurrentCanvasMaskCollectionCache();
-    syncVisibleCanvas();
+    if (stepProfile) {
+      stepProfile.measure('canvas sync', syncVisibleCanvas);
+    } else {
+      syncVisibleCanvas();
+    }
     return true;
   };
 
@@ -1743,27 +1964,48 @@ function App() {
       return;
     }
 
+    const stepProfile = createMulticolorStepProfile({
+      colorId: targetColorId,
+      colorLabel: targetBucket.label,
+      mode: multicolorExperimentalSteppingMode,
+      source: isPaletteDitheringEnabled ? 'dithered' : 'nearest',
+    });
     const targetStartNailNumber = getExperimentalStartNailNumberForBucket(targetBucket);
-    const canvasImageData = getCanvasImageData();
-    const targetColorMaskImageData = buildColorMaskScoringImageData(targetColorId, canvasImageData);
+    const canvasImageData = stepProfile
+      ? stepProfile.measure('canvas snapshot', getCanvasImageData)
+      : getCanvasImageData();
+    const targetColorMaskImageData = stepProfile
+      ? stepProfile.measure('mask rebuild', () =>
+          buildColorMaskScoringImageData(targetColorId, canvasImageData),
+        )
+      : buildColorMaskScoringImageData(targetColorId, canvasImageData);
     const targetNextNailNumber = targetColorMaskImageData
-      ? getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data)
+      ? stepProfile
+        ? stepProfile.measure('next nail search', () =>
+            getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data),
+          )
+        : getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data)
       : null;
     if (targetNextNailNumber === null) {
       return;
     }
 
-    const didApplyLine = handleMakeLinePermanent(targetStartNailNumber, targetNextNailNumber);
+    const didApplyLine = handleMakeLinePermanent(targetStartNailNumber, targetNextNailNumber, {
+      profile: stepProfile,
+    });
     if (!didApplyLine) {
       return;
     }
 
-    activeColorMaskScoringImageDataRef.current =
-      targetColorId === activePaletteColorId && isActiveColorMaskScoringEnabled
+    activeColorMaskScoringImageDataRef.current = stepProfile
+      ? stepProfile.measure('target preview refresh', () =>
+          targetColorId === activePaletteColorId && isActiveColorMaskScoringEnabled
+            ? activeColorMaskScoringImageDataRef.current
+            : buildColorMaskScoringImageData(targetColorId),
+        )
+      : targetColorId === activePaletteColorId && isActiveColorMaskScoringEnabled
         ? activeColorMaskScoringImageDataRef.current
         : buildColorMaskScoringImageData(targetColorId);
-    setActiveMulticolorTargetImage(activeColorMaskScoringImageDataRef.current);
-
     const experimentalLine = {
       startNailNumber: targetStartNailNumber,
       endNailNumber: targetNextNailNumber,
@@ -1777,16 +2019,33 @@ function App() {
           }
         : bucket,
     );
-    setMulticolorLineBuckets(nextBuckets);
-    setActivePaletteColorId(targetColorId);
-    setLineTo(String(targetNextNailNumber));
-    setLineFrom(String(targetNextNailNumber));
-    setHiddenPreviewLineKey(
-      getNormalizedLineKey(targetStartNailNumber, targetNextNailNumber),
-    );
+    const scheduleStateUpdates = () => {
+      skipNextActiveTargetImageEffectRef.current = true;
+      setActiveMulticolorTargetImage(activeColorMaskScoringImageDataRef.current);
+      setMulticolorLineBuckets(nextBuckets);
+      setActivePaletteColorId(targetColorId);
+      setLineTo(String(targetNextNailNumber));
+      setLineFrom(String(targetNextNailNumber));
+      setHiddenPreviewLineKey(
+        getNormalizedLineKey(targetStartNailNumber, targetNextNailNumber),
+      );
 
-    if (multicolorExperimentalSteppingMode === 'round-robin') {
-      setMulticolorRoundRobinNextColorId(getNextRoundRobinColorId(targetColorId, nextBuckets));
+      if (multicolorExperimentalSteppingMode === 'round-robin') {
+        setMulticolorRoundRobinNextColorId(getNextRoundRobinColorId(targetColorId, nextBuckets));
+      }
+    };
+
+    if (stepProfile) {
+      stepProfile.meta = {
+        ...stepProfile.meta,
+        startNail: targetStartNailNumber,
+        nextNail: targetNextNailNumber,
+      };
+      stepProfile.measure('react state scheduling', scheduleStateUpdates);
+      stepProfile.handlerEndAt = performance.now();
+      pendingMulticolorStepProfileRef.current = stepProfile;
+    } else {
+      scheduleStateUpdates();
     }
   };
 
@@ -1960,12 +2219,13 @@ function App() {
   const shouldComputeAverageDarkness = !isArtMode && hasLoadedImage && lineStart && lineEnd;
   const shouldComputeNextNail = hasLoadedImage && hasValidFromIndex && Boolean(imageSize);
   const needsImageData = shouldComputeAverageDarkness || shouldComputeNextNail;
-  const imageData =
+  const imageData = measurePendingMulticolorRender('image data read', () =>
     needsImageData && imageCanvasRef.current && imageSize
       ? imageCanvasRef.current
           .getContext('2d', { willReadFrequently: true })
           ?.getImageData(0, 0, imageSize.width, imageSize.height).data ?? null
-      : null;
+      : null,
+  );
   const lineScoringImageData = isActiveColorMaskScoringEnabled
     ? activeColorMaskScoringImageDataRef.current?.data ?? null
     : imageData;
@@ -1973,8 +2233,14 @@ function App() {
   if (canUseActiveColorMaskForLineScoring) {
     activeColorExperimentScoringImageData = activeColorMaskScoringImageDataRef.current?.data ?? null;
     if (!activeColorExperimentScoringImageData) {
-      const canvasImageData = getCanvasImageData();
-      const generatedMaskImageData = buildActiveColorMaskScoringImageData(canvasImageData);
+      const canvasImageData = measurePendingMulticolorRender(
+        'active mask canvas read',
+        getCanvasImageData,
+      );
+      const generatedMaskImageData = measurePendingMulticolorRender(
+        'active mask rebuild',
+        () => buildActiveColorMaskScoringImageData(canvasImageData),
+      );
       if (generatedMaskImageData) {
         activeColorMaskScoringImageDataRef.current = generatedMaskImageData;
         activeColorExperimentScoringImageData = generatedMaskImageData.data;
@@ -1982,9 +2248,11 @@ function App() {
     }
   }
 
-  const linePixels = shouldComputeAverageDarkness
-    ? getLinePixelsForIndexes(fromIndex, toIndex)
-    : [];
+  const linePixels = measurePendingMulticolorRender('preview line pixels', () =>
+    shouldComputeAverageDarkness
+      ? getLinePixelsForIndexes(fromIndex, toIndex)
+      : [],
+  );
   const hasRenderableLine = linePixels.length > 1;
   const currentPreviewLineKey =
     hasValidLine ? getNormalizedLineKey(fromIndex, toIndex) : null;
@@ -2005,19 +2273,21 @@ function App() {
 
   let darknessSeries = [];
   if (shouldComputeNextNail && lineScoringImageData) {
-    darknessSeries = nails.map((targetNail) => {
-      const isUsedLine = usedLineKeysRef.current.has(
-        getNormalizedLineKey(fromIndex, targetNail.number),
-      );
-      const pixels = getLinePixelsForIndexes(fromIndex, targetNail.number);
-      const weightedDarkness = getWeightedAverageDarkness(lineScoringImageData, pixels);
+    darknessSeries = measurePendingMulticolorRender('darkness chart', () =>
+      nails.map((targetNail) => {
+        const isUsedLine = usedLineKeysRef.current.has(
+          getNormalizedLineKey(fromIndex, targetNail.number),
+        );
+        const pixels = getLinePixelsForIndexes(fromIndex, targetNail.number);
+        const weightedDarkness = getWeightedAverageDarkness(lineScoringImageData, pixels);
 
-      return {
-        nail: targetNail.number,
-        darkness: isUsedLine ? 255 : weightedDarkness ?? 255,
-        isUsedLine,
-      };
-    });
+        return {
+          nail: targetNail.number,
+          darkness: isUsedLine ? 255 : weightedDarkness ?? 255,
+          isUsedLine,
+        };
+      }),
+    );
   }
 
   const graphWidth = 320;
@@ -2050,10 +2320,13 @@ function App() {
     shouldComputeNextNail && lineScoringImageData
       ? darkestNails[0]?.nail ?? null
       : null;
-  const activeColorExperimentNextNailNumber =
-    activeMulticolorRemainingLineCount > 0 && activeColorExperimentScoringImageData
-      ? getNextNailForImageData(activeColorExperimentFromIndex, activeColorExperimentScoringImageData)
-      : null;
+  const activeColorExperimentNextNailNumber = measurePendingMulticolorRender(
+    'active color next nail',
+    () =>
+      activeMulticolorRemainingLineCount > 0 && activeColorExperimentScoringImageData
+        ? getNextNailForImageData(activeColorExperimentFromIndex, activeColorExperimentScoringImageData)
+        : null,
+  );
   const canApplyExperimentalMulticolorStep =
     canUseActiveColorMaskForLineScoring &&
     (
@@ -2380,7 +2653,8 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
+    <Profiler id="App" onRender={handleReactProfile}>
+      <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-top-row">
           <label className="upload-field">
@@ -2746,6 +3020,7 @@ function App() {
             canApplyExperimentalStep={canApplyExperimentalMulticolorStep}
             currentActiveTargetImage={activeMulticolorTargetImage}
             isExperimentalRoundRobinSteppingEnabled={multicolorExperimentalSteppingMode === 'round-robin'}
+            isMulticolorStepProfilingEnabled={isMulticolorStepProfilingEnabled}
             isMulticolorLabEnabled={isMulticolorLabEnabled}
             isPaletteDitheringEnabled={isPaletteDitheringEnabled}
             isPaletteMaskVisible={isPaletteMaskVisible}
@@ -2775,6 +3050,7 @@ function App() {
             onApplyActiveColorExperimentStep={handleApplyExperimentalStep}
             onExportMulticolorSession={handleExportMulticolorSession}
             onImportMulticolorSession={handleImportMulticolorSession}
+            onProfileEffect={handleProfileEffect}
             onResetAllMulticolorState={handleResetAllMulticolorState}
             onResetMulticolorBucket={handleResetMulticolorBucket}
             setIsActivePaletteColorOnlyEnabled={setIsActivePaletteColorOnlyEnabled}
@@ -2785,6 +3061,7 @@ function App() {
                 setMulticolorRoundRobinNextColorId(getNextRoundRobinColorId(activePaletteColorId));
               }
             }}
+            setIsMulticolorStepProfilingEnabled={setIsMulticolorStepProfilingEnabled}
             setIsMulticolorLabEnabled={setIsMulticolorLabEnabled}
             setIsPaletteDitheringEnabled={setIsPaletteDitheringEnabled}
             setIsPalettePreviewEnabled={setIsPalettePreviewEnabled}
@@ -2843,7 +3120,8 @@ function App() {
         isBlackAndWhite={isBlackAndWhite}
         isBrushMode={isBrushMode}
       />
-    </div>
+      </div>
+    </Profiler>
   );
 }
 

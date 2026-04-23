@@ -165,6 +165,30 @@ Current findings
 - In `vite preview` headed Chromium, the first 4 clicks took `235 ms`, `211 ms`, `218 ms`, `206 ms`. Average: `217.5 ms`.
 - In `vite dev` headed Chromium, the first 4 clicks took `5758 ms`, `6701 ms`, `6549 ms`, `6355 ms`. Average: `6340.75 ms`.
 - Story so far: first we suspected rendering cost, so we tested real browser clicks in preview/headless and preview/headed. Those were both fast. Then we repeated the same browser-flow test in `vite dev`, and the slowdown reproduced immediately. Current conclusion: the painful delay is primarily dev-mode overhead and/or dev-mode rerender churn, not production algorithm cost alone.
+- Added a temporary `Log step timings` checkbox in the multicolor Experiment panel. When enabled, each experimental multicolor step logs timing buckets and writes structured entries to `window.__multicolorStepProfiles` for browser automation.
+- Timing buckets now include: canvas snapshot, mask rebuild, next nail search, line application, canvas sync, target preview refresh, React state scheduling, render-phase image/chart/next-nail calculations, React Profiler render duration, React state commit, and total through commit.
+- The profiling run exposed a `vite dev` warning: `Maximum update depth exceeded`. Root cause found: `enabledPalettePreviewColors` was recreated every render and used by callbacks/effects that set `activeMulticolorTargetImage`. Fixed by memoizing `enabledPaletteColors` and `enabledPalettePreviewColors`. This is an exact behavior-preserving optimization.
+- After that fix, the same headless `vite dev` browser setup using `mona_lisa.PNG`, `View: isolate`, `Target total lines: 40`, and 4 clicks per scenario produced:
+  - `single / dithered`: click average `1363.45 ms`, handler average `21.15 ms`, total-through-commit average `669.98 ms`.
+  - `round-robin / dithered`: click average `2553.59 ms`, handler average `30.95 ms`, total-through-commit average `1846.75 ms`.
+  - `single / nearest`: click average `1359.89 ms`, handler average `15.55 ms`, total-through-commit average `666.4 ms`.
+  - `round-robin / nearest`: click average `2841.84 ms`, handler average `19.95 ms`, total-through-commit average `2020.67 ms`.
+- Interpretation of task 49: round-robin does not add meaningful next-nail solver cost. Its extra handler cost is mostly target preview refresh (`~6-11 ms`) and source/mask work, while the larger visible slowdown is React/effect/dev commit work after state changes.
+- Interpretation of task 50: dithered source increases exact mask rebuild/canvas sync cost by only a few milliseconds in this setup (`mask rebuild` around `8-9 ms` dithered vs `5-7 ms` nearest; `canvas sync` around `9 ms` dithered vs `5-6 ms` nearest). Dithering is not the main source of the seconds-long dev click delay.
+- Exact optimizations that preserve output:
+  - Keep memoized derived palette arrays and other effect dependencies stable.
+  - Reuse per-click mask image data after applying the chosen line instead of rebuilding the whole target preview when the same mask has already been generated.
+  - Avoid redundant `setActivePaletteColorId` and target-image state writes when the value is unchanged.
+  - Cache current-canvas mask collections only by canvas revision, source, and palette key, as already started.
+- Optimizations that would change behavior and should stay behind explicit toggles:
+  - Approximate or downsampled masks for scoring.
+  - Skipping dither error diffusion during scoring.
+  - Reusing stale masks across line subtraction.
+  - Changing shared/per-color used-line exclusion, line strength, or min-distance rules.
+- Still open: Chrome Performance has not yet been used to separate browser layout/paint, Vite/HMR, and React dev instrumentation. React DevTools Profiler has not yet been run; current React data is from lightweight in-app instrumentation plus React's `Profiler` component.
+- Follow-up after manual Chrome timing: the duplicate `render ...` rows were from React StrictMode in dev. Temporarily removing StrictMode reduced but did not eliminate the delay.
+- Added layout-effect timing to split the old `react state commit` bucket. In a 4-click headless `vite dev` run for `round-robin / dithered`, averages were: click `1769.74 ms`, handler `30.4 ms`, total-through-commit `1656.65 ms`, React render `25 ms`, React layout commit `55.08 ms`, and `paint/passive wait` `1571.17 ms`.
+- Current corrected interpretation: solver math, mask generation, React render, and React DOM commit are all small enough. The remaining delay is primarily the browser/dev-mode wait until passive effects after paint. Chrome Performance is now the right tool to identify what is happening in that paint/passive interval.
 
 [ ] 47. Profile one `vite dev` click with Chrome Performance and identify the largest time buckets.
 Success check: we can say how much time is spent in solver math, quantization/dithering, React rerendering, layout/paint, and Vite/HMR/dev instrumentation.
@@ -172,16 +196,16 @@ Success check: we can say how much time is spent in solver math, quantization/di
 [ ] 48. Profile one `vite dev` click with React DevTools Profiler and record which components rerender and why.
 Success check: we can name the components causing the biggest commit cost and whether those rerenders are necessary.
 
-[ ] 49. Compare `Apply line` vs `Apply one round-robin line` in `vite dev` under the same browser-automation setup.
+[x] 49. Compare `Apply line` vs `Apply one round-robin line` in `vite dev` under the same browser-automation setup.
 Success check: we know whether round-robin adds real extra algorithm cost or whether both modes are mostly paying the same dev overhead.
 
-[ ] 50. Compare `nearest` vs `dithered` source under the same browser-automation setup.
+[x] 50. Compare `nearest` vs `dithered` source under the same browser-automation setup.
 Success check: we know how much of the step cost comes specifically from dithering-based mask recomputation.
 
-[ ] 51. Add temporary instrumentation around the multicolor step path.
+[x] 51. Add temporary instrumentation around the multicolor step path.
 Success check: the app can log per-click timings for mask rebuild, next-nail search, line application, canvas sync, and React state updates.
 
-[ ] 52. Decide which optimizations are safe because they preserve exact output and which would change behavior.
+[x] 52. Decide which optimizations are safe because they preserve exact output and which would change behavior.
 Success check: we have an explicit list of exact caches/reuse opportunities versus approximations we should avoid.
 
 [ ] 53. Only after the diagnostics above, decide whether to port the reference's `group_orders` concept.
