@@ -1,0 +1,344 @@
+Shared Color Residual Solver Plan
+
+Why this exists
+- The current multicolor lab mostly solves each color against its own target image, then combines stored line buckets later.
+- That is useful scaffolding, but it is not the right long-term model for layered colored thread.
+- The next real direction is a shared visual-state solver: every accepted line changes the board appearance for all future decisions, regardless of color.
+
+Core direction
+- Maintain one shared simulated board image.
+- Compare that shared board image against one shared target image.
+- Score candidate colored lines by how much they improve the shared image error.
+- After drawing any line, update the shared board image so every later color sees that change.
+
+Important correction to keep in mind
+- White thread is an active compensating layer, not "nothing".
+- If black lines darken part of the background while reaching a dark center shape, later white lines may be useful because they can compensate visually.
+- That means the solver objective must be global image improvement, not isolated per-color mask progress.
+
+Current model vs target model
+
+Current model
+- Build one target or residual image per color.
+- Choose the next line for one color against that color's image.
+- Update that color's target image.
+- Keep other colors mostly independent.
+
+Target model
+- Maintain one shared simulated board image.
+- Let any thread color compete to improve that shared image.
+- Update the same shared board state after every accepted line.
+- Use per-color masks, quotas, or priors only as helpers, not as separate solver worlds.
+
+The frontier idea we should explore
+- The new solver probably should not optimize the whole disk uniformly from the first step.
+- The promising idea is an expanding frontier: solve from the center outward while still keeping a global shared board state.
+- The useful abstraction is not "ignore everything outside the current circle".
+- The useful abstraction is a three-zone weighting mask:
+  - finished inner disk
+  - active working ring
+  - future outer zone
+- The frontier shape itself is still open:
+  - circular rings may be best for local tangent-like refinement
+  - centered regular polygons may be best for efficient band-like color structure
+  - the final solver may use both at different stages
+  - a dense segment net may be the most physically faithful model if we can tolerate brute-force complexity first
+
+Three-zone weighting mask
+
+1. Finished inner disk
+- This is the area we consider already established.
+- Damaging it should be expensive.
+- This prevents the solver from ruining completed central work.
+
+2. Active working ring
+- This is the main optimization zone right now.
+- Improving this region should dominate the score.
+- This is where the solver is actively trying to push the image frontier.
+
+3. Future outer zone
+- This is not free space.
+- Damage here should be allowed, but penalized lightly rather than ignored entirely.
+- This gives the solver room for transport and jump moves without letting it build unlimited visual debt.
+
+Why "zero weight outside" is not enough
+- If outside the current focus gets zero weight, the solver is really optimizing a ring, not a disk.
+- That may be acceptable as part of a three-zone model, but only if the outer zone still has a small nonzero penalty.
+- Otherwise the solver may abuse the untouched outer area for routing and create debt that later layers cannot realistically undo.
+
+Strategic jump idea
+- Transport matters.
+- The solver may need helper moves that are not directly about the local target, for example jumping from nail 0 toward a better start point for the active ring.
+- Those jump lines should be allowed if they mostly travel through low-priority space and improve the longer-term search.
+- So the future solver should treat transport as controlled debt, not as free damage and not as forbidden behavior.
+
+Tangency idea
+- On a circular frontier, a tangent-like line is the closest geometric analogue to a "local pixel" operation on that ring.
+- Long chords are useful early because they affect broad interior structure.
+- Near-tangent lines are useful later because they affect a narrow neighborhood of the active frontier.
+- That suggests a coarse-to-fine schedule:
+  - early: long lines to establish the center
+  - later: tangent-like lines to refine the current ring
+- So the ring frontier is not just a weighting trick; it may turn local detail into a tangent-selection problem.
+
+Polygon frontier idea
+- If rings create too much thread use, centered regular polygons may be a better coarse frontier.
+- A polygon side should not be treated as a zero-width line.
+- It should be treated as a band or strip whose width is derived from the spacing between polygon layers.
+- For each side band, we can aggregate nearby target colors with distance weighting, then choose the best-fitting thread color for that side region.
+- That means polygons may give us "lines of color" rather than point-like frontier corrections.
+- This may match thread geometry better in the coarse stages because thread naturally creates elongated directional bands.
+
+Segment-net idea
+- Another direction is to start from the full geometric net of all candidate strings between nails.
+- Those strings intersect each other and therefore split into many small local segments.
+- Instead of attaching pixels to rings or polygon sides first, we can attach pixels to the nearest local string segments.
+- Each segment then carries local color demand from nearby pixels.
+- Each full string is composed of many segments, so the string inherits an aggregate color demand from its segments.
+- Because a physical string can have only one color, each full string would eventually get one final chosen color.
+- This is more physically faithful than treating a full string as if it had one uniform role everywhere from the start.
+- We should begin with a brute-force version first, then optimize only after we understand whether the model is promising.
+
+Crossing-dominance idea
+- Crossings should not be treated as symmetric blends forever.
+- A useful first approximation is that the upper string owns the crossing appearance.
+- If the solve proceeds from long strings toward shorter strings as the frontier moves outward, then shorter later strings may be the visible owners at crossings.
+- That means pixels near crossings may need to be attributed to the shorter or later-dominant segments from the start.
+- This is another reason the segment-net model may capture the physical medium better than plain per-line averaging.
+
+What this implies for solver design
+- We should not assume that the frontier unit is always a point-like local correction.
+- Circular frontiers may bias the solver toward tangent-like local detail work.
+- Polygon frontiers may bias the solver toward side-band fitting and structured long strokes.
+- Segment nets may bias the solver toward truly local geometry, where different parts of the same string can serve different image regions.
+- A likely long-term architecture is:
+  - coarse stage: polygon side bands
+  - middle stage: smaller polygons or rings
+  - fine stage: tangent-like ring refinement only where needed
+
+- Candidate lines should eventually be understood not only by color and immediate score delta, but also by frontier geometry.
+- Some lines are valuable because they act like local frontier detail strokes.
+- Some lines are valuable because they reposition the solver onto a better tangent family for the next few steps.
+- Some line groups may be valuable because they support one polygon side band efficiently rather than one local frontier point.
+- Some lines may be valuable because many of their local segments are assigned strong color demand, even if the line as a whole is not obvious from a frontier-only view.
+- That means future diagnostics should expose not just "how much did this line help now?" but also "what kind of geometric role is this line playing?"
+
+Rules for this roadmap
+- Move slowly. One visible concept at a time.
+- Keep the current monochrome flow usable.
+- Keep the current multicolor lab usable while the new model is being explored.
+- Add measurement and preview tooling before committing to a solver rewrite.
+- Prefer shadow-mode diagnostics before switching the main solve path.
+- Do not assume a blend rule; validate it against real expectations first.
+- Every milestone must have a success check and a way to inspect the result.
+- Prefer synthetic tests before trusting photographic images.
+
+Definitions to keep stable
+- Target image: the desired final image in RGB or another chosen color space.
+- Shared board image: the current simulated appearance after all accepted thread layers.
+- Candidate line: a line plus a thread color.
+- Blend rule: how one colored thread changes the current board image along its path.
+- Error metric: how far the shared board image is from the target image.
+- Frontier radius: the current outward progress of the solver.
+- Finished zone: the central area that should be protected.
+- Active ring: the band that should currently receive most of the solver's effort.
+- Future zone: the unfinished outer area with low but nonzero penalty.
+- Tangent-like line: a line whose geometry mainly touches the active frontier locally rather than sweeping through large interior area.
+- Transport line: a line used mainly to reposition the current nail for later frontier work.
+- Polygon frontier: a centered regular polygon used as the current frontier shape instead of a circle.
+- Side band: the strip of pixels near one polygon side, with width derived from polygon-layer spacing.
+- Side-band color fit: the best thread color for a polygon side band under an aggregation rule over nearby pixels.
+- Segment net: the arrangement obtained by taking many candidate strings and splitting them at intersections into local segments.
+- Segment ownership: the rule that assigns nearby pixels or pixel weights to one or more local string segments.
+- Line color aggregation: the rule that converts segment-level color demand into one final color choice for a full physical string.
+- Crossing dominance: the rule that decides which string visually owns a crossing area.
+
+Non-goals for the first stages
+- Do not optimize for speed yet.
+- Do not redesign export yet.
+- Do not delete the current per-color-bucket model yet.
+- Do not replace the existing multicolor lab in one step.
+- Do not hardcode one irreversible center-out schedule without testing alternatives first.
+
+Open questions we must answer carefully
+- What blend rule should represent one layer of colored thread over the current board?
+- In what color space should we score error: RGB, linear RGB, Lab, or something simpler first?
+- How should white thread behave against bare white background and over darker threads?
+- Should line strength be modeled as opacity, darkness contribution, or another thread-specific transfer rule?
+- Should candidate scoring use only touched pixels, touched pixels plus neighborhood spill, or full-image delta?
+- How should the three-zone weights evolve as the frontier expands?
+- Should the active frontier be circular, ring-based, content-aware, or adaptive to the current image?
+- Should the frontier shape be ring-first, polygon-first, or hybrid by stage?
+- Should we skip frontier-first thinking entirely and begin from the dense segment-net model instead?
+- How should strategic jump lines be scored so they are allowed but not abused?
+- Should tangent-like frontier lines get an explicit bias, or should the weighted image score discover them naturally?
+- How should we classify lines as broad interior chords vs tangent-like frontier refiners vs transport moves?
+- For polygon frontiers, how should side-band width be derived from polygon spacing: half-gap, full-gap, or another rule?
+- For polygon frontiers, should side-band color fitting use uniform averaging, distance weighting, or another aggregation rule?
+- Should one polygon side get one color, or should sides be splittable into segments later?
+- For the segment-net model, should pixel attachment be hard nearest-segment ownership or soft weighted ownership?
+- For the segment-net model, how should crossing areas be assigned when a shorter later string is expected to dominate visually?
+- For the segment-net model, should one string's color be chosen by majority segment color, weighted segment error, or a more global objective?
+- For the segment-net model, how much brute-force geometry can we tolerate before optimization becomes mandatory?
+- Should repositioning value be scored one-step-at-a-time or with a short horizon?
+- How much candidate search is feasible in-browser once every color can compete every step?
+
+Milestones
+
+[ ] 01. Freeze the conceptual model in writing before new solver code.
+Success check: we have a short spec for shared board image, blend rule candidates, and the three-zone weighting model.
+
+[ ] 02. Add a new "shared residual research" subsection in the lab as display-only scaffolding.
+Success check: we can expose future diagnostics without changing current solve behavior.
+
+[ ] 03. Add a display-only shared board image buffer initialized to the current background.
+Success check: the app can hold a separate simulated board state without affecting current output.
+
+[ ] 04. Add a display-only target image buffer for the multicolor target.
+Success check: we can inspect target image and shared board image side by side.
+
+[ ] 05. Add a display-only frontier mask with three zones: finished disk, active ring, and future zone.
+Success check: we can visualize the current solver frontier independently of any new solving logic.
+
+[ ] 06. Add display-only support for alternative frontier shapes: circle and centered regular polygon.
+Success check: we can visualize ring and polygon frontiers with the same three-zone concept.
+
+[ ] 07. Add UI controls for frontier parameters only: inner finished size, active band width, frontier shape, polygon side count, and future-zone penalty weight.
+Success check: we can manipulate the weighting geometry and inspect it without changing solver behavior.
+
+[ ] 08. Add a difference view between target image and shared board image.
+Success check: we can see what the shared solver is still trying to fix.
+
+[ ] 09. Implement one experimental blend rule for applying a colored thread onto the shared board image, but only behind a manual debug action.
+Success check: clicking a debug button can apply one chosen colored line to the shared board buffer without touching the main solver.
+
+[ ] 10. Add a pixel-level inspector for target color, current shared-board color, and post-line candidate color.
+Success check: we can inspect whether the blend rule is intuitively correct on real pixels.
+
+[ ] 11. Add one candidate-line scoring function based on shared-image error improvement, weighted by the three-zone mask.
+Success check: for a chosen line and color, the UI can report a signed weighted improvement score.
+
+[ ] 12. Add a geometric diagnostic for candidate lines relative to the active frontier.
+Success check: for a chosen line, we can inspect whether it behaves like a broad interior chord, a tangent-like frontier line, or a transport move.
+
+[ ] 13. Add a polygon side-band preview and color aggregation diagnostic.
+Success check: for one polygon layer, we can inspect side bands and the aggregated color fit for each side.
+
+[ ] 14. Compare multiple candidate colors on the same geometric line.
+Success check: we can see cases where white helps more than black, or vice versa, on the same chord.
+
+[ ] 15. Compare multiple candidate lines for one chosen color against the weighted shared-image metric.
+Success check: we can inspect whether the ranking is stable and visually plausible.
+
+[ ] 16. Add explicit scoring breakdown by zone.
+Success check: for one candidate line, we can see how much score came from the finished disk, active ring, and future zone.
+
+[ ] 17. Add support for research-only transport diagnostics.
+Success check: we can inspect lines that are mostly useful for moving to a better position rather than directly improving the active ring.
+
+[ ] 18. Build a tiny synthetic test set inside the repo.
+Success check: we have at least three repeatable cases such as centered black square, ring, and two-color stripe image.
+
+[ ] 19. Add one synthetic center-out benchmark: centered black square on white background.
+Success check: we can use it as the canonical test for dark-center plus white-compensation behavior.
+
+[ ] 20. Add one synthetic tangency benchmark where frontier-local precision matters.
+Success check: we can test whether tangent-like lines actually behave like local-detail tools on the active ring.
+
+[ ] 21. Add one synthetic polygon-band benchmark where side-color assignment matters.
+Success check: we can test whether polygon side bands capture efficient coarse structure better than circular frontier fitting.
+
+[ ] 22. Add a display-only brute-force segment-net preview for a reduced nail count.
+Success check: we can visualize strings, intersections, and derived local segments without using the result in the solver yet.
+
+[ ] 23. Add a segment-ownership diagnostic for the reduced net.
+Success check: we can inspect which pixels or pixel weights attach to which local string segments.
+
+[ ] 24. Add segment-level color aggregation diagnostics.
+Success check: for one chosen string, we can inspect the color demand contributed by its constituent segments.
+
+[ ] 25. Add a first brute-force line-color chooser driven by segment-level color demand.
+Success check: for a reduced net, each full string can be assigned one color from its segment evidence.
+
+[ ] 26. Add a brute-force crossing-dominance experiment.
+Success check: we can compare plain symmetric segment ownership against a rule where shorter or later strings own crossing areas.
+
+[ ] 27. Compare segment-net line-color assignment against ring-frontier and polygon-frontier planning on tiny synthetic cases.
+Success check: we know whether the brute-force segment model reveals behavior the other two approaches miss.
+
+[ ] 28. Use the synthetic tests to validate whether the weighted shared-image scoring behaves more like expected layered thread.
+Success check: we can point to at least one case where the current solver fails conceptually and the shared-image scorer behaves better.
+
+[ ] 29. Add a second candidate blend rule if the first one is clearly wrong.
+Success check: we can compare two board-update models on the same synthetic tests.
+
+[ ] 30. Decide the first "good enough" blend rule and error metric pair.
+Success check: we can state what we are using and why, even if it is still approximate.
+
+[ ] 31. Add a shadow-mode step evaluator that ranks the next move using the weighted shared-image metric but does not apply it.
+Success check: we can inspect the move the future solver would choose without changing any real state.
+
+[ ] 32. Add a side-by-side diagnostic: current per-color solver choice vs weighted shared-image solver choice.
+Success check: we can inspect where the two approaches agree and where they diverge.
+
+[ ] 33. Compare ring frontier vs polygon frontier under the same shared-board scoring.
+Success check: we can compare image quality, thread use, and need for jumps without changing the rest of the solver framework.
+
+[ ] 34. Compare frontier-driven planning vs brute-force segment-net planning on reduced cases.
+Success check: we know whether the segment-net branch is revealing a fundamentally better primitive or just a more expensive restatement.
+
+[ ] 35. Add a research-only "apply one shared-residual step" button.
+Success check: one click can choose the best next colored line from the weighted shared-image metric and update only the experimental shared board state.
+
+[ ] 36. Record line history for the shared-residual experiment separately from the current multicolor buckets.
+Success check: we can step forward repeatedly without corrupting the existing multicolor experiment path.
+
+[ ] 37. Add reset, replay, and deterministic seed support for the shared-residual experiment.
+Success check: the same image and settings reproduce the same shared-residual run.
+
+[ ] 38. Compare "best next move among all colors" vs "round-robin colors scored by shared residual".
+Success check: we know whether strict global competition is necessary from the start.
+
+[ ] 39. Compare touched-pixels-only scoring vs broader local neighborhood scoring.
+Success check: we know whether line spill and compensation are being modeled well enough.
+
+[ ] 40. Compare hard-penalty vs soft-penalty protection of the finished inner disk.
+Success check: we know whether the solver should be allowed to slightly disturb finished work when the global gain is large enough.
+
+[ ] 41. Compare fixed frontier expansion vs adaptive frontier expansion.
+Success check: we know whether the ring should advance by schedule, by error threshold, or by some other criterion.
+
+[ ] 42. Compare explicit tangent bias vs no tangent bias.
+Success check: we know whether tangent-like frontier behavior emerges naturally from the weighted score or needs an explicit geometric prior.
+
+[ ] 43. Compare polygon side-band color assignment vs no explicit side-band planning.
+Success check: we know whether side-band planning reduces thread use or improves coarse structure enough to justify its complexity.
+
+[ ] 44. Compare hard nearest-segment ownership vs soft weighted segment ownership.
+Success check: we know whether winner-take-all segment attachment is too brittle for the brute-force segment-net branch.
+
+[ ] 45. Add performance instrumentation around the shared-residual candidate scoring path.
+Success check: we know the main cost drivers before trying to scale the solver.
+
+[ ] 46. Only after the diagnostics above, decide whether the current multicolor bucket model should be adapted or replaced for the new solver.
+Success check: we understand whether buckets remain a storage/render concept only, or still participate in solving.
+
+[ ] 47. Only after the new solver can produce plausible short runs, revisit exports and nail-list semantics.
+Success check: export changes are driven by actual solver behavior, not guessed early.
+
+[ ] 48. Final checkpoint for this roadmap: one documented end-to-end experiment where weighted shared-residual stepping produces a result the current per-color approach cannot.
+Success check: we have a concrete qualitative win, not just a theoretical argument.
+
+Notes and reminders
+- The monochrome solver already uses a shared residual in a scalar brightness sense.
+- The multicolor challenge is not "subtract olive from an olive mask"; it is "update the shared visible color state after an olive thread layer".
+- A later white line compensating for an earlier black line is a first-class requirement, not an edge case.
+- Interleave order still matters for final rendering, but it is not the core solver coupling mechanism.
+- The center-out idea should be treated as an expanding weighted frontier, not as a rigid "each next line must be shorter" rule.
+- If the active region is only a ring, then zero-weight outside means the solver is optimizing a ring, not a disk. That is why the future zone should probably carry a small nonzero penalty.
+- Tangent-like lines may be the right local-detail primitive on the active ring.
+- Strategic jumps may matter partly because they reposition the solver onto a better tangent family for subsequent frontier work.
+- Polygon side bands may be the right coarse-detail primitive when rings become too thread-expensive.
+- For polygon frontiers, we should think in terms of side bands with width derived from polygon spacing, not zero-width sides.
+- The segment-net branch should start brute-force first on reduced cases, then optimize only after we learn whether the geometry is actually useful.
+- If crossings are visually owned by later shorter strings, crossing-dominance rules should eventually become part of the geometry model rather than an afterthought.
