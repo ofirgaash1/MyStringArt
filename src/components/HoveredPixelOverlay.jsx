@@ -1,9 +1,23 @@
+import { useRenderDiagnostics } from '../renderDiagnostics';
+
 function HoveredPixelOverlay({
   hoveredPixel,
   isArtMode,
   isBlackAndWhite,
   isBrushMode,
+  onDiagnosticRender,
 }) {
+  useRenderDiagnostics(
+    'HoveredPixelOverlay',
+    {
+      hasHoveredPixel: Boolean(hoveredPixel),
+      isArtMode,
+      isBlackAndWhite,
+      isBrushMode,
+    },
+    onDiagnosticRender,
+  );
+
   if (!hoveredPixel || isArtMode) {
     return null;
   }

@@ -191,8 +191,39 @@ Current findings
 - Current corrected interpretation: solver math, mask generation, React render, and React DOM commit are all small enough. The remaining delay is primarily the browser/dev-mode wait until passive effects after paint. Chrome Performance is now the right tool to identify what is happening in that paint/passive interval.
 - Added an opt-in `Fast stepping` mode for multicolor experiments. It preserves exact line generation and bucket state, but defers visible canvas sync, active target preview refresh, `lineFrom`/`lineTo` debug syncing, preview-line overlay, and darkness-chart recompute while stepping. Use `refresh previews` to manually sync the visual inspection canvases afterward.
 - Single-mode timing after fast stepping: in headless `vite dev`, `single / dithered` normal averaged `614.16 ms` per click; `single / dithered` with `Fast stepping` averaged `97.55 ms` per click. In fast mode, `paint/passive wait` dropped from `428.73 ms` to `0.55 ms`.
+- Added a repeatable trace script at `scripts/profile-vite-dev-click.mjs`. It launches `vite dev`, performs one `round-robin / dithered` click in Chromium, collects a Chrome trace through CDP, and combines it with the in-app timing buckets.
+- Chrome trace result for one current `vite dev` click (`mona_lisa.PNG`, `View: isolate`, `Source: dithered`, `Step mode: round-robin`, `Target total lines: 40`):
+  - Wall click time: `3707.9 ms`
+  - Solver math (`next nail search` + `line application`): `1.9 ms`
+  - Quantization/dithering work (`mask rebuild` + `target preview refresh`): `25.2 ms`
+  - React rerender + DOM commit (`react render App` + `react layout commit`): `98.8 ms`
+  - Browser post-commit wait from app timing: `3459.3 ms`
+  - Actual Chrome style/layout/paint/composite from trace: `35.59 ms`
+  - WebSocket frames during the click: `0`
+- Interpretation of task 47:
+  - The largest bucket is not solver math, dithering, React render, or Chrome layout/paint. It is the browser/dev-mode delay after commit (`paint/passive wait` in the app timing).
+  - Chrome trace shows actual renderer style/layout/paint/composite work is small (`~36 ms`), so the app is not spending multiple seconds painting geometry each click.
+  - There was no Vite HMR WebSocket traffic during the click, so Vite dev network instrumentation is not the direct per-click bottleneck in this scenario.
+  - Trace did show V8 GC activity (`gcMs` around `633.63 ms`), so garbage collection may be a meaningful secondary contributor in dev, but it still does not explain the entire multi-second wall delay by itself.
+- Added a repeatable render-diagnostics script at `scripts/profile-react-renders.mjs`. It performs the same `round-robin / dithered` dev click and extracts child `Profiler` rows plus tracked prop changes for key surfaces.
+- Preliminary render findings from that script for one current `vite dev` click:
+  - `App` rerender: `25.7 ms`
+  - `PreviewWorkspace` rerender: `15.8 ms`
+  - `MulticolorLab` rerender: `8.7 ms`
+  - `BrushPanel` rerender: `0.4 ms`
+  - `HoveredPixelOverlay` rerender: `0 ms`
+  - `MulticolorLab` rerender was driven by changes to `activePaletteColorId`, `activeExperimentalLineCount`, `currentTargetImage`, and `totalExperimentalMulticolorLines`.
+- Current practical interpretation for task 48, before a true React DevTools pass:
+  - `PreviewWorkspace` and `MulticolorLab` are the meaningful child rerenders on a multicolor step.
+  - `BrushPanel` and `HoveredPixelOverlay` are not significant contributors.
+  - The most likely unnecessary render trigger still in the path is the automatic `activePaletteColorId` change during stepping, because it forces the lab inspector to switch active color on every click.
+- Task 48 remains open because these findings come from in-app React `Profiler` instrumentation plus tracked prop diffs, not an actual React DevTools Profiler recording with “why did this render” metadata.
+- Decision for task 53: keep the reference `group_orders` concept, but only as a final render/interleave concern. It is not needed for solver speed. It is still useful here because this app already stores per-color buckets, and changing the final color layering order should be possible without recomputing lines.
+- Task 54 shipped first as a fake read-only preview in the Multicolor lab to validate the `group_orders` shape before wiring it into render output.
+- Task 55 shipped as an editable two-pass interleave order. Art mode now slices the existing per-color buckets across repeated color entries and re-renders combined multicolor art in the chosen order without recomputing solver output. Session export/import now persists the interleave entry order as well.
+- Tasks 56-58 shipped together because they all change the same multicolor step rule surface. Added shared-vs-per-color toggles for used-line exclusion, line strength, and minimum nail distance. Per-color strength and distance now live on each bucket row, and rebuild/import/export preserve those bucket-level settings. Shared exclusion keeps the old behavior; per-color exclusion allows the same geometric line to be reused across different color buckets while still blocking duplicates within a bucket and against the monochrome base run.
 
-[ ] 47. Profile one `vite dev` click with Chrome Performance and identify the largest time buckets.
+[x] 47. Profile one `vite dev` click with Chrome Performance and identify the largest time buckets.
 Success check: we can say how much time is spent in solver math, quantization/dithering, React rerendering, layout/paint, and Vite/HMR/dev instrumentation.
 
 [ ] 48. Profile one `vite dev` click with React DevTools Profiler and record which components rerender and why.
@@ -210,22 +241,22 @@ Success check: the app can log per-click timings for mask rebuild, next-nail sea
 [x] 52. Decide which optimizations are safe because they preserve exact output and which would change behavior.
 Success check: we have an explicit list of exact caches/reuse opportunities versus approximations we should avoid.
 
-[ ] 53. Only after the diagnostics above, decide whether to port the reference's `group_orders` concept.
+[x] 53. Only after the diagnostics above, decide whether to port the reference's `group_orders` concept.
 Success check: we understand whether static group interleaving is even needed in this app.
 
-[ ] 54. If `group_orders` is still wanted, add a fake read-only preview of color interleave order first.
+[x] 54. If `group_orders` is still wanted, add a fake read-only preview of color interleave order first.
 Success check: inspect order without changing any line generation.
 
-[ ] 55. Then add editable color interleave order.
+[x] 55. Then add editable color interleave order.
 Success check: combined art can be re-rendered from existing per-color buckets without recomputing lines.
 
-[ ] 56. Add a global toggle: `share used-line exclusion across all colors` vs `per-color only`.
+[x] 56. Add a global toggle: `share used-line exclusion across all colors` vs `per-color only`.
 Success check: we can inspect whether line reuse rules are helping or harming the result.
 
-[ ] 57. Add a global toggle: `shared line strength` vs `per-color line strength`.
+[x] 57. Add a global toggle: `shared line strength` vs `per-color line strength`.
 Success check: inspect whether some colors need different subtraction strength.
 
-[ ] 58. Add a global toggle: `shared min distance` vs `per-color min distance`.
+[x] 58. Add a global toggle: `shared min distance` vs `per-color min distance`.
 Success check: inspect whether spacing constraints should diverge by color.
 
 [ ] 59. Only after all preview tooling is trusted, consider multicolor nail-list/export behavior.

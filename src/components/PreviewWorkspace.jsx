@@ -1,3 +1,5 @@
+import { useRenderDiagnostics } from '../renderDiagnostics';
+
 function PreviewWorkspace({
   artLineSegments,
   cropToCircle,
@@ -21,10 +23,28 @@ function PreviewWorkspace({
   selectionOverlayRef,
   shouldShowPreviewLine,
   showNailNumbers,
+  onDiagnosticRender,
   onPointerUp,
   onPointerCancel,
   onPointerLeave,
 }) {
+  useRenderDiagnostics(
+    'PreviewWorkspace',
+    {
+      artLineSegmentCount: artLineSegments.length,
+      cropToCircle,
+      hasLoadedImage,
+      imageHeight: imageSize?.height ?? 0,
+      imageWidth: imageSize?.width ?? 0,
+      isArtMode,
+      linePixelCount: linePixels.length,
+      nailsCount,
+      showNailNumbers,
+      shouldShowPreviewLine,
+    },
+    onDiagnosticRender,
+  );
+
   return (
     <main className="workspace">
       <div

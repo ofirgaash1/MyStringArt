@@ -50,6 +50,7 @@ const MAX_PREVIEW_SCALE = 1000;
 const INITIAL_PREVIEW_SCALE = 150;
 const INITIAL_IMAGE_SCALE_MULTIPLIER = 1;
 const DEFAULT_LINE_STRENGTH = 30;
+const DEFAULT_HIGHLIGHT_DISTANCE = 15;
 const MIN_HIGHLIGHT_DISTANCE = 0;
 const MAX_HIGHLIGHT_DISTANCE = 50;
 const MIN_LINE_STRENGTH = 1;
@@ -57,6 +58,7 @@ const MAX_LINE_STRENGTH = 50;
 const MIN_CONTRAST = 0;
 const MAX_CONTRAST = 100;
 const DEFAULT_CONTRAST = 100;
+const DEFAULT_MULTICOLOR_TARGET_TOTAL_LINES = 2000;
 const MIN_BRUSH_RADIUS = 1;
 const MAX_BRUSH_RADIUS = 40;
 const MIN_GROUP_VALUE = 0;
@@ -71,16 +73,76 @@ const GROUP_COLORS = [
   '#facc15',
 ];
 
-function createMulticolorLineBuckets(paletteColors) {
+function createMulticolorLineBuckets(
+  paletteColors,
+  defaultLineStrength = DEFAULT_LINE_STRENGTH,
+  defaultMinDistance = DEFAULT_HIGHLIGHT_DISTANCE,
+) {
   return paletteColors.map((color) => ({
     colorId: color.id,
     label: color.label,
     hex: color.hex,
     enabled: color.enabled,
     visible: true,
+    lineStrength: defaultLineStrength,
+    minDistance: defaultMinDistance,
     lastNailNumber: null,
     lines: [],
   }));
+}
+
+function splitWholeUnits(totalUnits, groupCount) {
+  if (groupCount <= 0) {
+    return [];
+  }
+
+  const baseUnits = Math.floor(totalUnits / groupCount);
+  let remainder = totalUnits % groupCount;
+
+  return Array.from({ length: groupCount }, () => {
+    const nextUnits = baseUnits + (remainder > 0 ? 1 : 0);
+    remainder = Math.max(0, remainder - 1);
+    return nextUnits;
+  });
+}
+
+function moveArrayItem(items, fromIndex, toIndex) {
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length ||
+    fromIndex === toIndex
+  ) {
+    return items;
+  }
+
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
+}
+
+function getNormalizedInterleaveEntryIds(currentEntryIds, availableEntryIds) {
+  const availableEntryIdSet = new Set(availableEntryIds);
+  const retainedEntryIds = currentEntryIds.filter((entryId) => availableEntryIdSet.has(entryId));
+  const retainedEntryIdSet = new Set(retainedEntryIds);
+
+  for (const entryId of availableEntryIds) {
+    if (!retainedEntryIdSet.has(entryId)) {
+      retainedEntryIds.push(entryId);
+    }
+  }
+
+  return retainedEntryIds;
+}
+
+function areStringArraysEqual(left, right) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((value, index) => value === right[index]);
 }
 
 function App() {
@@ -92,7 +154,7 @@ function App() {
   const [nailsCount, setNailsCount] = useState(300);
   const [lineFrom, setLineFrom] = useState('1');
   const [lineTo, setLineTo] = useState('1');
-  const [highlightRange, setHighlightRange] = useState('15');
+  const [highlightRange, setHighlightRange] = useState(String(DEFAULT_HIGHLIGHT_DISTANCE));
   const [lineStrength, setLineStrength] = useState(String(DEFAULT_LINE_STRENGTH));
   const [contrast, setContrast] = useState(String(DEFAULT_CONTRAST));
   const [savedNailSequence, setSavedNailSequence] = useState([]);
@@ -125,22 +187,32 @@ function App() {
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
   const [multicolorPaletteCoverage, setMulticolorPaletteCoverage] = useState([]);
   const [multicolorLockedLineOverride, setMulticolorLockedLineOverride] = useState(null);
-  const [multicolorTargetTotalLines, setMulticolorTargetTotalLines] = useState(0);
+  const [multicolorTargetTotalLines, setMulticolorTargetTotalLines] = useState(
+    DEFAULT_MULTICOLOR_TARGET_TOTAL_LINES,
+  );
   const [activePaletteColorId, setActivePaletteColorId] = useState(
     MULTICOLOR_PALETTE_PRESETS[0].colors[0].id,
   );
   const [isActivePaletteColorOnlyEnabled, setIsActivePaletteColorOnlyEnabled] = useState(false);
   const [maskBlurRadius, setMaskBlurRadius] = useState(0);
   const [multicolorLineBuckets, setMulticolorLineBuckets] = useState(() =>
-    createMulticolorLineBuckets(MULTICOLOR_PALETTE_PRESETS[0].colors),
+    createMulticolorLineBuckets(
+      MULTICOLOR_PALETTE_PRESETS[0].colors,
+      DEFAULT_LINE_STRENGTH,
+      DEFAULT_HIGHLIGHT_DISTANCE,
+    ),
   );
   const [isExperimentalColorLinesOnlyPreviewEnabled, setIsExperimentalColorLinesOnlyPreviewEnabled] = useState(false);
   const [multicolorExperimentalSteppingMode, setMulticolorExperimentalSteppingMode] = useState('single-color');
   const [multicolorRoundRobinNextColorId, setMulticolorRoundRobinNextColorId] = useState(null);
   const [multicolorMaskImages, setMulticolorMaskImages] = useState([]);
   const [activeMulticolorTargetImage, setActiveMulticolorTargetImage] = useState(null);
+  const [multicolorUsedLineExclusionMode, setMulticolorUsedLineExclusionMode] = useState('shared');
+  const [multicolorLineStrengthMode, setMulticolorLineStrengthMode] = useState('shared');
+  const [multicolorMinDistanceMode, setMulticolorMinDistanceMode] = useState('shared');
   const [isMulticolorStepProfilingEnabled, setIsMulticolorStepProfilingEnabled] = useState(false);
   const [isMulticolorFastSteppingEnabled, setIsMulticolorFastSteppingEnabled] = useState(false);
+  const [multicolorInterleaveEntryIds, setMulticolorInterleaveEntryIds] = useState([]);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -293,22 +365,76 @@ function App() {
     (bucket) => bucket.colorId === activePaletteColorId,
   ) ?? null;
   const enabledMulticolorLineBuckets = multicolorLineBuckets.filter((bucket) => bucket.enabled);
-  const experimentalMulticolorLines = multicolorLineBuckets.flatMap((bucket) =>
-    bucket.lines.map((line, index) => ({
-      ...line,
-      colorId: bucket.colorId,
-      label: bucket.label,
-      hex: bucket.hex,
-      visible: bucket.visible,
-      key: `${bucket.colorId}-line-${index}-${line.startNailNumber}-${line.endNailNumber}`,
-    })),
+  const totalExperimentalMulticolorLines = multicolorLineBuckets.reduce(
+    (sum, bucket) => sum + bucket.lines.length,
+    0,
   );
-  const totalExperimentalMulticolorLines = experimentalMulticolorLines.length;
   const getRemainingPlannedLinesForBucket = (bucket) =>
     Math.max(0, (plannedMulticolorLinesByColorId.get(bucket.colorId) ?? 0) - bucket.lines.length);
   const eligibleMulticolorStepBuckets = enabledMulticolorLineBuckets.filter(
     (bucket) => getRemainingPlannedLinesForBucket(bucket) > 0,
   );
+  const interleaveEligibleBuckets = multicolorLineBuckets.filter(
+    (bucket) =>
+      (plannedMulticolorLinesByColorId.get(bucket.colorId) ?? 0) > 0 ||
+      bucket.lines.length > 0,
+  );
+  const readOnlyInterleavePassCount = 2;
+  const defaultMulticolorInterleaveEntries = useMemo(() => {
+    if (interleaveEligibleBuckets.length === 0) {
+      return [];
+    }
+
+    const order = [];
+    const plannedSlicesByColorId = new Map(
+      interleaveEligibleBuckets.map((bucket) => [
+        bucket.colorId,
+        splitWholeUnits(
+          plannedMulticolorLinesByColorId.get(bucket.colorId) ?? 0,
+          readOnlyInterleavePassCount,
+        ),
+      ]),
+    );
+
+    for (let passIndex = 0; passIndex < readOnlyInterleavePassCount; passIndex += 1) {
+      for (const bucket of interleaveEligibleBuckets) {
+        const plannedSlices = plannedSlicesByColorId.get(bucket.colorId) ?? [];
+        order.push({
+          id: `${bucket.colorId}-pass-${passIndex + 1}`,
+          colorId: bucket.colorId,
+          label: bucket.label,
+          hex: bucket.hex,
+          passIndex: passIndex + 1,
+          plannedLines: plannedSlices[passIndex] ?? 0,
+        });
+      }
+    }
+
+    return order;
+  }, [
+    interleaveEligibleBuckets,
+    plannedMulticolorLinesByColorId,
+    readOnlyInterleavePassCount,
+  ]);
+  const multicolorInterleaveEntryMap = useMemo(
+    () => new Map(defaultMulticolorInterleaveEntries.map((entry) => [entry.id, entry])),
+    [defaultMulticolorInterleaveEntries],
+  );
+  const multicolorInterleaveOrder = useMemo(() => {
+    const defaultEntryIds = defaultMulticolorInterleaveEntries.map((entry) => entry.id);
+    const normalizedEntryIds = getNormalizedInterleaveEntryIds(
+      multicolorInterleaveEntryIds,
+      defaultEntryIds,
+    );
+
+    return normalizedEntryIds
+      .map((entryId) => multicolorInterleaveEntryMap.get(entryId))
+      .filter(Boolean);
+  }, [
+    defaultMulticolorInterleaveEntries,
+    multicolorInterleaveEntryIds,
+    multicolorInterleaveEntryMap,
+  ]);
   const activeMaskImage = multicolorMaskImages.find(
     (color) => color.id === activePaletteColorId,
   ) ?? null;
@@ -320,6 +446,54 @@ function App() {
   const activeMulticolorRemainingLineCount = activeMulticolorLineBucket
     ? getRemainingPlannedLinesForBucket(activeMulticolorLineBucket)
     : activeMulticolorPlannedLineCount;
+  const parseLineDarknessStep = useCallback((lineStrengthValue) => {
+    const parsedLineStrength = Number.parseInt(lineStrengthValue, 10);
+    return Number.isFinite(parsedLineStrength)
+      ? clamp(parsedLineStrength, MIN_LINE_STRENGTH, MAX_LINE_STRENGTH)
+      : DEFAULT_LINE_STRENGTH;
+  }, []);
+  const parseMinDistanceValue = useCallback((minDistanceValue) => {
+    const parsedMinDistance = Number.parseInt(minDistanceValue, 10);
+    return Number.isFinite(parsedMinDistance)
+      ? clamp(parsedMinDistance, MIN_HIGHLIGHT_DISTANCE, MAX_HIGHLIGHT_DISTANCE)
+      : DEFAULT_HIGHLIGHT_DISTANCE;
+  }, []);
+  const multicolorLineKeysByColorId = useMemo(
+    () => new Map(
+      multicolorLineBuckets.map((bucket) => [
+        bucket.colorId,
+        new Set(
+          bucket.lines
+            .map((line) => getNormalizedLineKey(line.startNailNumber, line.endNailNumber))
+            .filter(Boolean),
+        ),
+      ]),
+    ),
+    [multicolorLineBuckets],
+  );
+  const monochromeUsedLineKeys = useMemo(() => {
+    const nextUsedLineKeys = new Set();
+    let currentStartNailNumber = 1;
+
+    for (const nextNailNumber of savedNailSequence) {
+      const lineKey = getNormalizedLineKey(currentStartNailNumber, nextNailNumber);
+      if (lineKey) {
+        nextUsedLineKeys.add(lineKey);
+      }
+      currentStartNailNumber = nextNailNumber;
+    }
+
+    return nextUsedLineKeys;
+  }, [savedNailSequence]);
+  const sharedMulticolorUsedLineKeys = useMemo(() => {
+    const nextUsedLineKeys = new Set(monochromeUsedLineKeys);
+    for (const colorUsedLineKeys of multicolorLineKeysByColorId.values()) {
+      for (const lineKey of colorUsedLineKeys) {
+        nextUsedLineKeys.add(lineKey);
+      }
+    }
+    return nextUsedLineKeys;
+  }, [monochromeUsedLineKeys, multicolorLineKeysByColorId]);
   const isActiveColorOnlyControlVisible = multicolorDebugView === 'palette-preview';
   const shouldShowOriginalDebugView =
     isMulticolorLabEnabled && multicolorDebugView === 'original';
@@ -508,12 +682,27 @@ function App() {
           hex: color.hex,
           enabled: color.enabled,
           visible: existingBucket?.visible ?? true,
+          lineStrength: existingBucket?.lineStrength ?? parseLineDarknessStep(lineStrength),
+          minDistance: existingBucket?.minDistance ?? parseMinDistanceValue(highlightRange),
           lastNailNumber: existingBucket?.lastNailNumber ?? null,
           lines: existingBucket?.lines ?? [],
         };
       });
     });
-  }, [multicolorPaletteColors]);
+  }, [highlightRange, lineStrength, multicolorPaletteColors, parseLineDarknessStep, parseMinDistanceValue]);
+
+  useEffect(() => {
+    const availableEntryIds = defaultMulticolorInterleaveEntries.map((entry) => entry.id);
+    setMulticolorInterleaveEntryIds((currentEntryIds) => {
+      const normalizedEntryIds = getNormalizedInterleaveEntryIds(
+        currentEntryIds,
+        availableEntryIds,
+      );
+      return areStringArraysEqual(normalizedEntryIds, currentEntryIds)
+        ? currentEntryIds
+        : normalizedEntryIds;
+    });
+  }, [defaultMulticolorInterleaveEntries]);
 
   useEffect(() => {
     if (eligibleMulticolorStepBuckets.length === 0) {
@@ -640,6 +829,15 @@ function App() {
       rows: rows.map((row) => ({
         bucket: row.bucket,
         ms: Number(row.ms.toFixed(2)),
+        ...(row.changedKeys
+          ? {
+              changedKeys: row.changedKeys.map((changedKey) => ({
+                key: changedKey.key,
+                previous: changedKey.previous,
+                next: changedKey.next,
+              })),
+            }
+          : {}),
       })),
       handlerMs: Number((pendingProfile.handlerEndAt - pendingProfile.startedAt).toFixed(2)),
       reactCommitMs: Number(reactCommitMs.toFixed(2)),
@@ -651,7 +849,13 @@ function App() {
     console.groupCollapsed(
       `[multicolor step] ${pendingProfile.meta.mode} ${pendingProfile.meta.source} ${pendingProfile.meta.colorLabel}`,
     );
-    console.table(profileSummary.rows);
+    console.table(
+      profileSummary.rows.map((row) => ({
+        bucket: row.bucket,
+        ms: row.ms,
+        changed: row.changedKeys?.map((changedKey) => changedKey.key).join(', ') ?? '',
+      })),
+    );
     console.log(profileSummary);
     console.groupEnd();
   }, [
@@ -691,6 +895,19 @@ function App() {
       ms: performance.now() - startTime,
     });
     return result;
+  }, []);
+
+  const handleDiagnosticRender = useCallback((componentName, changedKeys) => {
+    const pendingProfile = pendingMulticolorStepProfileRef.current;
+    if (!pendingProfile || changedKeys.length === 0) {
+      return;
+    }
+
+    pendingProfile.rows.push({
+      bucket: `render why ${componentName}`,
+      ms: 0,
+      changedKeys,
+    });
   }, []);
 
   useEffect(() => {
@@ -1041,9 +1258,15 @@ function App() {
     pixelWeightMapRef.current = null;
     lineBoostMapRef.current = null;
     usedLineKeysRef.current = new Set();
-    setMulticolorLineBuckets(createMulticolorLineBuckets(multicolorPaletteColors));
+    setMulticolorLineBuckets(
+      createMulticolorLineBuckets(
+        multicolorPaletteColors,
+        getLineDarknessStep(),
+        parseMinDistanceValue(highlightRange),
+      ),
+    );
     setMulticolorLockedLineOverride(null);
-    setMulticolorTargetTotalLines(0);
+    setMulticolorTargetTotalLines(DEFAULT_MULTICOLOR_TARGET_TOTAL_LINES);
     setIsExperimentalColorLinesOnlyPreviewEnabled(false);
     setMulticolorExperimentalSteppingMode('single-color');
     setMulticolorRoundRobinNextColorId(null);
@@ -1595,7 +1818,7 @@ function App() {
     return linePixels;
   };
 
-  const getNextNailForImageData = (originIndex, sourceImageData) => {
+  const getNextNailForImageData = (originIndex, sourceImageData, options = {}) => {
     if (
       !imageSize ||
       !sourceImageData ||
@@ -1606,17 +1829,21 @@ function App() {
       return null;
     }
 
+    const usedLineKeys = options.usedLineKeys ?? usedLineKeysRef.current;
+    const minimumAllowedDistance =
+      options.minimumAllowedDistance ?? parseMinDistanceValue(highlightRange);
+
     let minimumDarkness = Infinity;
     let selectedNail = null;
 
     for (const targetNail of nails) {
-      if (usedLineKeysRef.current.has(getNormalizedLineKey(originIndex, targetNail.number))) {
+      if (usedLineKeys.has(getNormalizedLineKey(originIndex, targetNail.number))) {
         continue;
       }
 
       if (
-        hasHighlightDistance &&
-        getCircularNailDistance(targetNail.number, originIndex, nailsCount) <= highlightDistance
+        minimumAllowedDistance > 0 &&
+        getCircularNailDistance(targetNail.number, originIndex, nailsCount) <= minimumAllowedDistance
       ) {
         continue;
       }
@@ -1666,12 +1893,33 @@ function App() {
     return true;
   };
 
-  const getLineDarknessStep = () => {
-    const parsedLineStrength = Number.parseInt(lineStrength, 10);
-    return Number.isFinite(parsedLineStrength)
-      ? clamp(parsedLineStrength, MIN_LINE_STRENGTH, MAX_LINE_STRENGTH)
-      : DEFAULT_LINE_STRENGTH;
-  };
+  const getLineDarknessStep = (lineStrengthValue = lineStrength) =>
+    parseLineDarknessStep(lineStrengthValue);
+
+  const getUsedLineKeysForMulticolorBucket = useCallback((bucket) => {
+    if (!bucket) {
+      return sharedMulticolorUsedLineKeys;
+    }
+
+    if (multicolorUsedLineExclusionMode === 'shared') {
+      return sharedMulticolorUsedLineKeys;
+    }
+
+    const nextUsedLineKeys = new Set(monochromeUsedLineKeys);
+    for (const lineKey of multicolorLineKeysByColorId.get(bucket.colorId) ?? []) {
+      nextUsedLineKeys.add(lineKey);
+    }
+    return nextUsedLineKeys;
+  }, [
+    monochromeUsedLineKeys,
+    multicolorLineKeysByColorId,
+    multicolorUsedLineExclusionMode,
+    sharedMulticolorUsedLineKeys,
+  ]);
+  const activeExperimentalBucketUsedLineKeys = useMemo(
+    () => getUsedLineKeysForMulticolorBucket(activeMulticolorLineBucket),
+    [activeMulticolorLineBucket, getUsedLineKeysForMulticolorBucket],
+  );
 
   const getCanvasImageData = () => {
     if (!imageCanvasRef.current || !imageSize) {
@@ -1725,8 +1973,9 @@ function App() {
     );
 
     const canvasImage = context.getImageData(0, 0, imageSize.width, imageSize.height);
-    const lineDarknessStep = getLineDarknessStep();
     let currentStartNailNumber = 1;
+    const monochromeLineDarknessStep = getLineDarknessStep();
+    const monochromeAppliedLineKeys = new Set();
     for (const nextNailNumber of savedSequence) {
       if (!Number.isInteger(nextNailNumber) || nextNailNumber < 1 || nextNailNumber > nailsCount) {
         continue;
@@ -1735,38 +1984,50 @@ function App() {
       const lineKey = getNormalizedLineKey(currentStartNailNumber, nextNailNumber);
       if (
         lineKey &&
-        !usedLineKeysRef.current.has(lineKey) &&
+        !monochromeAppliedLineKeys.has(lineKey) &&
         applyLineToImageData(
           canvasImage.data,
           currentStartNailNumber,
           nextNailNumber,
-          lineDarknessStep,
+          monochromeLineDarknessStep,
           lineBoostMapRef.current,
         )
       ) {
+        monochromeAppliedLineKeys.add(lineKey);
         usedLineKeysRef.current.add(lineKey);
       }
       currentStartNailNumber = nextNailNumber;
     }
 
     for (const bucket of bucketList) {
+      const bucketLineDarknessStep =
+        multicolorLineStrengthMode === 'shared'
+          ? monochromeLineDarknessStep
+          : getLineDarknessStep(bucket.lineStrength);
+      const bucketAppliedLineKeys =
+        multicolorUsedLineExclusionMode === 'shared'
+          ? usedLineKeysRef.current
+          : new Set(monochromeAppliedLineKeys);
       for (const line of bucket.lines) {
         const lineKey = getNormalizedLineKey(line.startNailNumber, line.endNailNumber);
         if (
           !lineKey ||
-          usedLineKeysRef.current.has(lineKey) ||
+          bucketAppliedLineKeys.has(lineKey) ||
           !applyLineToImageData(
             canvasImage.data,
             line.startNailNumber,
             line.endNailNumber,
-            lineDarknessStep,
+            bucketLineDarknessStep,
             lineBoostMapRef.current,
           )
         ) {
           continue;
         }
 
-        usedLineKeysRef.current.add(lineKey);
+        bucketAppliedLineKeys.add(lineKey);
+        if (multicolorUsedLineExclusionMode === 'shared') {
+          usedLineKeysRef.current.add(lineKey);
+        }
       }
     }
 
@@ -1841,13 +2102,17 @@ function App() {
   const handleMakeLinePermanent = (startIndex = fromIndex, endIndex = toIndex, options = {}) => {
     const stepProfile = options.profile ?? null;
     const shouldSkipVisibleSync = Boolean(options.skipVisibleSync);
+    const skipGlobalUsedLineCheck = Boolean(options.skipGlobalUsedLineCheck);
+    const skipGlobalUsedLineTracking = Boolean(options.skipGlobalUsedLineTracking);
+    const usedLineKeys = options.usedLineKeys ?? usedLineKeysRef.current;
+    const lineDarknessStep = options.lineDarknessStep ?? getLineDarknessStep();
     const lineKey = getNormalizedLineKey(startIndex, endIndex);
     const targetLinePixels = stepProfile
       ? stepProfile.measure('line pixel lookup', () => getLinePixelsForIndexes(startIndex, endIndex))
       : getLinePixelsForIndexes(startIndex, endIndex);
     if (
       !lineKey ||
-      usedLineKeysRef.current.has(lineKey) ||
+      (!skipGlobalUsedLineCheck && usedLineKeys.has(lineKey)) ||
       !imageCanvasRef.current ||
       !imageSize ||
       targetLinePixels.length === 0
@@ -1855,7 +2120,6 @@ function App() {
       return false;
     }
 
-    const lineDarknessStep = getLineDarknessStep();
     const context = imageCanvasRef.current.getContext('2d', {
       willReadFrequently: true,
     });
@@ -1907,7 +2171,9 @@ function App() {
         );
       }
     }
-    usedLineKeysRef.current.add(lineKey);
+    if (!skipGlobalUsedLineTracking) {
+      usedLineKeysRef.current.add(lineKey);
+    }
 
     if (stepProfile) {
       stepProfile.measure('canvas write', () => context.putImageData(canvasImage, 0, 0));
@@ -1985,6 +2251,15 @@ function App() {
       source: isPaletteDitheringEnabled ? 'dithered' : 'nearest',
     });
     const targetStartNailNumber = getExperimentalStartNailNumberForBucket(targetBucket);
+    const targetUsedLineKeys = getUsedLineKeysForMulticolorBucket(targetBucket);
+    const targetLineDarknessStep =
+      multicolorLineStrengthMode === 'shared'
+        ? getLineDarknessStep()
+        : getLineDarknessStep(targetBucket.lineStrength);
+    const targetMinimumDistance =
+      multicolorMinDistanceMode === 'shared'
+        ? parseMinDistanceValue(highlightRange)
+        : parseMinDistanceValue(targetBucket.minDistance);
     const canvasImageData = stepProfile
       ? stepProfile.measure('canvas snapshot', getCanvasImageData)
       : getCanvasImageData();
@@ -1996,9 +2271,15 @@ function App() {
     const targetNextNailNumber = targetColorMaskImageData
       ? stepProfile
         ? stepProfile.measure('next nail search', () =>
-            getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data),
+            getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data, {
+              usedLineKeys: targetUsedLineKeys,
+              minimumAllowedDistance: targetMinimumDistance,
+            }),
           )
-        : getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data)
+        : getNextNailForImageData(targetStartNailNumber, targetColorMaskImageData.data, {
+            usedLineKeys: targetUsedLineKeys,
+            minimumAllowedDistance: targetMinimumDistance,
+          })
       : null;
     if (targetNextNailNumber === null) {
       return;
@@ -2006,7 +2287,11 @@ function App() {
 
     const didApplyLine = handleMakeLinePermanent(targetStartNailNumber, targetNextNailNumber, {
       profile: stepProfile,
+      lineDarknessStep: targetLineDarknessStep,
       skipVisibleSync: shouldDeferMulticolorStepVisuals,
+      skipGlobalUsedLineCheck: multicolorUsedLineExclusionMode === 'per-color',
+      skipGlobalUsedLineTracking: multicolorUsedLineExclusionMode === 'per-color',
+      usedLineKeys: targetUsedLineKeys,
     });
     if (!didApplyLine) {
       return;
@@ -2361,7 +2646,13 @@ function App() {
     'active color next nail',
     () =>
       activeMulticolorRemainingLineCount > 0 && activeColorExperimentScoringImageData
-        ? getNextNailForImageData(activeColorExperimentFromIndex, activeColorExperimentScoringImageData)
+        ? getNextNailForImageData(activeColorExperimentFromIndex, activeColorExperimentScoringImageData, {
+            usedLineKeys: activeExperimentalBucketUsedLineKeys,
+            minimumAllowedDistance:
+              multicolorMinDistanceMode === 'shared'
+                ? parseMinDistanceValue(highlightRange)
+                : parseMinDistanceValue(activeMulticolorLineBucket?.minDistance),
+          })
         : null,
   );
   const canApplyExperimentalMulticolorStep =
@@ -2378,12 +2669,63 @@ function App() {
   }, [minimumDarkness, darkestNailsKey]);
 
   const monochromeArtLineSegments = buildArtLineSegments(savedNailSequence, nails);
-  const renderedExperimentalLines = experimentalMulticolorLines.filter((line) => {
-    if (!line.visible) {
-      return false;
+  const renderedExperimentalLines = useMemo(() => {
+    const visibleBucketsByColorId = new Map(
+      multicolorLineBuckets
+        .filter((bucket) => bucket.visible && bucket.lines.length > 0)
+        .map((bucket) => [bucket.colorId, bucket]),
+    );
+    const activeInterleaveEntries = multicolorInterleaveOrder.filter((entry) =>
+      visibleBucketsByColorId.has(entry.colorId),
+    );
+
+    if (activeInterleaveEntries.length === 0) {
+      return [];
     }
-    return true;
-  });
+
+    const occurrenceCountByColorId = new Map();
+    for (const entry of activeInterleaveEntries) {
+      occurrenceCountByColorId.set(
+        entry.colorId,
+        (occurrenceCountByColorId.get(entry.colorId) ?? 0) + 1,
+      );
+    }
+
+    const slicedLinesByEntryId = new Map();
+    for (const [colorId, bucket] of visibleBucketsByColorId) {
+      const occurrenceCount = occurrenceCountByColorId.get(colorId) ?? 0;
+      if (occurrenceCount <= 0) {
+        continue;
+      }
+
+      const lineSlices = splitWholeUnits(bucket.lines.length, occurrenceCount);
+      let lineOffset = 0;
+      let occurrenceIndex = 1;
+
+      for (const lineSliceCount of lineSlices) {
+        const lineSlice = bucket.lines.slice(lineOffset, lineOffset + lineSliceCount);
+        slicedLinesByEntryId.set(
+          `${colorId}-pass-${occurrenceIndex}`,
+          lineSlice.map((line, index) => ({
+            ...line,
+            colorId: bucket.colorId,
+            label: bucket.label,
+            hex: bucket.hex,
+            visible: bucket.visible,
+            key:
+              `${bucket.colorId}-pass-${occurrenceIndex}-line-${index}` +
+              `-${line.startNailNumber}-${line.endNailNumber}`,
+          })),
+        );
+        lineOffset += lineSliceCount;
+        occurrenceIndex += 1;
+      }
+    }
+
+    return activeInterleaveEntries.flatMap(
+      (entry) => slicedLinesByEntryId.get(entry.id) ?? [],
+    );
+  }, [multicolorInterleaveOrder, multicolorLineBuckets]);
   const experimentalArtLineSegments = buildManualArtLineSegments(
     renderedExperimentalLines
       .map((line) => ({
@@ -2439,7 +2781,13 @@ function App() {
       : null;
     syncVisibleCanvas();
     setSavedNailSequence([]);
-    setMulticolorLineBuckets(createMulticolorLineBuckets(multicolorPaletteColors));
+    setMulticolorLineBuckets(
+      createMulticolorLineBuckets(
+        multicolorPaletteColors,
+        getLineDarknessStep(),
+        parseMinDistanceValue(highlightRange),
+      ),
+    );
     setIsExperimentalColorLinesOnlyPreviewEnabled(false);
     setMulticolorExperimentalSteppingMode('single-color');
     setMulticolorRoundRobinNextColorId(null);
@@ -2495,6 +2843,58 @@ function App() {
     );
   };
 
+  const handleSetMulticolorBucketLineStrength = (colorId, nextLineStrength) => {
+    setMulticolorLineBuckets((currentBuckets) =>
+      currentBuckets.map((bucket) =>
+        bucket.colorId === colorId
+          ? {
+              ...bucket,
+              lineStrength: parseLineDarknessStep(nextLineStrength),
+            }
+          : bucket,
+      ),
+    );
+  };
+
+  const handleSetMulticolorBucketMinDistance = (colorId, nextMinDistance) => {
+    setMulticolorLineBuckets((currentBuckets) =>
+      currentBuckets.map((bucket) =>
+        bucket.colorId === colorId
+          ? {
+              ...bucket,
+              minDistance: parseMinDistanceValue(nextMinDistance),
+            }
+          : bucket,
+      ),
+    );
+  };
+
+  const handleMoveMulticolorInterleaveEntryUp = (entryId) => {
+    setMulticolorInterleaveEntryIds((currentEntryIds) => {
+      const currentIndex = currentEntryIds.indexOf(entryId);
+      if (currentIndex <= 0) {
+        return currentEntryIds;
+      }
+      return moveArrayItem(currentEntryIds, currentIndex, currentIndex - 1);
+    });
+  };
+
+  const handleMoveMulticolorInterleaveEntryDown = (entryId) => {
+    setMulticolorInterleaveEntryIds((currentEntryIds) => {
+      const currentIndex = currentEntryIds.indexOf(entryId);
+      if (currentIndex < 0 || currentIndex >= currentEntryIds.length - 1) {
+        return currentEntryIds;
+      }
+      return moveArrayItem(currentEntryIds, currentIndex, currentIndex + 1);
+    });
+  };
+
+  const handleResetMulticolorInterleaveOrder = () => {
+    setMulticolorInterleaveEntryIds(
+      defaultMulticolorInterleaveEntries.map((entry) => entry.id),
+    );
+  };
+
   const handleResetMulticolorBucket = (colorId) => {
     const nextBuckets = multicolorLineBuckets.map((bucket) =>
       bucket.colorId === colorId
@@ -2539,7 +2939,7 @@ function App() {
       ? imageName.replace(/\.[^.]+$/, '')
       : 'string-art';
     const multicolorSession = {
-      version: 1,
+      version: 3,
       palettePresetId: multicolorPalettePresetId,
       paletteColors: multicolorPaletteColors,
       activePaletteColorId,
@@ -2552,6 +2952,10 @@ function App() {
       multicolorLockedLineOverride,
       multicolorExperimentalSteppingMode,
       multicolorRoundRobinNextColorId,
+      multicolorUsedLineExclusionMode,
+      multicolorLineStrengthMode,
+      multicolorMinDistanceMode,
+      multicolorInterleaveEntryIds,
       isExperimentalColorLinesOnlyPreviewEnabled,
       lineBuckets: multicolorLineBuckets,
     };
@@ -2596,6 +3000,8 @@ function App() {
                 {
                   visible: bucket?.visible !== false,
                   enabled: bucket?.enabled !== false,
+                  lineStrength: parseLineDarknessStep(bucket?.lineStrength),
+                  minDistance: parseMinDistanceValue(bucket?.minDistance),
                   lastNailNumber:
                     Number.isInteger(bucket?.lastNailNumber) && bucket.lastNailNumber > 0
                       ? bucket.lastNailNumber
@@ -2628,6 +3034,8 @@ function App() {
           hex: color.hex,
           enabled: importedBucket?.enabled ?? color.enabled,
           visible: importedBucket?.visible ?? true,
+          lineStrength: importedBucket?.lineStrength ?? parseLineDarknessStep(lineStrength),
+          minDistance: importedBucket?.minDistance ?? parseMinDistanceValue(highlightRange),
           lastNailNumber: importedBucket?.lastNailNumber ?? null,
           lines: importedBucket?.lines ?? [],
         };
@@ -2666,7 +3074,13 @@ function App() {
         Math.max(0, Number.parseInt(rawSession?.maskBlurRadius, 10) || 0),
       );
       setMulticolorTargetTotalLines(
-        Math.max(0, Number.parseInt(rawSession?.multicolorTargetTotalLines, 10) || 0),
+        Math.max(
+          0,
+          Number.parseInt(
+            rawSession?.multicolorTargetTotalLines,
+            10,
+          ) || DEFAULT_MULTICOLOR_TARGET_TOTAL_LINES,
+        ),
       );
       setMulticolorLockedLineOverride(nextLockedLineOverride);
       setMulticolorExperimentalSteppingMode(
@@ -2678,6 +3092,20 @@ function App() {
         paletteColorIds.has(rawSession?.multicolorRoundRobinNextColorId)
           ? rawSession.multicolorRoundRobinNextColorId
           : null,
+      );
+      setMulticolorUsedLineExclusionMode(
+        rawSession?.multicolorUsedLineExclusionMode === 'per-color' ? 'per-color' : 'shared',
+      );
+      setMulticolorLineStrengthMode(
+        rawSession?.multicolorLineStrengthMode === 'per-color' ? 'per-color' : 'shared',
+      );
+      setMulticolorMinDistanceMode(
+        rawSession?.multicolorMinDistanceMode === 'per-color' ? 'per-color' : 'shared',
+      );
+      setMulticolorInterleaveEntryIds(
+        Array.isArray(rawSession?.multicolorInterleaveEntryIds)
+          ? rawSession.multicolorInterleaveEntryIds.filter((entryId) => typeof entryId === 'string')
+          : [],
       );
       setIsExperimentalColorLinesOnlyPreviewEnabled(
         Boolean(rawSession?.isExperimentalColorLinesOnlyPreviewEnabled) &&
@@ -3028,37 +3456,41 @@ function App() {
               export nail list
             </button>
           </div>
-          <BrushPanel
-            activeGroup={activeGroup}
-            activeGroupId={activeGroupId}
-            brushRadius={brushRadius}
-            groupValueStep={GROUP_VALUE_STEP}
-            hasLoadedImage={hasLoadedImage}
-            isArtMode={isArtMode}
-            isBrushMode={isBrushMode}
-            maxBrushRadius={MAX_BRUSH_RADIUS}
-            maxGroupValue={MAX_GROUP_VALUE}
-            minBrushRadius={MIN_BRUSH_RADIUS}
-            minGroupValue={MIN_GROUP_VALUE}
-            onActiveGroupChange={setActiveGroupId}
-            onAddPixelGroup={handleAddPixelGroup}
-            onBrushModeChange={setIsBrushMode}
-            onBrushRadiusChange={(nextValue) => {
-              setBrushRadius(
-                clamp(Number(nextValue), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
-              );
-            }}
-            onGroupValueChange={(groupId, nextValue) => {
-              const parsedValue = Number.parseFloat(nextValue);
-              handleGroupValueChange(
-                groupId,
-                Number.isFinite(parsedValue) ? parsedValue : 0,
-              );
-            }}
-            onRemovePixelGroup={handleRemovePixelGroup}
-            pixelGroups={pixelGroups}
-          />
-          <MulticolorLab
+          <Profiler id="BrushPanel" onRender={handleReactProfile}>
+            <BrushPanel
+              activeGroup={activeGroup}
+              activeGroupId={activeGroupId}
+              brushRadius={brushRadius}
+              groupValueStep={GROUP_VALUE_STEP}
+              hasLoadedImage={hasLoadedImage}
+              isArtMode={isArtMode}
+              isBrushMode={isBrushMode}
+              maxBrushRadius={MAX_BRUSH_RADIUS}
+              maxGroupValue={MAX_GROUP_VALUE}
+              minBrushRadius={MIN_BRUSH_RADIUS}
+              minGroupValue={MIN_GROUP_VALUE}
+              onActiveGroupChange={setActiveGroupId}
+              onAddPixelGroup={handleAddPixelGroup}
+              onBrushModeChange={setIsBrushMode}
+              onBrushRadiusChange={(nextValue) => {
+                setBrushRadius(
+                  clamp(Number(nextValue), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
+                );
+              }}
+              onDiagnosticRender={handleDiagnosticRender}
+              onGroupValueChange={(groupId, nextValue) => {
+                const parsedValue = Number.parseFloat(nextValue);
+                handleGroupValueChange(
+                  groupId,
+                  Number.isFinite(parsedValue) ? parsedValue : 0,
+                );
+              }}
+              onRemovePixelGroup={handleRemovePixelGroup}
+              pixelGroups={pixelGroups}
+            />
+          </Profiler>
+          <Profiler id="MulticolorLab" onRender={handleReactProfile}>
+            <MulticolorLab
             activePaletteColor={activePaletteColor}
             activePaletteColorId={activePaletteColorId}
             activeColorExperimentFromIndex={activeColorExperimentFromIndex}
@@ -3089,13 +3521,25 @@ function App() {
             multicolorLockedLineOverride={multicolorLockedLineOverride}
             multicolorPalettePixelCountMap={multicolorPalettePixelCountMap}
             multicolorPalettePreset={multicolorPalettePreset}
+            multicolorInterleaveOrder={multicolorInterleaveOrder}
+            multicolorReadOnlyInterleavePassCount={readOnlyInterleavePassCount}
+            onMoveMulticolorInterleaveEntryDown={handleMoveMulticolorInterleaveEntryDown}
+            onMoveMulticolorInterleaveEntryUp={handleMoveMulticolorInterleaveEntryUp}
+            onResetMulticolorInterleaveOrder={handleResetMulticolorInterleaveOrder}
             originalComparisonCanvasRef={originalComparisonCanvasRef}
             paletteComparisonCanvasRef={paletteComparisonCanvasRef}
             rawActiveMaskImage={activeMaskImage?.imageData ?? null}
             blurredActiveMaskImage={blurredActiveMaskImage}
             activeColorExperimentNextNailNumber={activeColorExperimentNextNailNumber}
             activeExperimentalLineCount={activeMulticolorLineBucket?.lines.length ?? 0}
+            globalLineStrength={parseLineDarknessStep(lineStrength)}
+            globalMinDistance={parseMinDistanceValue(highlightRange)}
             isExperimentalColorLinesOnlyPreviewEnabled={isExperimentalColorLinesOnlyPreviewEnabled}
+            multicolorLineStrengthMode={multicolorLineStrengthMode}
+            multicolorMinDistanceMode={multicolorMinDistanceMode}
+            multicolorUsedLineExclusionMode={multicolorUsedLineExclusionMode}
+            onSetMulticolorBucketLineStrength={handleSetMulticolorBucketLineStrength}
+            onSetMulticolorBucketMinDistance={handleSetMulticolorBucketMinDistance}
             onShowAllMulticolorBuckets={handleShowAllMulticolorBuckets}
             onSoloMulticolorBucket={handleSoloMulticolorBucket}
             onToggleMulticolorBucketVisibility={handleToggleMulticolorBucketVisibility}
@@ -3103,6 +3547,7 @@ function App() {
             onApplyActiveColorExperimentStep={handleApplyExperimentalStep}
             onExportMulticolorSession={handleExportMulticolorSession}
             onImportMulticolorSession={handleImportMulticolorSession}
+            onDiagnosticRender={handleDiagnosticRender}
             onProfileEffect={handleProfileEffect}
             onRefreshMulticolorPreviews={handleRefreshMulticolorPreviews}
             onResetAllMulticolorState={handleResetAllMulticolorState}
@@ -3126,17 +3571,22 @@ function App() {
             setMulticolorPaletteColors={setMulticolorPaletteColors}
             setMulticolorPalettePresetId={setMulticolorPalettePresetId}
             setMulticolorTargetTotalLines={setMulticolorTargetTotalLines}
+            setMulticolorLineStrengthMode={setMulticolorLineStrengthMode}
+            setMulticolorMinDistanceMode={setMulticolorMinDistanceMode}
+            setMulticolorUsedLineExclusionMode={setMulticolorUsedLineExclusionMode}
             shouldShowPaletteComparison={shouldShowPaletteComparison}
             multicolorTargetTotalLines={multicolorTargetTotalLines}
             totalExperimentalMulticolorLines={totalExperimentalMulticolorLines}
             totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
             totalPaletteCoverageTenths={totalPaletteCoverageTenths}
-          />
+            />
+          </Profiler>
         </div>
 
       </aside>
 
-      <PreviewWorkspace
+      <Profiler id="PreviewWorkspace" onRender={handleReactProfile}>
+        <PreviewWorkspace
         artLineSegments={artLineSegments}
         cropToCircle={cropToCircle}
         handlePointerDown={handlePointerDown}
@@ -3154,6 +3604,7 @@ function App() {
         nailRadius={nailRadius}
         nails={nails}
         nailsCount={nailsCount}
+        onDiagnosticRender={handleDiagnosticRender}
         onPointerCancel={(event) => {
           stopDragging(event);
           setHoveredPixel(null);
@@ -3168,13 +3619,17 @@ function App() {
         selectionOverlayRef={selectionOverlayRef}
         shouldShowPreviewLine={shouldShowPreviewLine}
         showNailNumbers={showNailNumbers}
-      />
-      <HoveredPixelOverlay
+        />
+      </Profiler>
+      <Profiler id="HoveredPixelOverlay" onRender={handleReactProfile}>
+        <HoveredPixelOverlay
         hoveredPixel={hoveredPixel}
         isArtMode={isArtMode}
         isBlackAndWhite={isBlackAndWhite}
         isBrushMode={isBrushMode}
-      />
+        onDiagnosticRender={handleDiagnosticRender}
+        />
+      </Profiler>
       </div>
     </Profiler>
   );

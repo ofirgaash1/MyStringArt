@@ -335,6 +335,31 @@ label {
   color: #9a3412;
 }
 
+.multicolor-advanced-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #7c2d12;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.multicolor-advanced-summary {
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .multicolor-lab-chip {
   padding: 4px 8px;
   border-radius: 999px;

@@ -1,3 +1,5 @@
+import { useRenderDiagnostics } from '../renderDiagnostics';
+
 function BrushPanel({
   activeGroup,
   activeGroupId,
@@ -17,7 +19,21 @@ function BrushPanel({
   onBrushRadiusChange,
   onGroupValueChange,
   onRemovePixelGroup,
+  onDiagnosticRender,
 }) {
+  useRenderDiagnostics(
+    'BrushPanel',
+    {
+      activeGroupId,
+      brushRadius,
+      groupCount: pixelGroups.length,
+      hasLoadedImage,
+      isArtMode,
+      isBrushMode,
+    },
+    onDiagnosticRender,
+  );
+
   return (
     <div className="brush-panel">
       <label className="checkbox-row">
