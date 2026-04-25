@@ -1,0 +1,404 @@
+כן — זה הנוסח המתוקן באנגלית, עם כל ההבהרות שהוספנו. 
+
+---
+
+# Multicolor Thread/String Art Algorithm
+
+## 1. Basic Setup
+
+There is a circle, and nails/points are placed along its circumference. Usually there are 300 nails, but this number may vary.
+
+This algorithm assumes an **even** number of nails. This ensures that each nail has an opposite nail and that true diameter chords exist.
+
+If we connect each nail to every other nail, we get a complete chord network. Each connection is called a **chord**.
+
+For `N` nails, the number of unique undirected chords is:
+
+```text
+N × (N - 1) / 2
+```
+
+So for 300 nails:
+
+```text
+300 × 299 / 2 = 44,850 chords
+```
+
+A chord is treated as a **finite line segment** connecting two nails on the circumference.
+
+Behind this network of chords there is an image, which is made of pixels.
+
+---
+
+## 2. TAS Definition
+
+The network visually creates what look like concentric rings. However, these are not true circular rings. They are families of chords tangent to nested regular polygons. With a large number of nails, such as 300, these nested polygons visually approximate concentric circles.
+
+We divide the circle into concentric regions:
+
+* The innermost region, `D0`, is a disk.
+* The following regions, `D1`, `D2`, `D3`, and so on, are annular regions between two consecutive polygon radii.
+
+For each chord, we define one special segment called a **TAS** — **Tangent-Area Segment**.
+
+A TAS is the part of the chord associated with the annular region where that chord is tangent to, or forms a side of, the corresponding inner regular polygon, plus a small continuation on both sides until the next larger polygon.
+
+Every chord has exactly one TAS.
+
+Every TAS belongs to exactly one concentric region.
+
+---
+
+## 3. Example with 10 Nails
+
+To understand the structure, imagine there are 10 nails on the circumference and every nail is connected to every other nail.
+
+From any given nail, 9 chords come out.
+
+The middle chord, chord 5, connects the nail to the opposite nail. It is therefore a diameter, and it passes through the center.
+
+Chords 4 and 6 pass at distance `R1` from the center.
+
+Chords 3 and 7 pass at distance `R2`.
+
+Chords 2 and 8 pass at distance `R3`.
+
+Chords 1 and 9 pass at distance `R4`, forming the outermost boundary.
+
+Because the circle and the nails are symmetrical:
+
+* There are 5 diameter chords passing through the center.
+* There are 10 chords at distance `R1`.
+* There are 10 chords at distance `R2`.
+* There are 10 chords at distance `R3`.
+* There are 10 chords at distance `R4`.
+
+Altogether, this gives:
+
+```text
+5 + 10 + 10 + 10 + 10 = 45 unique chords
+```
+
+which matches:
+
+```text
+10 × 9 / 2 = 45
+```
+
+So what appears visually as rings is actually a set of nested regular polygons created by chord families.
+
+---
+
+## 4. Pixel Assignment to TASs
+
+Pixels are assigned by proximity to **TAS segments only**, not to full chords and not to infinite lines.
+
+For every pixel center, we find the closest TAS.
+
+The distance from a pixel center to a TAS is the shortest Euclidean distance from the pixel center to the **finite TAS segment**.
+
+If the perpendicular projection of the pixel center onto the TAS line falls inside the TAS segment, the distance is the perpendicular distance.
+
+If the projection falls outside the TAS segment, the distance is measured to the nearest TAS endpoint.
+
+If two TASs are equally close to a pixel center, a deterministic tie-breaking rule is used.
+
+Each TAS therefore owns a group of pixels: all pixels whose centers are closer to that TAS than to any other TAS.
+
+Each TAS receives an average color based on the pixels assigned to it.
+
+Color distance should preferably be measured in a perceptual color space such as **Lab** or **OKLab**, rather than directly in sRGB.
+
+---
+
+## 5. TAS Color and Error
+
+At any given moment, we want to know, for every TAS:
+
+1. Its current average color.
+2. Its assigned palette color.
+3. Its color-fit error.
+
+The error value represents **color-fit error**: how poorly the TAS/chord matches its assigned palette color.
+
+A low error means the TAS is a good fit for that color.
+
+A high error means the TAS is a poor fit for that color.
+
+For each concentric region, we create a list of all TASs belonging to that region.
+
+Inside each region, the TASs are sorted from **highest color-fit error** to **lowest color-fit error**.
+
+We allow forced changes to the color of a TAS. Such a change updates the TAS’s color-fit error and therefore its position in the sorted list.
+
+We also allow forced changes to the pixels inside a region, so that they influence TAS color calculations and update the TAS positions accordingly.
+
+---
+
+## 6. Color Palette
+
+We create a color palette.
+
+There are two possible modes:
+
+### Manual Mode
+
+The user manually chooses the colors that should be included in the palette.
+
+### Automatic Mode
+
+The user chooses how many colors are desired — for example 3, 4, or any other number — and the system finds a palette that can reconstruct the original image with the lowest possible overall error.
+
+After the palette is created, every TAS is forced to use the closest color in the palette.
+
+The entire chord belonging to that TAS is then assigned that same color.
+
+This is a one-to-one mapping:
+
+```text
+one chord ↔ one TAS ↔ one assigned color
+```
+
+At this stage, every chord has:
+
+* a start nail,
+* an end nail,
+* one TAS,
+* one assigned color,
+* one color-fit error,
+* one region association,
+* and one position in the sorted TAS list for that region.
+
+A chord may physically pass through several regions, but its TAS belongs to only one region, and that region determines the chord’s region association.
+
+---
+
+## 7. Limiting the Number of Chords per Region
+
+We create one large list of all chords using the TAS lists from all regions.
+
+The global list is ordered so that inner regions appear first and outer regions appear last.
+
+Inside each region, chords are ordered from higher color-fit error to lower color-fit error.
+
+We define a parameter `A`, which limits the number of chords allowed in each region.
+
+The limit `A` applies to the region as a whole, not per color.
+
+Therefore, it is possible that all selected chords in a region belong to the same color, if those chords have the lowest color-fit error.
+
+For example, if a region contains 100 chords and:
+
+```text
+A = 10
+```
+
+then we keep only the last 10 items in that region’s sorted list.
+
+These are the 10 chords with the lowest color-fit error.
+
+However, the selected subset preserves the original internal order. Therefore, within the selected low-error group, candidates are still ordered from relatively higher error to relatively lower error.
+
+This is intentional.
+
+Chords with lower error are drawn later, so they appear above chords with higher error and may cover them. Since the SVG has no transparency, drawing order matters.
+
+The remaining chords are either removed from the active list or marked with a negative/inactive flag. Using a flag is preferable.
+
+---
+
+## 8. Splitting by Color
+
+After filtering by region and error, we split the large list into separate lists — one list for each color.
+
+For example:
+
+* blue chord list,
+* yellow chord list,
+* red chord list,
+* green chord list.
+
+The order from the previous global list is preserved inside each color list.
+
+Each such list is called a **same-color chord list**, or **SCCL**.
+
+---
+
+## 9. Creating Continuous Chains Inside Each Color
+
+Inside each SCCL, we look at consecutive items that belong to the same region.
+
+Within each region sequence, we try to reorder the chords so that they create the longest possible continuous physical thread chain.
+
+For example, if one chord connects nail 3 to nail 31, and another chord connects nail 3 to nail 67, we prefer the sequence:
+
+```text
+31 → 3 → 67
+```
+
+because chord direction does not matter. A chord from `X` to `Y` is identical to a chord from `Y` to `X`.
+
+The goal is to create the longest possible natural chain and push that chain toward the end of the sequence for that region.
+
+At the beginning of the sequence, we may be left with chords that cannot naturally be chained.
+
+Between every two chords that cannot be naturally chained, we insert generated connector chords.
+
+These generated connector chords create a physically continuous path for that color.
+
+---
+
+## 10. Generated Connector Chords
+
+Suppose one chord ends at `X1`, and the next required chord starts at `X2`.
+
+If there is no natural continuity between them, we need to connect:
+
+```text
+X1 → X2
+```
+
+However, we do not always connect them directly.
+
+If the direct chord `X1–X2` belongs to a more internal region than the chords we are trying to connect, then we avoid using it.
+
+Instead, we search for an additional nail `Xg`, so that the connector chain becomes:
+
+```text
+X1 → Xg → X2
+```
+
+If that still does not satisfy the conditions, we expand the search by adding more generated connector chords:
+
+```text
+X1 → Xg1 → Xg2 → X2
+```
+
+and so on.
+
+Generated connector chords are inserted into the color lists as regular chord objects.
+
+Once inserted, a generated chord affects the image, the error calculation, and the drawing order in the same way as any other chord.
+
+The connector search does not look for the shortest path.
+
+Instead, it searches for the highest-scoring connector chain.
+
+The score is based on:
+
+1. how well the connector chords fit the required color,
+2. the color-fit error of each connector chord,
+3. the length of each connector chord,
+4. and whether the connector would contaminate an inner region.
+
+A long connector chord with a large color error receives a low score, because it creates a large visible mismatch.
+
+A short connector chord with a large color error is less harmful.
+
+A connector chord with a small color error increases the score.
+
+In other words, length does not matter as a shortest-path objective. Length matters because it amplifies the visual damage caused by color mismatch.
+
+Conceptually:
+
+```text
+connector_damage = chord_length × color_error
+```
+
+A possible scoring model is:
+
+```text
+connector_score = color_fit_score - length_weighted_error - inner_region_penalty
+```
+
+Connector chains that pass through more internal regions are heavily penalized or rejected.
+
+The goal is to never contaminate inner regions, and when artificial contamination is unavoidable, to push it outward and minimize its visual cost.
+
+---
+
+## 11. Physical Thread Continuity and Multiple Spools
+
+Each color has its own physical thread spool.
+
+The global drawing/winding order may freely interleave different colors.
+
+For example, the global order may be:
+
+```text
+yellow
+blue
+blue
+green
+yellow
+yellow
+yellow
+```
+
+When a color is paused, its spool is set aside.
+
+When that color is selected again, winding continues from that color’s last endpoint.
+
+Therefore, physical continuity is required only within each color’s own subsequence, not necessarily in consecutive global time.
+
+For example:
+
+```text
+Global order:
+Y1, B1, B2, G1, Y2, Y3, Y4
+
+Yellow subsequence:
+Y1 → Y2 → Y3 → Y4
+
+Blue subsequence:
+B1 → B2
+
+Green subsequence:
+G1
+```
+
+Each color remains physically continuous, even though the global order is interleaved.
+
+Generated connector chords ensure that each color’s subsequence remains continuous.
+
+---
+
+## 12. SVG Drawing Order
+
+The SVG rendering order is the physical winding order.
+
+Later chords are drawn above earlier chords, simulating the real layering of physical thread.
+
+The SVG has no transparency, so drawing order matters.
+
+At each step, we examine the first available candidate in each color list.
+
+A candidate is acceptable if it belongs to the innermost available region among all current candidates.
+
+If several candidates belong to the same innermost region, we choose the one with the larger color-fit error.
+
+The selected candidate is marked as used, drawn in the SVG, and physically wound using its corresponding thread spool.
+
+Then the algorithm continues to the next candidate using the same rule.
+
+Because each color has its own spool and its own current endpoint, switching between colors is allowed.
+
+The global SVG order may therefore mix colors freely while still preserving physical continuity inside each color.
+
+---
+
+## 13. Summary Principle
+
+The overall principle of the algorithm is:
+
+Work from the inside outward.
+
+Within each region, work from relatively higher error to lower error among the selected low-error chords.
+
+Draw lower-error chords later, so they appear above and can visually cover higher-error chords.
+
+Avoid contaminating inner regions.
+
+When generated connector chords are required, prefer connectors that stay in outer regions and minimize length-weighted color error.
+
+Continue until all color lists are exhausted.

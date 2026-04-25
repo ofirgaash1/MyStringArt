@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useRenderDiagnostics } from '../renderDiagnostics';
 
 function PreviewWorkspace({
@@ -21,13 +22,19 @@ function PreviewWorkspace({
   previewRef,
   previewStyle,
   selectionOverlayRef,
+  selectedTasRegionIndex,
   shouldShowPreviewLine,
   showNailNumbers,
+  tasOwnershipPreviewImageData,
+  tasPaletteFitSegments = [],
+  tasPreviewSegments = [],
   onDiagnosticRender,
   onPointerUp,
   onPointerCancel,
   onPointerLeave,
 }) {
+  const tasOwnershipCanvasRef = useRef(null);
+
   useRenderDiagnostics(
     'PreviewWorkspace',
     {
@@ -41,9 +48,33 @@ function PreviewWorkspace({
       nailsCount,
       showNailNumbers,
       shouldShowPreviewLine,
+      tasOwnershipPreview: Boolean(tasOwnershipPreviewImageData),
+      tasPaletteFitSegmentCount: tasPaletteFitSegments.length,
+      tasPreviewSegmentCount: tasPreviewSegments.length,
     },
     onDiagnosticRender,
   );
+
+  useEffect(() => {
+    const canvas = tasOwnershipCanvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+
+    if (!tasOwnershipPreviewImageData) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+
+    canvas.width = tasOwnershipPreviewImageData.width;
+    canvas.height = tasOwnershipPreviewImageData.height;
+    context.putImageData(tasOwnershipPreviewImageData, 0, 0);
+  }, [tasOwnershipPreviewImageData]);
 
   return (
     <main className="workspace">
@@ -121,6 +152,49 @@ function PreviewWorkspace({
                   ))}
                 </svg>
               )}
+              {tasPreviewSegments.length > 0 && (
+                <svg
+                  className="tas-preview-layer"
+                  aria-hidden="true"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  {tasPreviewSegments.map((segment) => (
+                    <line
+                      key={segment.key}
+                      className={[
+                        'tas-preview-line',
+                        segment.regionIndex % 2 === 0 ? 'is-even-region' : 'is-odd-region',
+                        segment.regionIndex === selectedTasRegionIndex ? 'is-selected-region' : '',
+                      ].join(' ')}
+                      x1={segment.x1}
+                      y1={segment.y1}
+                      x2={segment.x2}
+                      y2={segment.y2}
+                    />
+                  ))}
+                </svg>
+              )}
+              {tasPaletteFitSegments.length > 0 && (
+                <svg
+                  className="tas-palette-fit-layer"
+                  aria-hidden="true"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  {tasPaletteFitSegments.map((segment) => (
+                    <line
+                      key={segment.key}
+                      className="tas-palette-fit-line"
+                      x1={segment.x1}
+                      y1={segment.y1}
+                      x2={segment.x2}
+                      y2={segment.y2}
+                      style={{ stroke: segment.stroke }}
+                    />
+                  ))}
+                </svg>
+              )}
             </>
           ) : hasLoadedImage ? (
             <>
@@ -139,6 +213,16 @@ function PreviewWorkspace({
                 height={imageSize.height}
                 style={imageLayerStyle}
               />
+              {tasOwnershipPreviewImageData && (
+                <canvas
+                  ref={tasOwnershipCanvasRef}
+                  className="tas-ownership-layer"
+                  aria-hidden="true"
+                  width={tasOwnershipPreviewImageData.width}
+                  height={tasOwnershipPreviewImageData.height}
+                  style={imageLayerStyle}
+                />
+              )}
               {linePixels.length > 0 && (
                 <svg
                   className="line-pixels-layer"
@@ -183,6 +267,49 @@ function PreviewWorkspace({
                         r={nailRadius}
                       />
                     </g>
+                  ))}
+                </svg>
+              )}
+              {tasPreviewSegments.length > 0 && (
+                <svg
+                  className="tas-preview-layer"
+                  aria-hidden="true"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  {tasPreviewSegments.map((segment) => (
+                    <line
+                      key={segment.key}
+                      className={[
+                        'tas-preview-line',
+                        segment.regionIndex % 2 === 0 ? 'is-even-region' : 'is-odd-region',
+                        segment.regionIndex === selectedTasRegionIndex ? 'is-selected-region' : '',
+                      ].join(' ')}
+                      x1={segment.x1}
+                      y1={segment.y1}
+                      x2={segment.x2}
+                      y2={segment.y2}
+                    />
+                  ))}
+                </svg>
+              )}
+              {tasPaletteFitSegments.length > 0 && (
+                <svg
+                  className="tas-palette-fit-layer"
+                  aria-hidden="true"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  {tasPaletteFitSegments.map((segment) => (
+                    <line
+                      key={segment.key}
+                      className="tas-palette-fit-line"
+                      x1={segment.x1}
+                      y1={segment.y1}
+                      x2={segment.x2}
+                      y2={segment.y2}
+                      style={{ stroke: segment.stroke }}
+                    />
                   ))}
                 </svg>
               )}

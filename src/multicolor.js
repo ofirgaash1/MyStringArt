@@ -1,10 +1,3 @@
-export const MULTICOLOR_DEBUG_VIEWS = [
-  { id: 'original', label: 'original' },
-  { id: 'current-grayscale', label: 'current grayscale' },
-  { id: 'palette-preview', label: 'palette preview' },
-  { id: 'color-mask', label: 'color mask' },
-];
-
 export const MULTICOLOR_PALETTE_PRESETS = [
   {
     id: 'warmup-preset',
@@ -78,7 +71,7 @@ export function createNearestPalettePreviewImageData(
   sourceImageData,
   paletteColors,
   activeColorId = null,
-  isolateActiveColorOnly = false,
+  showActiveColorOnly = false,
 ) {
   if (!sourceImageData || paletteColors.length === 0) {
     return null;
@@ -96,7 +89,7 @@ export function createNearestPalettePreviewImageData(
       continue;
     }
 
-    if (isolateActiveColorOnly && nearestColor.id !== activeColorId) {
+    if (showActiveColorOnly && nearestColor.id !== activeColorId) {
       nextData[offset + 3] = 0;
       continue;
     }
@@ -113,7 +106,7 @@ export function createDitheredPalettePreviewImageData(
   sourceImageData,
   paletteColors,
   activeColorId = null,
-  isolateActiveColorOnly = false,
+  showActiveColorOnly = false,
 ) {
   if (!sourceImageData || paletteColors.length === 0) {
     return null;
@@ -153,7 +146,7 @@ export function createDitheredPalettePreviewImageData(
       nextData[offset] = nearestColor.rgb.r;
       nextData[offset + 1] = nearestColor.rgb.g;
       nextData[offset + 2] = nearestColor.rgb.b;
-      if (isolateActiveColorOnly && nearestColor.id !== activeColorId) {
+      if (showActiveColorOnly && nearestColor.id !== activeColorId) {
         nextData[offset + 3] = 0;
       }
 
@@ -185,20 +178,20 @@ export function createPalettePreviewImageData(
   paletteColors,
   useFloydSteinbergDithering = false,
   activeColorId = null,
-  isolateActiveColorOnly = false,
+  showActiveColorOnly = false,
 ) {
   return useFloydSteinbergDithering
     ? createDitheredPalettePreviewImageData(
         sourceImageData,
         paletteColors,
         activeColorId,
-        isolateActiveColorOnly,
+        showActiveColorOnly,
       )
     : createNearestPalettePreviewImageData(
         sourceImageData,
         paletteColors,
         activeColorId,
-        isolateActiveColorOnly,
+        showActiveColorOnly,
       );
 }
 

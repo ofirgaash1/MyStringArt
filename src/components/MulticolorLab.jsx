@@ -1,209 +1,86 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import {
   clonePalettePreset,
-  drawImageDataToCanvas,
-  MULTICOLOR_DEBUG_VIEWS,
   MULTICOLOR_PALETTE_PRESETS,
 } from '../multicolor';
 import { useRenderDiagnostics } from '../renderDiagnostics';
 
-const DEBUG_VIEW_LABELS = {
-  original: 'original',
-  'current-grayscale': 'grayscale',
-  'palette-preview': 'preview',
-  'color-mask': 'isolate',
-};
-
 function MulticolorLab({
   activePaletteColor,
   activePaletteColorId,
-  activeColorExperimentFromIndex,
-  activeColorExperimentNextNailNumber,
-  activeExperimentalLineCount,
-  activeBucketPlannedLineCount,
-  activeBucketRemainingLineCount,
-  blurredActiveMaskImage,
-  canApplyExperimentalStep,
-  currentActiveTargetImage,
+  allTasPaletteFit,
   ditheredComparisonCanvasRef,
-  enabledPalettePreviewColors,
-  globalLineStrength,
-  globalMinDistance,
   hasOriginalImage,
-  isActiveColorOnlyControlVisible,
-  isExperimentalColorLinesOnlyPreviewEnabled,
-  isExperimentalRoundRobinSteppingEnabled,
-  isActivePaletteColorOnlyEnabled,
-  isMulticolorFastSteppingEnabled,
-  isMulticolorStepProfilingEnabled,
+  isBlackAndWhite,
   isMulticolorLabEnabled,
   isPaletteDitheringEnabled,
-  isPaletteMaskVisible,
   isPalettePreviewEnabled,
-  maskBlurRadius,
-  multicolorDebugView,
-  multicolorLineBuckets,
-  multicolorMaskImages,
+  isTasOwnershipPreviewEnabled,
+  isTasPaletteFitPreviewEnabled,
+  isTasPaletteFitLimitedToPalette,
+  isTasPreviewEnabled,
   multicolorPaletteColors,
   multicolorPaletteCoverage,
   multicolorPaletteCoverageWithLineAllocation,
   multicolorPaletteCoverageWithSuggestions,
-  multicolorInterleaveOrder,
-  multicolorLineStrengthMode,
   multicolorLockedLineOverride,
-  multicolorMinDistanceMode,
   multicolorPalettePixelCountMap,
   multicolorPalettePreset,
-  multicolorReadOnlyInterleavePassCount,
-  multicolorUsedLineExclusionMode,
-  onMoveMulticolorInterleaveEntryDown,
-  onMoveMulticolorInterleaveEntryUp,
-  onResetMulticolorInterleaveOrder,
-  onSetMulticolorBucketLineStrength,
-  onSetMulticolorBucketMinDistance,
   multicolorTargetTotalLines,
-  onShowAllMulticolorBuckets,
-  onSoloMulticolorBucket,
-  onToggleMulticolorBucketVisibility,
+  normalizedSelectedTasRegionIndex,
   originalComparisonCanvasRef,
-  onApplyActiveColorExperimentStep,
-  onExportMulticolorSession,
-  onImportMulticolorSession,
-  onRefreshMulticolorPreviews,
-  onResetAllMulticolorState,
-  onResetMulticolorBucket,
-  onProfileEffect,
   onDiagnosticRender,
   paletteComparisonCanvasRef,
-  rawActiveMaskImage,
   setActivePaletteColorId,
-  setIsActivePaletteColorOnlyEnabled,
-  setIsExperimentalColorLinesOnlyPreviewEnabled,
-  setIsExperimentalRoundRobinSteppingEnabled,
-  setIsMulticolorFastSteppingEnabled,
-  setIsMulticolorStepProfilingEnabled,
+  setIsBlackAndWhite,
   setIsMulticolorLabEnabled,
   setIsPaletteDitheringEnabled,
   setIsPalettePreviewEnabled,
-  setMaskBlurRadius,
-  setMulticolorDebugView,
-  setMulticolorLineStrengthMode,
+  setIsTasOwnershipPreviewEnabled,
+  setIsTasPaletteFitLimitedToPalette,
+  setIsTasPaletteFitPreviewEnabled,
+  setIsTasPreviewEnabled,
   setMulticolorLockedLineOverride,
-  setMulticolorMinDistanceMode,
   setMulticolorPaletteColors,
   setMulticolorPalettePresetId,
   setMulticolorTargetTotalLines,
-  setMulticolorUsedLineExclusionMode,
+  setSelectedTasRegionIndex,
+  selectedTasRegion,
   shouldShowPaletteComparison,
-  totalExperimentalMulticolorLines,
+  tasOwnershipPreview,
+  tasPaletteFit,
+  tasNetwork,
+  tasViewScope,
   totalAllocatedSuggestedLines,
   totalPaletteCoverageTenths,
+  setTasViewScope,
 }) {
-  const rawMaskCanvasRef = useRef(null);
-  const blurredMaskCanvasRef = useRef(null);
-  const currentTargetCanvasRef = useRef(null);
-  const maskGridCanvasRefs = useRef(new Map());
-  const sessionImportInputRef = useRef(null);
-  const selectedDebugView = MULTICOLOR_DEBUG_VIEWS.find(
-    (view) => view.id === multicolorDebugView,
-  );
-  const selectedDebugViewLabel =
-    DEBUG_VIEW_LABELS[multicolorDebugView] ?? selectedDebugView?.label ?? multicolorDebugView;
   const suggestedLinesByColorId = useMemo(
     () => new Map(
       multicolorPaletteCoverageWithSuggestions.map((color) => [color.id, color.allocatedUnits]),
     ),
     [multicolorPaletteCoverageWithSuggestions],
   );
-  const plannedLinesByColorId = useMemo(
-    () => new Map(
-      multicolorPaletteCoverageWithLineAllocation.map((color) => [color.id, color.allocatedUnits]),
-    ),
-    [multicolorPaletteCoverageWithLineAllocation],
-  );
-  const visibleMaskImages = useMemo(
-    () => multicolorMaskImages.filter((color) => color.imageData),
-    [multicolorMaskImages],
-  );
-  const activeCoverage = multicolorPaletteCoverage.find(
-    (color) => color.id === activePaletteColorId,
-  ) ?? null;
-  const hasActiveCoverage = (activeCoverage?.pixelCount ?? 0) > 0;
-  const visibleExperimentalBucketCount = multicolorLineBuckets.filter((bucket) => bucket.visible).length;
-  const enabledBucketCount = multicolorLineBuckets.filter((bucket) => bucket.enabled).length;
   const sourceLabel = isPaletteDitheringEnabled ? 'dithered' : 'nearest';
-  const steppingModeLabel = isExperimentalRoundRobinSteppingEnabled ? 'round-robin' : 'single';
-  const scoringModeShortLabel = selectedDebugViewLabel === 'isolate' ? 'active color' : 'grayscale';
   const hasSuggestedLineTarget = multicolorTargetTotalLines > 0;
-  const hasInterleaveOrder = multicolorInterleaveOrder.length > 0;
-  const [isAdvancedControlsExpanded, setIsAdvancedControlsExpanded] = useState(false);
 
   useRenderDiagnostics(
     'MulticolorLab',
     {
       activePaletteColorId,
-      activeExperimentalLineCount,
-      bucketCount: multicolorLineBuckets.length,
-      currentTargetImage: currentActiveTargetImage,
-      debugView: multicolorDebugView,
-      fastStepping: isMulticolorFastSteppingEnabled,
-      isPaletteMaskVisible,
       isPalettePreviewEnabled,
-      maskImageCount: visibleMaskImages.length,
       paletteCoverageCount: multicolorPaletteCoverage.length,
-      stepProfiling: isMulticolorStepProfilingEnabled,
-      totalExperimentalMulticolorLines,
+      tasPreviewEnabled: isTasPreviewEnabled,
+      tasRegionCount: tasNetwork.regionCount,
     },
     onDiagnosticRender,
   );
-
-  useEffect(() => {
-    if (!isPaletteMaskVisible) {
-      return;
-    }
-    onProfileEffect('lab raw mask canvas draw', () => {
-      drawImageDataToCanvas(rawMaskCanvasRef.current, rawActiveMaskImage);
-    });
-  }, [isPaletteMaskVisible, onProfileEffect, rawActiveMaskImage]);
-
-  useEffect(() => {
-    if (!isPaletteMaskVisible) {
-      return;
-    }
-    onProfileEffect('lab blurred mask canvas draw', () => {
-      drawImageDataToCanvas(blurredMaskCanvasRef.current, blurredActiveMaskImage);
-    });
-  }, [blurredActiveMaskImage, isPaletteMaskVisible, onProfileEffect]);
-
-  useEffect(() => {
-    if (!isPaletteMaskVisible) {
-      return;
-    }
-    onProfileEffect('lab current target canvas draw', () => {
-      drawImageDataToCanvas(currentTargetCanvasRef.current, currentActiveTargetImage);
-    });
-  }, [currentActiveTargetImage, isPaletteMaskVisible, onProfileEffect]);
-
-  useEffect(() => {
-    if (!isPaletteMaskVisible) {
-      return;
-    }
-
-    onProfileEffect('lab mask grid canvas draw', () => {
-      for (const maskColor of visibleMaskImages) {
-        drawImageDataToCanvas(
-          maskGridCanvasRefs.current.get(maskColor.id),
-          maskColor.imageData,
-        );
-      }
-    });
-  }, [isPaletteMaskVisible, onProfileEffect, visibleMaskImages]);
 
   return (
     <div className="multicolor-lab">
       <div className="multicolor-lab-header">
         <h2>Multicolor lab</h2>
-        <p>Palette, inspect, experiment, then bucket review.</p>
+        <p>Palette setup, TAS inspection, and region planning.</p>
       </div>
       <label className="checkbox-row multicolor-lab-toggle-row">
         <input
@@ -219,52 +96,34 @@ function MulticolorLab({
             <span className="multicolor-status-chip">
               Active: {activePaletteColor?.label ?? 'none'}
             </span>
-            <span className="multicolor-status-chip">View: {selectedDebugViewLabel}</span>
             <span className="multicolor-status-chip">Source: {sourceLabel}</span>
-            <span className="multicolor-status-chip">Step: {steppingModeLabel}</span>
-            <span className="multicolor-status-chip">Score: {scoringModeShortLabel}</span>
+            <span className="multicolor-status-chip">
+              TAS regions: {tasNetwork.regionCount.toLocaleString()}
+            </span>
           </div>
 
           <section className="multicolor-lab-section">
             <div className="multicolor-lab-section-head">
               <h3>Palette</h3>
-              <p>Choose the working colors and preview mode.</p>
+              <p>Choose the working colors for TAS assignment.</p>
             </div>
             <div className="multicolor-lab-section-card">
-              <div className="multicolor-inline-controls">
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={isPalettePreviewEnabled}
-                    onChange={(event) => setIsPalettePreviewEnabled(event.target.checked)}
-                  />
-                  <span>Enable palette tools</span>
-                </label>
-              </div>
-              <div
-                className="multicolor-debug-toggle-group"
-                role="radiogroup"
-                aria-label="Multicolor debug view"
-              >
-                {MULTICOLOR_DEBUG_VIEWS.map((view) => {
-                  const isActive = multicolorDebugView === view.id;
-                  return (
-                    <button
-                      key={view.id}
-                      className={[
-                        'multicolor-debug-toggle',
-                        isActive ? 'is-active' : '',
-                      ].filter(Boolean).join(' ')}
-                      type="button"
-                      role="radio"
-                      aria-checked={isActive}
-                      onClick={() => setMulticolorDebugView(view.id)}
-                    >
-                      {DEBUG_VIEW_LABELS[view.id] ?? view.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={isBlackAndWhite}
+                  onChange={(event) => setIsBlackAndWhite(event.target.checked)}
+                />
+                <span>Show grayscale</span>
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={isPalettePreviewEnabled}
+                  onChange={(event) => setIsPalettePreviewEnabled(event.target.checked)}
+                />
+                <span>Enable palette preview</span>
+              </label>
               <div
                 className="multicolor-debug-toggle-group"
                 role="radiogroup"
@@ -310,10 +169,7 @@ function MulticolorLab({
                         setMulticolorPaletteColors((currentColors) =>
                           currentColors.map((currentColor) =>
                             currentColor.id === color.id
-                              ? {
-                                  ...currentColor,
-                                  enabled: event.target.checked,
-                                }
+                              ? { ...currentColor, enabled: event.target.checked }
                               : currentColor,
                           ),
                         );
@@ -344,7 +200,7 @@ function MulticolorLab({
                 ))}
               </div>
               <div className="multicolor-inline-controls">
-                <span className="multicolor-lab-label">Source</span>
+                <span className="multicolor-lab-label">Palette source</span>
                 <div
                   className="multicolor-debug-toggle-group"
                   role="radiogroup"
@@ -378,19 +234,8 @@ function MulticolorLab({
                   </button>
                 </div>
                 <p className="multicolor-mini-note">
-                  Source affects preview, isolate, and coverage.
+                  This affects palette preview and coverage. TAS coloring will use the same source.
                 </p>
-                {isActiveColorOnlyControlVisible && (
-                  <label className="checkbox-row">
-                    <input
-                      type="checkbox"
-                      checked={isActivePaletteColorOnlyEnabled}
-                      onChange={(event) => setIsActivePaletteColorOnlyEnabled(event.target.checked)}
-                      disabled={!activePaletteColor || enabledPalettePreviewColors.length === 0}
-                    />
-                    <span>Show active color only</span>
-                  </label>
-                )}
               </div>
             </div>
           </section>
@@ -398,7 +243,7 @@ function MulticolorLab({
           <section className="multicolor-lab-section">
             <div className="multicolor-lab-section-head">
               <h3>Inspect</h3>
-              <p>Review preprocessing and line allocation before solving.</p>
+              <p>Review palette reduction and coverage before TAS color fitting.</p>
             </div>
             <div className="multicolor-lab-section-card">
               {shouldShowPaletteComparison && (
@@ -432,135 +277,23 @@ function MulticolorLab({
                 </div>
               )}
 
-              {isPaletteMaskVisible && (
-                <div className="multicolor-inspect-block">
-                  <span className="multicolor-lab-label">
-                    Isolate view
-                    {activePaletteColor ? `: ${activePaletteColor.label}` : ''}
-                  </span>
-                  <label className="slider-control">
-                    <span>Soften: {maskBlurRadius}</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="12"
-                      step="1"
-                      value={maskBlurRadius}
-                      onChange={(event) => {
-                        setMaskBlurRadius(Math.max(0, Number(event.target.value) || 0));
-                      }}
-                      disabled={!isPaletteMaskVisible}
-                    />
-                  </label>
-                  <div className="multicolor-comparison-grid">
-                    <figure className="multicolor-comparison-card">
-                      <figcaption>
-                        Raw isolate
-                        {activePaletteColor ? ` for ${activePaletteColor.label}` : ''}
-                      </figcaption>
-                      {hasActiveCoverage ? (
-                        <canvas
-                          ref={rawMaskCanvasRef}
-                          className="multicolor-comparison-canvas"
-                        />
-                      ) : (
-                        <div className="multicolor-comparison-empty">
-                          No pixels for this color in the current source.
-                        </div>
-                      )}
-                    </figure>
-                    <figure className="multicolor-comparison-card">
-                      <figcaption>
-                        Current target
-                        {activePaletteColor ? ` for ${activePaletteColor.label}` : ''}
-                      </figcaption>
-                      {hasActiveCoverage && currentActiveTargetImage ? (
-                        <canvas
-                          ref={currentTargetCanvasRef}
-                          className="multicolor-comparison-canvas"
-                        />
-                      ) : (
-                        <div className="multicolor-comparison-empty">
-                          No current target preview for this color.
-                        </div>
-                      )}
-                    </figure>
-                    <figure className="multicolor-comparison-card">
-                      <figcaption>
-                        Softened isolate
-                        {activePaletteColor ? ` for ${activePaletteColor.label}` : ''}
-                      </figcaption>
-                      {hasActiveCoverage ? (
-                        <canvas
-                          ref={blurredMaskCanvasRef}
-                          className="multicolor-comparison-canvas"
-                        />
-                      ) : (
-                        <div className="multicolor-comparison-empty">
-                          Nothing to soften for this color.
-                        </div>
-                      )}
-                    </figure>
-                  </div>
-                  <p className="multicolor-mini-note">
-                    Raw isolate shows the current source split. Current target shows what remains
-                    for the active color after applied lines. The cards below are all raw isolates.
-                  </p>
-                  <div className="multicolor-mask-grid">
-                    {visibleMaskImages.map((maskColor) => (
-                      <div
-                        key={maskColor.id}
-                        className={[
-                          'multicolor-mask-card',
-                          maskColor.id === activePaletteColorId ? 'is-active' : '',
-                        ].filter(Boolean).join(' ')}
-                      >
-                        <span className="multicolor-mask-card-meta">
-                          <span
-                            className="multicolor-palette-swatch"
-                            style={{ backgroundColor: maskColor.hex }}
-                          />
-                          <span>{maskColor.label}</span>
-                        </span>
-                        <canvas
-                          ref={(element) => {
-                            if (element) {
-                              maskGridCanvasRefs.current.set(maskColor.id, element);
-                              return;
-                            }
-
-                            maskGridCanvasRefs.current.delete(maskColor.id);
-                          }}
-                          className="multicolor-comparison-canvas"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="multicolor-inspect-block">
                 <span className="multicolor-lab-label">Coverage</span>
-                <div className="multicolor-inline-controls">
-                  <label className="multicolor-histogram-input">
-                    <span>Target total lines</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={multicolorTargetTotalLines}
-                      onChange={(event) => {
-                        const parsedValue = Number.parseInt(event.target.value, 10);
-                        setMulticolorTargetTotalLines(
-                          Number.isFinite(parsedValue) ? Math.max(0, parsedValue) : 0,
-                        );
-                      }}
-                    />
-                  </label>
-                  <p className="multicolor-mini-note">
-                    Planning uses this multicolor target, not the grayscale run.
-                  </p>
-                </div>
+                <label className="multicolor-histogram-input">
+                  <span>Target total lines</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={multicolorTargetTotalLines}
+                    onChange={(event) => {
+                      const parsedValue = Number.parseInt(event.target.value, 10);
+                      setMulticolorTargetTotalLines(
+                        Number.isFinite(parsedValue) ? Math.max(0, parsedValue) : 0,
+                      );
+                    }}
+                  />
+                </label>
                 {multicolorPaletteCoverage.length > 0 ? (
                   <div className="multicolor-histogram-list">
                     {multicolorPaletteCoverageWithLineAllocation.map((color) => (
@@ -654,11 +387,6 @@ function MulticolorLab({
                         </span>
                       )}
                     </div>
-                    {!hasSuggestedLineTarget && (
-                      <p className="multicolor-mini-note">
-                        Set a multicolor target to see planned lines.
-                      </p>
-                    )}
                   </div>
                 ) : (
                   <p className="multicolor-mini-note">
@@ -671,519 +399,179 @@ function MulticolorLab({
 
           <section className="multicolor-lab-section">
             <div className="multicolor-lab-section-head">
-              <h3>Experiment</h3>
-              <p>Test one line at a time without touching export.</p>
+              <h3>TAS regions</h3>
+              <p>Inspect the chord inventory from the new region model.</p>
             </div>
             <div className="multicolor-lab-section-card">
-              <div className="multicolor-inline-controls">
-                <span className="multicolor-lab-label">Line source</span>
-                <span className="multicolor-inline-stat">
-                  {selectedDebugViewLabel === 'isolate'
-                    ? `active isolate (${sourceLabel})`
-                    : 'whole image (grayscale)'}
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={isTasPreviewEnabled}
+                  onChange={(event) => setIsTasPreviewEnabled(event.target.checked)}
+                  disabled={tasNetwork.regionCount === 0}
+                />
+                <span>Show TAS lines</span>
+              </label>
+              <div
+                className="multicolor-debug-toggle-group"
+                role="radiogroup"
+                aria-label="TAS view scope"
+              >
+                <button
+                  className={[
+                    'multicolor-debug-toggle',
+                    tasViewScope === 'selected' ? 'is-active' : '',
+                  ].filter(Boolean).join(' ')}
+                  type="button"
+                  role="radio"
+                  aria-checked={tasViewScope === 'selected'}
+                  onClick={() => setTasViewScope('selected')}
+                >
+                  view selected TAS
+                </button>
+                <button
+                  className={[
+                    'multicolor-debug-toggle',
+                    tasViewScope === 'all' ? 'is-active' : '',
+                  ].filter(Boolean).join(' ')}
+                  type="button"
+                  role="radio"
+                  aria-checked={tasViewScope === 'all'}
+                  onClick={() => setTasViewScope('all')}
+                >
+                  view all TAS
+                </button>
+              </div>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={isTasOwnershipPreviewEnabled}
+                  onChange={(event) => setIsTasOwnershipPreviewEnabled(event.target.checked)}
+                  disabled={tasNetwork.regionCount === 0 || !hasOriginalImage}
+                />
+                <span>Show selected TAS pixel ownership</span>
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={isTasPaletteFitPreviewEnabled}
+                  onChange={(event) => setIsTasPaletteFitPreviewEnabled(event.target.checked)}
+                  disabled={tasNetwork.regionCount === 0 || !hasOriginalImage}
+                />
+                <span>Show TAS palette fit</span>
+              </label>
+              <div
+                className="multicolor-debug-toggle-group"
+                role="radiogroup"
+                aria-label="TAS palette fit mode"
+              >
+                <button
+                  className={[
+                    'multicolor-debug-toggle',
+                    isTasPaletteFitLimitedToPalette ? 'is-active' : '',
+                  ].filter(Boolean).join(' ')}
+                  type="button"
+                  role="radio"
+                  aria-checked={isTasPaletteFitLimitedToPalette}
+                  onClick={() => setIsTasPaletteFitLimitedToPalette(true)}
+                >
+                  fit to palette colors
+                </button>
+                <button
+                  className={[
+                    'multicolor-debug-toggle',
+                    !isTasPaletteFitLimitedToPalette ? 'is-active' : '',
+                  ].filter(Boolean).join(' ')}
+                  type="button"
+                  role="radio"
+                  aria-checked={!isTasPaletteFitLimitedToPalette}
+                  onClick={() => setIsTasPaletteFitLimitedToPalette(false)}
+                >
+                  fit to closest color
+                </button>
+              </div>
+              <label className="slider-control">
+                <span>
+                  Region D{normalizedSelectedTasRegionIndex}
+                  {selectedTasRegion
+                    ? ` (${selectedTasRegion.chordCount.toLocaleString()} chords)`
+                    : ''}
                 </span>
-              </div>
-
-              <div className="multicolor-inline-controls">
-                <span className="multicolor-lab-label">Step mode</span>
-                <div
-                  className="multicolor-debug-toggle-group"
-                  role="radiogroup"
-                  aria-label="Experimental stepping mode"
-                >
-                  <button
-                    className={[
-                      'multicolor-debug-toggle',
-                      !isExperimentalRoundRobinSteppingEnabled ? 'is-active' : '',
-                    ].filter(Boolean).join(' ')}
-                    type="button"
-                    role="radio"
-                    aria-checked={!isExperimentalRoundRobinSteppingEnabled}
-                    onClick={() => setIsExperimentalRoundRobinSteppingEnabled(false)}
-                  >
-                    single
-                  </button>
-                  <button
-                    className={[
-                      'multicolor-debug-toggle',
-                      isExperimentalRoundRobinSteppingEnabled ? 'is-active' : '',
-                    ].filter(Boolean).join(' ')}
-                    type="button"
-                    role="radio"
-                    aria-checked={isExperimentalRoundRobinSteppingEnabled}
-                    onClick={() => setIsExperimentalRoundRobinSteppingEnabled(true)}
-                    disabled={enabledBucketCount === 0}
-                  >
-                    round-robin
-                  </button>
-                </div>
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={isMulticolorStepProfilingEnabled}
-                    onChange={(event) =>
-                      setIsMulticolorStepProfilingEnabled(event.target.checked)
-                    }
-                  />
-                  <span>Log step timings</span>
-                </label>
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={isMulticolorFastSteppingEnabled}
-                    onChange={(event) =>
-                      setIsMulticolorFastSteppingEnabled(event.target.checked)
-                    }
-                  />
-                  <span>Fast stepping</span>
-                </label>
-                <button
-                  className="multicolor-debug-toggle"
-                  type="button"
-                  onClick={onRefreshMulticolorPreviews}
-                  disabled={!isMulticolorFastSteppingEnabled}
-                >
-                  refresh previews
-                </button>
-              </div>
-
-              <div className="multicolor-experiment-actions">
-                <button
-                  className="action-button"
-                  type="button"
-                  onClick={onApplyActiveColorExperimentStep}
-                  disabled={!canApplyExperimentalStep}
-                >
-                  {isExperimentalRoundRobinSteppingEnabled
-                    ? 'Apply one round-robin line'
-                    : activeBucketRemainingLineCount <= 0
-                      ? 'Active bucket is at target'
-                      : activeColorExperimentNextNailNumber === null
-                        ? 'Apply one line'
-                      : `Apply line ${activeColorExperimentFromIndex} -> ${activeColorExperimentNextNailNumber}`}
-                </button>
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={isExperimentalColorLinesOnlyPreviewEnabled}
-                    onChange={(event) =>
-                      setIsExperimentalColorLinesOnlyPreviewEnabled(event.target.checked)
-                    }
-                    disabled={totalExperimentalMulticolorLines === 0}
-                  />
-                  <span>Show only experiment lines in art mode</span>
-                </label>
-              </div>
-
+                <input
+                  type="range"
+                  min="0"
+                  max={Math.max(0, tasNetwork.regionCount - 1)}
+                  step="1"
+                  value={normalizedSelectedTasRegionIndex}
+                  onChange={(event) =>
+                    setSelectedTasRegionIndex(Number.parseInt(event.target.value, 10) || 0)
+                  }
+                  disabled={tasNetwork.regionCount === 0}
+                />
+              </label>
               <div className="multicolor-inline-stats">
                 <span className="multicolor-inline-stat">
-                  Active {activeExperimentalLineCount.toLocaleString()} /{' '}
-                  {activeBucketPlannedLineCount.toLocaleString()} planned
+                  Regions {tasNetwork.regionCount.toLocaleString()}
                 </span>
                 <span className="multicolor-inline-stat">
-                  Total {totalExperimentalMulticolorLines.toLocaleString()} lines
+                  Chords {tasNetwork.totalChords.toLocaleString()}
                 </span>
-                <span className="multicolor-inline-stat">
-                  Remaining {activeBucketRemainingLineCount.toLocaleString()}
-                </span>
+                {selectedTasRegion && (
+                  <>
+                    <span className="multicolor-inline-stat">
+                      Radius {selectedTasRegion.minRadius.toFixed(1)}-{selectedTasRegion.maxRadius.toFixed(1)}
+                    </span>
+                    <span className="multicolor-inline-stat">
+                      Active {selectedTasRegion.chordCount.toLocaleString()}
+                    </span>
+                    {tasOwnershipPreview && (
+                      <>
+                        <span className="multicolor-inline-stat">
+                          Pixels {tasOwnershipPreview.assignedPixelCount.toLocaleString()}
+                        </span>
+                        <span className="multicolor-inline-stat">
+                          Owners {tasOwnershipPreview.usedTasCount.toLocaleString()} /{' '}
+                          {tasOwnershipPreview.regionTasCount.toLocaleString()}
+                        </span>
+                      </>
+                    )}
+                    {tasPaletteFit && (
+                      <>
+                        <span className="multicolor-inline-stat">
+                          Fit {tasPaletteFit.fittedTasCount.toLocaleString()} /{' '}
+                          {tasPaletteFit.regionTasCount.toLocaleString()}
+                        </span>
+                        <span className="multicolor-inline-stat">
+                          Avg error{' '}
+                          {!isTasPaletteFitLimitedToPalette || tasPaletteFit.averageError === null
+                            ? '-'
+                            : Math.round(tasPaletteFit.averageError).toLocaleString()}
+                        </span>
+                      </>
+                    )}
+                    {allTasPaletteFit && (
+                      <>
+                        <span className="multicolor-inline-stat">
+                          All fit {allTasPaletteFit.fittedTasCount.toLocaleString()} /{' '}
+                          {allTasPaletteFit.regionTasCount.toLocaleString()}
+                        </span>
+                        <span className="multicolor-inline-stat">
+                          All avg error{' '}
+                          {!isTasPaletteFitLimitedToPalette || allTasPaletteFit.averageError === null
+                            ? '-'
+                            : Math.round(allTasPaletteFit.averageError).toLocaleString()}
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
               <p className="multicolor-mini-note">
-                <code>isolate</code> uses the active color from the current
-                {' '}
-                <code>{sourceLabel}</code>
-                {' '}
-                source. Every other view uses grayscale.
+                Pixel ownership assigns each in-circle pixel to the nearest finite TAS globally.
+                The selected preview shows pixels whose winning TAS belongs to the selected D.
+                For a quick geometry check, set nails to 10: D0 should show 5 diameter TASs,
+                and D1-D4 should show 10 TASs each.
               </p>
-            </div>
-          </section>
-
-          <section className="multicolor-lab-section">
-            <div className="multicolor-lab-section-head">
-              <h3>Buckets</h3>
-              <p>Use one row per color for visibility, plan, and quick stats.</p>
-            </div>
-            <div className="multicolor-lab-section-card">
-              <div className="multicolor-bucket-panel-header">
-                <div className="multicolor-inline-stats">
-                  <span className="multicolor-inline-stat">
-                    Visible {visibleExperimentalBucketCount.toLocaleString()} /{' '}
-                    {multicolorLineBuckets.length.toLocaleString()}
-                  </span>
-                  <span className="multicolor-inline-stat">
-                    Enabled {enabledBucketCount.toLocaleString()} /{' '}
-                    {multicolorLineBuckets.length.toLocaleString()}
-                  </span>
-                </div>
-                <button
-                  className="multicolor-debug-toggle"
-                  type="button"
-                  onClick={onShowAllMulticolorBuckets}
-                  disabled={multicolorLineBuckets.length === 0}
-                >
-                  show all
-                </button>
-              </div>
-              <div className="multicolor-bucket-list">
-                {multicolorLineBuckets.map((bucket) => {
-                  const plannedLineCount = plannedLinesByColorId.get(bucket.colorId) ?? 0;
-
-                  return (
-                    <div
-                      key={bucket.colorId}
-                      className={[
-                        'multicolor-bucket-row',
-                        bucket.colorId === activePaletteColorId ? 'is-active' : '',
-                        !bucket.enabled ? 'is-disabled' : '',
-                      ].filter(Boolean).join(' ')}
-                    >
-                      <div className="multicolor-bucket-row-main">
-                        <button
-                          className={[
-                            'multicolor-palette-swatch-button',
-                            bucket.colorId === activePaletteColorId ? 'is-active' : '',
-                          ].filter(Boolean).join(' ')}
-                          type="button"
-                          onClick={() => setActivePaletteColorId(bucket.colorId)}
-                          aria-label={`Set active color bucket ${bucket.label}`}
-                          title={`Active bucket: ${bucket.label}`}
-                        >
-                          <span
-                            className="multicolor-palette-swatch"
-                            style={{ backgroundColor: bucket.hex }}
-                          />
-                        </button>
-                        <span className="multicolor-bucket-name">{bucket.label}</span>
-                        <span className="multicolor-bucket-stat">
-                          actual {bucket.lines.length.toLocaleString()}
-                        </span>
-                        <span className="multicolor-bucket-stat">
-                          planned {plannedLineCount.toLocaleString()}
-                        </span>
-                        <span className="multicolor-bucket-stat">
-                          last {bucket.lastNailNumber ?? 1}
-                        </span>
-                      </div>
-                      <div className="multicolor-bucket-row-actions">
-                        <label className="checkbox-row">
-                          <input
-                            type="checkbox"
-                            checked={bucket.visible}
-                            onChange={(event) =>
-                              onToggleMulticolorBucketVisibility(
-                                bucket.colorId,
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <span>{bucket.visible ? 'visible' : 'hidden'}</span>
-                        </label>
-                        <button
-                          className="multicolor-debug-toggle"
-                          type="button"
-                          onClick={() => onSoloMulticolorBucket(bucket.colorId)}
-                        >
-                          solo
-                        </button>
-                        <button
-                          className="multicolor-debug-toggle"
-                          type="button"
-                          onClick={() => onResetMulticolorBucket(bucket.colorId)}
-                          disabled={bucket.lines.length === 0}
-                        >
-                          reset
-                        </button>
-                        <span className="multicolor-bucket-status">
-                          {bucket.enabled ? 'enabled' : 'disabled'}
-                        </span>
-                        {multicolorLineStrengthMode === 'per-color' && (
-                          <label className="multicolor-histogram-input">
-                            <span>strength</span>
-                            <input
-                              type="number"
-                              min="1"
-                              max="50"
-                              step="1"
-                              value={bucket.lineStrength}
-                              onChange={(event) =>
-                                onSetMulticolorBucketLineStrength(
-                                  bucket.colorId,
-                                  event.target.value,
-                                )
-                              }
-                            />
-                          </label>
-                        )}
-                        {multicolorMinDistanceMode === 'per-color' && (
-                          <label className="multicolor-histogram-input">
-                            <span>min distance</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max="50"
-                              step="1"
-                              value={bucket.minDistance}
-                              onChange={(event) =>
-                                onSetMulticolorBucketMinDistance(
-                                  bucket.colorId,
-                                  event.target.value,
-                                )
-                              }
-                            />
-                          </label>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="multicolor-bucket-panel-footer">
-                <div className="multicolor-inline-stats">
-                  <span className="multicolor-inline-stat">
-                    Planned {multicolorTargetTotalLines.toLocaleString()}
-                  </span>
-                  <span className="multicolor-inline-stat">
-                    Actual {totalExperimentalMulticolorLines.toLocaleString()}
-                  </span>
-                </div>
-                <div className="multicolor-bucket-session-actions">
-                  <button
-                    className="multicolor-debug-toggle"
-                    type="button"
-                    onClick={onResetAllMulticolorState}
-                    disabled={totalExperimentalMulticolorLines === 0}
-                  >
-                    reset multicolor
-                  </button>
-                  <button
-                    className="multicolor-debug-toggle"
-                    type="button"
-                    onClick={onExportMulticolorSession}
-                  >
-                    export session
-                  </button>
-                  <button
-                    className="multicolor-debug-toggle"
-                    type="button"
-                    onClick={() => sessionImportInputRef.current?.click()}
-                  >
-                    import session
-                  </button>
-                  <input
-                    ref={sessionImportInputRef}
-                    type="file"
-                    accept="application/json,.json"
-                    hidden
-                    onChange={(event) => {
-                      const nextFile = event.target.files?.[0] ?? null;
-                      if (nextFile) {
-                        onImportMulticolorSession(nextFile);
-                      }
-                      event.target.value = '';
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="multicolor-lab-section">
-            <div className="multicolor-lab-section-head">
-              <h3>Interleave</h3>
-              <p>Reorder the final multicolor art layering without recomputing any lines.</p>
-            </div>
-            <div className="multicolor-lab-section-card">
-              {hasInterleaveOrder ? (
-                <>
-                  <div className="multicolor-inline-stats">
-                    <span className="multicolor-inline-stat">
-                      Art render order
-                    </span>
-                    <span className="multicolor-inline-stat">
-                      {multicolorReadOnlyInterleavePassCount.toLocaleString()} passes
-                    </span>
-                    <span className="multicolor-inline-stat">
-                      {multicolorInterleaveOrder.length.toLocaleString()} groups
-                    </span>
-                    <button
-                      className="multicolor-debug-toggle"
-                      type="button"
-                      onClick={onResetMulticolorInterleaveOrder}
-                    >
-                      reset order
-                    </button>
-                  </div>
-                  <p className="multicolor-mini-note">
-                    This only changes final art-mode layering. It does not change generation,
-                    quotas, or per-color buckets.
-                  </p>
-                  <div className="multicolor-bucket-list">
-                    {multicolorInterleaveOrder.map((entry, index) => (
-                      <div
-                        key={entry.id}
-                        className={[
-                          'multicolor-bucket-row',
-                          entry.colorId === activePaletteColorId ? 'is-active' : '',
-                        ].filter(Boolean).join(' ')}
-                      >
-                        <div className="multicolor-bucket-row-main">
-                          <span className="multicolor-bucket-stat">
-                            #{index + 1}
-                          </span>
-                          <span
-                            className="multicolor-palette-swatch"
-                            style={{ backgroundColor: entry.hex }}
-                          />
-                          <span className="multicolor-bucket-name">{entry.label}</span>
-                          <span className="multicolor-bucket-stat">
-                            pass {entry.passIndex}
-                          </span>
-                          <span className="multicolor-bucket-stat">
-                            {entry.plannedLines.toLocaleString()} planned lines
-                          </span>
-                        </div>
-                        <div className="multicolor-bucket-row-actions">
-                          <button
-                            className="multicolor-debug-toggle"
-                            type="button"
-                            onClick={() => onMoveMulticolorInterleaveEntryUp(entry.id)}
-                            disabled={index === 0}
-                          >
-                            up
-                          </button>
-                          <button
-                            className="multicolor-debug-toggle"
-                            type="button"
-                            onClick={() => onMoveMulticolorInterleaveEntryDown(entry.id)}
-                            disabled={index === multicolorInterleaveOrder.length - 1}
-                          >
-                            down
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="multicolor-mini-note">
-                  Enable colors with planned lines to build an editable interleave order.
-                </p>
-              )}
-            </div>
-          </section>
-
-          <section className="multicolor-lab-section">
-            <div className="multicolor-lab-section-head">
-              <h3>Advanced controls</h3>
-              <p>Less common multicolor rule switches.</p>
-            </div>
-            <div className="multicolor-lab-section-card">
-              <button
-                className="multicolor-advanced-toggle"
-                type="button"
-                onClick={() => setIsAdvancedControlsExpanded((currentValue) => !currentValue)}
-                aria-expanded={isAdvancedControlsExpanded}
-              >
-                <span>{isAdvancedControlsExpanded ? 'Hide advanced controls' : 'Show advanced controls'}</span>
-                <span className="multicolor-advanced-summary">
-                  exclusion {multicolorUsedLineExclusionMode},
-                  {' '}strength {multicolorLineStrengthMode},
-                  {' '}distance {multicolorMinDistanceMode}
-                </span>
-              </button>
-              {isAdvancedControlsExpanded && (
-                <div className="multicolor-inline-controls">
-                  <div
-                    className="multicolor-debug-toggle-group"
-                    role="radiogroup"
-                    aria-label="Used line exclusion mode"
-                  >
-                    <button
-                      className={[
-                        'multicolor-debug-toggle',
-                        multicolorUsedLineExclusionMode === 'shared' ? 'is-active' : '',
-                      ].filter(Boolean).join(' ')}
-                      type="button"
-                      role="radio"
-                      aria-checked={multicolorUsedLineExclusionMode === 'shared'}
-                      onClick={() => setMulticolorUsedLineExclusionMode('shared')}
-                    >
-                      shared line exclusion
-                    </button>
-                    <button
-                      className={[
-                        'multicolor-debug-toggle',
-                        multicolorUsedLineExclusionMode === 'per-color' ? 'is-active' : '',
-                      ].filter(Boolean).join(' ')}
-                      type="button"
-                      role="radio"
-                      aria-checked={multicolorUsedLineExclusionMode === 'per-color'}
-                      onClick={() => setMulticolorUsedLineExclusionMode('per-color')}
-                    >
-                      per-color exclusion
-                    </button>
-                  </div>
-                  <div
-                    className="multicolor-debug-toggle-group"
-                    role="radiogroup"
-                    aria-label="Line strength mode"
-                  >
-                    <button
-                      className={[
-                        'multicolor-debug-toggle',
-                        multicolorLineStrengthMode === 'shared' ? 'is-active' : '',
-                      ].filter(Boolean).join(' ')}
-                      type="button"
-                      role="radio"
-                      aria-checked={multicolorLineStrengthMode === 'shared'}
-                      onClick={() => setMulticolorLineStrengthMode('shared')}
-                    >
-                      shared strength {globalLineStrength}
-                    </button>
-                    <button
-                      className={[
-                        'multicolor-debug-toggle',
-                        multicolorLineStrengthMode === 'per-color' ? 'is-active' : '',
-                      ].filter(Boolean).join(' ')}
-                      type="button"
-                      role="radio"
-                      aria-checked={multicolorLineStrengthMode === 'per-color'}
-                      onClick={() => setMulticolorLineStrengthMode('per-color')}
-                    >
-                      per-color strength
-                    </button>
-                  </div>
-                  <div
-                    className="multicolor-debug-toggle-group"
-                    role="radiogroup"
-                    aria-label="Minimum distance mode"
-                  >
-                    <button
-                      className={[
-                        'multicolor-debug-toggle',
-                        multicolorMinDistanceMode === 'shared' ? 'is-active' : '',
-                      ].filter(Boolean).join(' ')}
-                      type="button"
-                      role="radio"
-                      aria-checked={multicolorMinDistanceMode === 'shared'}
-                      onClick={() => setMulticolorMinDistanceMode('shared')}
-                    >
-                      shared min distance {globalMinDistance}
-                    </button>
-                    <button
-                      className={[
-                        'multicolor-debug-toggle',
-                        multicolorMinDistanceMode === 'per-color' ? 'is-active' : '',
-                      ].filter(Boolean).join(' ')}
-                      type="button"
-                      role="radio"
-                      aria-checked={multicolorMinDistanceMode === 'per-color'}
-                      onClick={() => setMulticolorMinDistanceMode('per-color')}
-                    >
-                      per-color min distance
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </section>
         </div>

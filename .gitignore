@@ -1,5 +1,6 @@
 /node_modules
 /dist
+vite-dev*.log
 /another project
 
 /computational-thread-art-v2-main

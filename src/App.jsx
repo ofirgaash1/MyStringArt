@@ -28,6 +28,13 @@ import {
   writeProcessedImageData,
 } from './stringArtMath';
 import {
+  buildAllTasRegionsPaletteFit,
+  buildTasChordNetwork,
+  buildTasPixelOwnershipPreview,
+  buildTasPreviewSegments,
+  buildTasRegionPaletteFit,
+} from './tasGeometry';
+import {
   allocateWholeUnitsByWeight,
   allocateWholeUnitsByWeightWithLock,
   blurMaskImageData,
@@ -64,6 +71,7 @@ const MAX_BRUSH_RADIUS = 40;
 const MIN_GROUP_VALUE = 0;
 const MAX_GROUP_VALUE = 10;
 const GROUP_VALUE_STEP = 0.05;
+const SHOW_BRUSH_TOOLS = false;
 const GROUP_COLORS = [
   '#0ea5e9',
   '#f97316',
@@ -175,14 +183,14 @@ function App() {
   const [activeGroupId, setActiveGroupId] = useState('group-1');
   const [nextGroupNumber, setNextGroupNumber] = useState(2);
   const [isMulticolorLabEnabled, setIsMulticolorLabEnabled] = useState(true);
-  const [multicolorDebugView, setMulticolorDebugView] = useState('original');
+  const [multicolorDebugView, setMulticolorDebugView] = useState('palette-preview');
   const [multicolorPalettePresetId, setMulticolorPalettePresetId] = useState(
     MULTICOLOR_PALETTE_PRESETS[0].id,
   );
   const [multicolorPaletteColors, setMulticolorPaletteColors] = useState(() =>
     clonePalettePreset(MULTICOLOR_PALETTE_PRESETS[0]).colors,
   );
-  const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(true);
+  const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(false);
   const [isPaletteDitheringEnabled, setIsPaletteDitheringEnabled] = useState(false);
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
   const [multicolorPaletteCoverage, setMulticolorPaletteCoverage] = useState([]);
@@ -213,6 +221,12 @@ function App() {
   const [isMulticolorStepProfilingEnabled, setIsMulticolorStepProfilingEnabled] = useState(false);
   const [isMulticolorFastSteppingEnabled, setIsMulticolorFastSteppingEnabled] = useState(false);
   const [multicolorInterleaveEntryIds, setMulticolorInterleaveEntryIds] = useState([]);
+  const [isTasPreviewEnabled, setIsTasPreviewEnabled] = useState(false);
+  const [isTasOwnershipPreviewEnabled, setIsTasOwnershipPreviewEnabled] = useState(false);
+  const [isTasPaletteFitPreviewEnabled, setIsTasPaletteFitPreviewEnabled] = useState(false);
+  const [isTasPaletteFitLimitedToPalette, setIsTasPaletteFitLimitedToPalette] = useState(true);
+  const [tasViewScope, setTasViewScope] = useState('selected');
+  const [selectedTasRegionIndex, setSelectedTasRegionIndex] = useState(0);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -317,10 +331,9 @@ function App() {
     Boolean(imageSize) &&
     Boolean(activePalettePreviewColor);
   const isActiveColorMaskScoringEnabled =
-    multicolorDebugView === 'color-mask' &&
-    canUseActiveColorMaskForLineScoring;
+    false;
   const lineScoringModeLabel = isActiveColorMaskScoringEnabled
-    ? `active color mask${activePaletteColor ? ` (${activePaletteColor.label})` : ''}`
+    ? `active color${activePaletteColor ? ` (${activePaletteColor.label})` : ''}`
     : 'grayscale';
   const multicolorPalettePixelCountMap = new Map(
     multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
@@ -494,7 +507,7 @@ function App() {
     }
     return nextUsedLineKeys;
   }, [monochromeUsedLineKeys, multicolorLineKeysByColorId]);
-  const isActiveColorOnlyControlVisible = multicolorDebugView === 'palette-preview';
+  const isActiveColorOnlyControlVisible = false;
   const shouldShowOriginalDebugView =
     isMulticolorLabEnabled && multicolorDebugView === 'original';
   const shouldShowCurrentGrayscaleDebugView =
@@ -502,22 +515,14 @@ function App() {
   const isPalettePreviewVisible =
     isMulticolorLabEnabled &&
     isPalettePreviewEnabled &&
-    multicolorDebugView === 'palette-preview' &&
     enabledPalettePreviewColors.length > 0;
   const isPaletteMaskVisible =
-    isMulticolorLabEnabled &&
-    isPalettePreviewEnabled &&
-    multicolorDebugView === 'color-mask' &&
-    enabledPalettePreviewColors.length > 0 &&
-    Boolean(activePalettePreviewColor);
+    false;
   const shouldShowPaletteComparison =
     isPalettePreviewVisible &&
     Boolean(originalImageDataRef.current);
   const shouldDeferMulticolorStepVisuals =
-    isMulticolorFastSteppingEnabled &&
-    isMulticolorLabEnabled &&
-    isPalettePreviewEnabled &&
-    multicolorDebugView === 'color-mask';
+    false;
 
   function invalidateCurrentCanvasMaskCollectionCache() {
     currentCanvasRevisionRef.current += 1;
@@ -2509,7 +2514,104 @@ function App() {
     nailFontSize,
     nailRadius,
     nails,
-  } = buildNails(nailsCount, inversePreviewScale);
+  } = useMemo(
+    () => buildNails(nailsCount, inversePreviewScale),
+    [inversePreviewScale, nailsCount],
+  );
+  const tasNetwork = useMemo(() => buildTasChordNetwork(nails), [nails]);
+  const normalizedSelectedTasRegionIndex = clamp(
+    selectedTasRegionIndex,
+    0,
+    Math.max(0, tasNetwork.regionCount - 1),
+  );
+  const selectedTasRegion =
+    tasNetwork.regions[normalizedSelectedTasRegionIndex] ?? null;
+  const tasPreviewSegments = useMemo(
+    () =>
+      isTasPreviewEnabled
+        ? buildTasPreviewSegments(tasNetwork).filter(
+            (segment) =>
+              tasViewScope === 'all' ||
+              segment.regionIndex === normalizedSelectedTasRegionIndex,
+          )
+        : [],
+    [isTasPreviewEnabled, normalizedSelectedTasRegionIndex, tasNetwork, tasViewScope],
+  );
+  const tasOwnershipPreview = useMemo(
+    () =>
+      isTasOwnershipPreviewEnabled && hasLoadedImage
+        ? buildTasPixelOwnershipPreview({
+            imageSize,
+            imageCenter,
+            imageScale,
+            previewSize,
+            regionIndex: normalizedSelectedTasRegionIndex,
+            tasNetwork,
+          })
+        : null,
+    [
+      hasLoadedImage,
+      imageCenter,
+      imageScale,
+      imageSize,
+      isTasOwnershipPreviewEnabled,
+      normalizedSelectedTasRegionIndex,
+      previewSize,
+      tasNetwork,
+    ],
+  );
+  const tasPaletteFit = useMemo(
+    () =>
+      isTasPaletteFitPreviewEnabled && tasViewScope === 'selected' && hasLoadedImage
+        ? buildTasRegionPaletteFit({
+            sourceImageData: originalImageDataRef.current,
+            imageCenter,
+            imageScale,
+            previewSize,
+            regionIndex: normalizedSelectedTasRegionIndex,
+            tasNetwork,
+            paletteColors: enabledPalettePreviewColors,
+            limitToPalette: isTasPaletteFitLimitedToPalette,
+          })
+        : null,
+    [
+      enabledPalettePreviewColors,
+      hasLoadedImage,
+      imageCenter,
+      imageScale,
+      isTasPaletteFitPreviewEnabled,
+      isTasPaletteFitLimitedToPalette,
+      normalizedSelectedTasRegionIndex,
+      previewSize,
+      tasNetwork,
+      tasViewScope,
+    ],
+  );
+  const allTasPaletteFit = useMemo(
+    () =>
+      isTasPaletteFitPreviewEnabled && tasViewScope === 'all' && hasLoadedImage
+        ? buildAllTasRegionsPaletteFit({
+            sourceImageData: originalImageDataRef.current,
+            imageCenter,
+            imageScale,
+            previewSize,
+            tasNetwork,
+            paletteColors: enabledPalettePreviewColors,
+            limitToPalette: isTasPaletteFitLimitedToPalette,
+          })
+        : null,
+    [
+      enabledPalettePreviewColors,
+      hasLoadedImage,
+      imageCenter,
+      imageScale,
+      isTasPaletteFitPreviewEnabled,
+      isTasPaletteFitLimitedToPalette,
+      previewSize,
+      tasNetwork,
+      tasViewScope,
+    ],
+  );
 
   const fromIndex = Number.parseInt(lineFrom, 10);
   const toIndex = Number.parseInt(lineTo, 10);
@@ -3175,7 +3277,7 @@ function App() {
                 type="range"
                 min="0"
                 max="300"
-                step="1"
+                step="10"
                 value={nailsCount}
                 onChange={(event) => {
                   setNailsCount(clamp(Number(event.target.value), 0, 300));
@@ -3456,129 +3558,91 @@ function App() {
               export nail list
             </button>
           </div>
-          <Profiler id="BrushPanel" onRender={handleReactProfile}>
-            <BrushPanel
-              activeGroup={activeGroup}
-              activeGroupId={activeGroupId}
-              brushRadius={brushRadius}
-              groupValueStep={GROUP_VALUE_STEP}
-              hasLoadedImage={hasLoadedImage}
-              isArtMode={isArtMode}
-              isBrushMode={isBrushMode}
-              maxBrushRadius={MAX_BRUSH_RADIUS}
-              maxGroupValue={MAX_GROUP_VALUE}
-              minBrushRadius={MIN_BRUSH_RADIUS}
-              minGroupValue={MIN_GROUP_VALUE}
-              onActiveGroupChange={setActiveGroupId}
-              onAddPixelGroup={handleAddPixelGroup}
-              onBrushModeChange={setIsBrushMode}
-              onBrushRadiusChange={(nextValue) => {
-                setBrushRadius(
-                  clamp(Number(nextValue), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
-                );
-              }}
-              onDiagnosticRender={handleDiagnosticRender}
-              onGroupValueChange={(groupId, nextValue) => {
-                const parsedValue = Number.parseFloat(nextValue);
-                handleGroupValueChange(
-                  groupId,
-                  Number.isFinite(parsedValue) ? parsedValue : 0,
-                );
-              }}
-              onRemovePixelGroup={handleRemovePixelGroup}
-              pixelGroups={pixelGroups}
-            />
-          </Profiler>
+          {SHOW_BRUSH_TOOLS && (
+            <Profiler id="BrushPanel" onRender={handleReactProfile}>
+              <BrushPanel
+                activeGroup={activeGroup}
+                activeGroupId={activeGroupId}
+                brushRadius={brushRadius}
+                groupValueStep={GROUP_VALUE_STEP}
+                hasLoadedImage={hasLoadedImage}
+                isArtMode={isArtMode}
+                isBrushMode={isBrushMode}
+                maxBrushRadius={MAX_BRUSH_RADIUS}
+                maxGroupValue={MAX_GROUP_VALUE}
+                minBrushRadius={MIN_BRUSH_RADIUS}
+                minGroupValue={MIN_GROUP_VALUE}
+                onActiveGroupChange={setActiveGroupId}
+                onAddPixelGroup={handleAddPixelGroup}
+                onBrushModeChange={setIsBrushMode}
+                onBrushRadiusChange={(nextValue) => {
+                  setBrushRadius(
+                    clamp(Number(nextValue), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
+                  );
+                }}
+                onDiagnosticRender={handleDiagnosticRender}
+                onGroupValueChange={(groupId, nextValue) => {
+                  const parsedValue = Number.parseFloat(nextValue);
+                  handleGroupValueChange(
+                    groupId,
+                    Number.isFinite(parsedValue) ? parsedValue : 0,
+                  );
+                }}
+                onRemovePixelGroup={handleRemovePixelGroup}
+                pixelGroups={pixelGroups}
+              />
+            </Profiler>
+          )}
           <Profiler id="MulticolorLab" onRender={handleReactProfile}>
             <MulticolorLab
-            activePaletteColor={activePaletteColor}
-            activePaletteColorId={activePaletteColorId}
-            activeColorExperimentFromIndex={activeColorExperimentFromIndex}
-            ditheredComparisonCanvasRef={ditheredComparisonCanvasRef}
-            activeBucketPlannedLineCount={activeMulticolorPlannedLineCount}
-            activeBucketRemainingLineCount={activeMulticolorRemainingLineCount}
-            enabledPalettePreviewColors={enabledPalettePreviewColors}
-            hasOriginalImage={Boolean(originalImageDataRef.current)}
-            isActiveColorOnlyControlVisible={isActiveColorOnlyControlVisible}
-            isActivePaletteColorOnlyEnabled={isActivePaletteColorOnlyEnabled}
-            canApplyExperimentalStep={canApplyExperimentalMulticolorStep}
-            currentActiveTargetImage={activeMulticolorTargetImage}
-            isExperimentalRoundRobinSteppingEnabled={multicolorExperimentalSteppingMode === 'round-robin'}
-            isMulticolorFastSteppingEnabled={isMulticolorFastSteppingEnabled}
-            isMulticolorStepProfilingEnabled={isMulticolorStepProfilingEnabled}
-            isMulticolorLabEnabled={isMulticolorLabEnabled}
-            isPaletteDitheringEnabled={isPaletteDitheringEnabled}
-            isPaletteMaskVisible={isPaletteMaskVisible}
-            isPalettePreviewEnabled={isPalettePreviewEnabled}
-            maskBlurRadius={maskBlurRadius}
-            multicolorDebugView={multicolorDebugView}
-            multicolorLineBuckets={multicolorLineBuckets}
-            multicolorMaskImages={multicolorMaskImages}
-            multicolorPaletteColors={multicolorPaletteColors}
-            multicolorPaletteCoverage={multicolorPaletteCoverage}
-            multicolorPaletteCoverageWithLineAllocation={multicolorPaletteCoverageWithLineAllocation}
-            multicolorPaletteCoverageWithSuggestions={multicolorPaletteCoverageWithSuggestions}
-            multicolorLockedLineOverride={multicolorLockedLineOverride}
-            multicolorPalettePixelCountMap={multicolorPalettePixelCountMap}
-            multicolorPalettePreset={multicolorPalettePreset}
-            multicolorInterleaveOrder={multicolorInterleaveOrder}
-            multicolorReadOnlyInterleavePassCount={readOnlyInterleavePassCount}
-            onMoveMulticolorInterleaveEntryDown={handleMoveMulticolorInterleaveEntryDown}
-            onMoveMulticolorInterleaveEntryUp={handleMoveMulticolorInterleaveEntryUp}
-            onResetMulticolorInterleaveOrder={handleResetMulticolorInterleaveOrder}
-            originalComparisonCanvasRef={originalComparisonCanvasRef}
-            paletteComparisonCanvasRef={paletteComparisonCanvasRef}
-            rawActiveMaskImage={activeMaskImage?.imageData ?? null}
-            blurredActiveMaskImage={blurredActiveMaskImage}
-            activeColorExperimentNextNailNumber={activeColorExperimentNextNailNumber}
-            activeExperimentalLineCount={activeMulticolorLineBucket?.lines.length ?? 0}
-            globalLineStrength={parseLineDarknessStep(lineStrength)}
-            globalMinDistance={parseMinDistanceValue(highlightRange)}
-            isExperimentalColorLinesOnlyPreviewEnabled={isExperimentalColorLinesOnlyPreviewEnabled}
-            multicolorLineStrengthMode={multicolorLineStrengthMode}
-            multicolorMinDistanceMode={multicolorMinDistanceMode}
-            multicolorUsedLineExclusionMode={multicolorUsedLineExclusionMode}
-            onSetMulticolorBucketLineStrength={handleSetMulticolorBucketLineStrength}
-            onSetMulticolorBucketMinDistance={handleSetMulticolorBucketMinDistance}
-            onShowAllMulticolorBuckets={handleShowAllMulticolorBuckets}
-            onSoloMulticolorBucket={handleSoloMulticolorBucket}
-            onToggleMulticolorBucketVisibility={handleToggleMulticolorBucketVisibility}
-            setActivePaletteColorId={setActivePaletteColorId}
-            onApplyActiveColorExperimentStep={handleApplyExperimentalStep}
-            onExportMulticolorSession={handleExportMulticolorSession}
-            onImportMulticolorSession={handleImportMulticolorSession}
-            onDiagnosticRender={handleDiagnosticRender}
-            onProfileEffect={handleProfileEffect}
-            onRefreshMulticolorPreviews={handleRefreshMulticolorPreviews}
-            onResetAllMulticolorState={handleResetAllMulticolorState}
-            onResetMulticolorBucket={handleResetMulticolorBucket}
-            setIsActivePaletteColorOnlyEnabled={setIsActivePaletteColorOnlyEnabled}
-            setIsExperimentalColorLinesOnlyPreviewEnabled={setIsExperimentalColorLinesOnlyPreviewEnabled}
-            setIsExperimentalRoundRobinSteppingEnabled={(nextValue) => {
-              setMulticolorExperimentalSteppingMode(nextValue ? 'round-robin' : 'single-color');
-              if (nextValue) {
-                setMulticolorRoundRobinNextColorId(getNextRoundRobinColorId(activePaletteColorId));
-              }
-            }}
-            setIsMulticolorFastSteppingEnabled={setIsMulticolorFastSteppingEnabled}
-            setIsMulticolorStepProfilingEnabled={setIsMulticolorStepProfilingEnabled}
-            setIsMulticolorLabEnabled={setIsMulticolorLabEnabled}
-            setIsPaletteDitheringEnabled={setIsPaletteDitheringEnabled}
-            setIsPalettePreviewEnabled={setIsPalettePreviewEnabled}
-            setMaskBlurRadius={setMaskBlurRadius}
-            setMulticolorDebugView={setMulticolorDebugView}
-            setMulticolorLockedLineOverride={setMulticolorLockedLineOverride}
-            setMulticolorPaletteColors={setMulticolorPaletteColors}
-            setMulticolorPalettePresetId={setMulticolorPalettePresetId}
-            setMulticolorTargetTotalLines={setMulticolorTargetTotalLines}
-            setMulticolorLineStrengthMode={setMulticolorLineStrengthMode}
-            setMulticolorMinDistanceMode={setMulticolorMinDistanceMode}
-            setMulticolorUsedLineExclusionMode={setMulticolorUsedLineExclusionMode}
-            shouldShowPaletteComparison={shouldShowPaletteComparison}
-            multicolorTargetTotalLines={multicolorTargetTotalLines}
-            totalExperimentalMulticolorLines={totalExperimentalMulticolorLines}
-            totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
-            totalPaletteCoverageTenths={totalPaletteCoverageTenths}
+              activePaletteColor={activePaletteColor}
+              activePaletteColorId={activePaletteColorId}
+              ditheredComparisonCanvasRef={ditheredComparisonCanvasRef}
+              hasOriginalImage={Boolean(originalImageDataRef.current)}
+              allTasPaletteFit={allTasPaletteFit}
+              isBlackAndWhite={isBlackAndWhite}
+              isMulticolorLabEnabled={isMulticolorLabEnabled}
+              isPaletteDitheringEnabled={isPaletteDitheringEnabled}
+              isPalettePreviewEnabled={isPalettePreviewEnabled}
+              isTasOwnershipPreviewEnabled={isTasOwnershipPreviewEnabled}
+              isTasPaletteFitPreviewEnabled={isTasPaletteFitPreviewEnabled}
+              isTasPaletteFitLimitedToPalette={isTasPaletteFitLimitedToPalette}
+              isTasPreviewEnabled={isTasPreviewEnabled}
+              multicolorPaletteColors={multicolorPaletteColors}
+              multicolorPaletteCoverage={multicolorPaletteCoverage}
+              multicolorPaletteCoverageWithLineAllocation={multicolorPaletteCoverageWithLineAllocation}
+              multicolorPaletteCoverageWithSuggestions={multicolorPaletteCoverageWithSuggestions}
+              multicolorLockedLineOverride={multicolorLockedLineOverride}
+              multicolorPalettePixelCountMap={multicolorPalettePixelCountMap}
+              multicolorPalettePreset={multicolorPalettePreset}
+              multicolorTargetTotalLines={multicolorTargetTotalLines}
+              normalizedSelectedTasRegionIndex={normalizedSelectedTasRegionIndex}
+              originalComparisonCanvasRef={originalComparisonCanvasRef}
+              paletteComparisonCanvasRef={paletteComparisonCanvasRef}
+              selectedTasRegion={selectedTasRegion}
+              shouldShowPaletteComparison={shouldShowPaletteComparison}
+              tasOwnershipPreview={tasOwnershipPreview}
+              tasPaletteFit={tasPaletteFit}
+              tasNetwork={tasNetwork}
+              tasViewScope={tasViewScope}
+              totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
+              totalPaletteCoverageTenths={totalPaletteCoverageTenths}
+              onDiagnosticRender={handleDiagnosticRender}
+              setActivePaletteColorId={setActivePaletteColorId}
+              setIsBlackAndWhite={setIsBlackAndWhite}
+              setIsMulticolorLabEnabled={setIsMulticolorLabEnabled}
+              setIsPaletteDitheringEnabled={setIsPaletteDitheringEnabled}
+              setIsPalettePreviewEnabled={setIsPalettePreviewEnabled}
+              setIsTasOwnershipPreviewEnabled={setIsTasOwnershipPreviewEnabled}
+              setIsTasPaletteFitLimitedToPalette={setIsTasPaletteFitLimitedToPalette}
+              setIsTasPaletteFitPreviewEnabled={setIsTasPaletteFitPreviewEnabled}
+              setIsTasPreviewEnabled={setIsTasPreviewEnabled}
+              setMulticolorLockedLineOverride={setMulticolorLockedLineOverride}
+              setMulticolorPaletteColors={setMulticolorPaletteColors}
+              setMulticolorPalettePresetId={setMulticolorPalettePresetId}
+              setMulticolorTargetTotalLines={setMulticolorTargetTotalLines}
+              setSelectedTasRegionIndex={setSelectedTasRegionIndex}
+              setTasViewScope={setTasViewScope}
             />
           </Profiler>
         </div>
@@ -3619,6 +3683,10 @@ function App() {
         selectionOverlayRef={selectionOverlayRef}
         shouldShowPreviewLine={shouldShowPreviewLine}
         showNailNumbers={showNailNumbers}
+        selectedTasRegionIndex={normalizedSelectedTasRegionIndex}
+        tasPaletteFitSegments={allTasPaletteFit?.segments ?? tasPaletteFit?.segments ?? []}
+        tasOwnershipPreviewImageData={tasOwnershipPreview?.imageData ?? null}
+        tasPreviewSegments={tasPreviewSegments}
         />
       </Profiler>
       <Profiler id="HoveredPixelOverlay" onRender={handleReactProfile}>

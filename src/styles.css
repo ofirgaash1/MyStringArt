@@ -993,6 +993,18 @@ label {
   image-rendering: crisp-edges;
 }
 
+.tas-ownership-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  pointer-events: none;
+  transform-origin: center center;
+  overflow: visible;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 .line-pixel {
   fill: none;
   stroke: rgba(255, 244, 92, 0.95);
@@ -1010,6 +1022,25 @@ label {
 }
 
 .art-lines-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.tas-preview-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.tas-palette-fit-layer {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1041,6 +1072,29 @@ label {
 .preview-debug-line {
   stroke: #0ea5e9;
   stroke-width: 0.22;
+  vector-effect: non-scaling-stroke;
+}
+
+.tas-preview-line {
+  stroke-width: 0.26;
+  vector-effect: non-scaling-stroke;
+}
+
+.tas-preview-line.is-even-region {
+  stroke: rgba(37, 99, 235, 0.58);
+}
+
+.tas-preview-line.is-odd-region {
+  stroke: rgba(22, 163, 74, 0.58);
+}
+
+.tas-preview-line.is-selected-region {
+  stroke: rgba(2, 6, 23, 0.9);
+  stroke-width: 0.34;
+}
+
+.tas-palette-fit-line {
+  stroke-width: 0.52;
   vector-effect: non-scaling-stroke;
 }
 
