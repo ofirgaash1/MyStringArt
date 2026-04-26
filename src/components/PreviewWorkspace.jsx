@@ -1,5 +1,71 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { useRenderDiagnostics } from '../renderDiagnostics';
+
+const TasPreviewLayer = memo(function TasPreviewLayer({
+  segments,
+  selectedTasRegionIndex,
+}) {
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return (
+    <svg
+      className="tas-preview-layer"
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      {segments.map((segment) => (
+        <line
+          key={segment.key}
+          className={[
+            'tas-preview-line',
+            segment.regionIndex % 2 === 0 ? 'is-even-region' : 'is-odd-region',
+            segment.regionIndex === selectedTasRegionIndex ? 'is-selected-region' : '',
+          ].join(' ')}
+          x1={segment.x1}
+          y1={segment.y1}
+          x2={segment.x2}
+          y2={segment.y2}
+        />
+      ))}
+    </svg>
+  );
+});
+
+const TasPaletteFitLayer = memo(function TasPaletteFitLayer({ segments }) {
+  if (segments.length === 0) {
+    return null;
+  }
+
+  return (
+    <svg
+      className="tas-palette-fit-layer"
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+    >
+      {segments.map((segment) => (
+        <line
+          key={segment.key}
+          className={[
+            'tas-palette-fit-line',
+            segment.isTasLimitActive ? 'is-limit-active' : '',
+            segment.isTasLimitInactive ? 'is-limit-inactive' : '',
+            segment.isFocusedSameColorTas ? 'is-focused-same-color' : '',
+            segment.isUnfocusedSameColorTas ? 'is-unfocused-same-color' : '',
+          ].filter(Boolean).join(' ')}
+          x1={segment.x1}
+          y1={segment.y1}
+          x2={segment.x2}
+          y2={segment.y2}
+          style={{ stroke: segment.stroke }}
+        />
+      ))}
+    </svg>
+  );
+});
 
 function PreviewWorkspace({
   artLineSegments,
@@ -22,6 +88,10 @@ function PreviewWorkspace({
   previewRef,
   previewStyle,
   selectionOverlayRef,
+  selectedChainChordKeys = [],
+  selectedConnectorChordKeys = [],
+  selectedConnectorPreviewSegments = [],
+  selectedTasChordKey,
   selectedTasRegionIndex,
   shouldShowPreviewLine,
   showNailNumbers,
@@ -34,6 +104,8 @@ function PreviewWorkspace({
   onPointerLeave,
 }) {
   const tasOwnershipCanvasRef = useRef(null);
+  const selectedChainChordKeySet = new Set(selectedChainChordKeys);
+  const selectedConnectorChordKeySet = new Set(selectedConnectorChordKeys);
 
   useRenderDiagnostics(
     'PreviewWorkspace',
@@ -152,45 +224,32 @@ function PreviewWorkspace({
                   ))}
                 </svg>
               )}
-              {tasPreviewSegments.length > 0 && (
+              <TasPreviewLayer
+                segments={tasPreviewSegments}
+                selectedTasRegionIndex={selectedTasRegionIndex}
+              />
+              <TasPaletteFitLayer segments={tasPaletteFitSegments} />
+              {selectedConnectorPreviewSegments.length > 0 && (
                 <svg
-                  className="tas-preview-layer"
+                  className="selected-connector-preview-layer"
                   aria-hidden="true"
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                 >
-                  {tasPreviewSegments.map((segment) => (
+                  {selectedConnectorPreviewSegments.map((segment) => (
                     <line
                       key={segment.key}
                       className={[
-                        'tas-preview-line',
-                        segment.regionIndex % 2 === 0 ? 'is-even-region' : 'is-odd-region',
-                        segment.regionIndex === selectedTasRegionIndex ? 'is-selected-region' : '',
-                      ].join(' ')}
+                        'selected-connector-preview-line',
+                        segment.isChainChord || selectedChainChordKeySet.has(segment.chordKey) ? 'is-chain-chord' : '',
+                        segment.isConnectorChord || selectedConnectorChordKeySet.has(segment.chordKey) ? 'is-connector-chord' : '',
+                        (segment.isChainChord || selectedChainChordKeySet.has(segment.chordKey)) &&
+                        segment.chordKey === selectedTasChordKey ? 'is-selected-tas' : '',
+                      ].filter(Boolean).join(' ')}
                       x1={segment.x1}
                       y1={segment.y1}
                       x2={segment.x2}
                       y2={segment.y2}
-                    />
-                  ))}
-                </svg>
-              )}
-              {tasPaletteFitSegments.length > 0 && (
-                <svg
-                  className="tas-palette-fit-layer"
-                  aria-hidden="true"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  {tasPaletteFitSegments.map((segment) => (
-                    <line
-                      key={segment.key}
-                      className="tas-palette-fit-line"
-                      x1={segment.x1}
-                      y1={segment.y1}
-                      x2={segment.x2}
-                      y2={segment.y2}
-                      style={{ stroke: segment.stroke }}
                     />
                   ))}
                 </svg>
@@ -270,45 +329,32 @@ function PreviewWorkspace({
                   ))}
                 </svg>
               )}
-              {tasPreviewSegments.length > 0 && (
+              <TasPreviewLayer
+                segments={tasPreviewSegments}
+                selectedTasRegionIndex={selectedTasRegionIndex}
+              />
+              <TasPaletteFitLayer segments={tasPaletteFitSegments} />
+              {selectedConnectorPreviewSegments.length > 0 && (
                 <svg
-                  className="tas-preview-layer"
+                  className="selected-connector-preview-layer"
                   aria-hidden="true"
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                 >
-                  {tasPreviewSegments.map((segment) => (
+                  {selectedConnectorPreviewSegments.map((segment) => (
                     <line
                       key={segment.key}
                       className={[
-                        'tas-preview-line',
-                        segment.regionIndex % 2 === 0 ? 'is-even-region' : 'is-odd-region',
-                        segment.regionIndex === selectedTasRegionIndex ? 'is-selected-region' : '',
-                      ].join(' ')}
+                        'selected-connector-preview-line',
+                        segment.isChainChord || selectedChainChordKeySet.has(segment.chordKey) ? 'is-chain-chord' : '',
+                        segment.isConnectorChord || selectedConnectorChordKeySet.has(segment.chordKey) ? 'is-connector-chord' : '',
+                        (segment.isChainChord || selectedChainChordKeySet.has(segment.chordKey)) &&
+                        segment.chordKey === selectedTasChordKey ? 'is-selected-tas' : '',
+                      ].filter(Boolean).join(' ')}
                       x1={segment.x1}
                       y1={segment.y1}
                       x2={segment.x2}
                       y2={segment.y2}
-                    />
-                  ))}
-                </svg>
-              )}
-              {tasPaletteFitSegments.length > 0 && (
-                <svg
-                  className="tas-palette-fit-layer"
-                  aria-hidden="true"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  {tasPaletteFitSegments.map((segment) => (
-                    <line
-                      key={segment.key}
-                      className="tas-palette-fit-line"
-                      x1={segment.x1}
-                      y1={segment.y1}
-                      x2={segment.x2}
-                      y2={segment.y2}
-                      style={{ stroke: segment.stroke }}
                     />
                   ))}
                 </svg>

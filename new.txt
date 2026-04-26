@@ -41,7 +41,7 @@ We divide the circle into concentric regions:
 
 For each chord, we define one special segment called a **TAS** — **Tangent-Area Segment**.
 
-A TAS is the part of the chord associated with the annular region where that chord is tangent to, or forms a side of, the corresponding inner regular polygon, plus a small continuation on both sides until the next larger polygon.
+A TAS is the part of the chord associated with the annular region where that chord is tangent to, or forms a side of, the corresponding inner regular polygon, without a small continuation on both sides until the next larger polygon.
 
 Every chord has exactly one TAS.
 
@@ -91,19 +91,19 @@ So what appears visually as rings is actually a set of nested regular polygons c
 
 ## 4. Pixel Assignment to TASs
 
-Pixels are assigned by proximity to **TAS segments only**, not to full chords and not to infinite lines.
+Pixels are assigned by proximity to **TAS side segments only**, not to full chords and not to infinite lines.
 
-For every pixel center, we find the closest TAS.
+For every pixel center near a corresponding inner polygon side, we find the closest TAS.
 
 The distance from a pixel center to a TAS is the shortest Euclidean distance from the pixel center to the **finite TAS segment**.
 
 If the perpendicular projection of the pixel center onto the TAS line falls inside the TAS segment, the distance is the perpendicular distance.
 
-If the projection falls outside the TAS segment, the distance is measured to the nearest TAS endpoint.
+If the projection falls outside the TAS segment, the pixel is not assigned to that TAS.
 
 If two TASs are equally close to a pixel center, a deterministic tie-breaking rule is used.
 
-Each TAS therefore owns a group of pixels: all pixels whose centers are closer to that TAS than to any other TAS.
+Each TAS therefore owns a group of pixels: pixels near its corresponding inner polygon side whose centers are closer to that TAS than to any other eligible TAS.
 
 Each TAS receives an average color based on the pixels assigned to it.
 
@@ -283,6 +283,29 @@ Once inserted, a generated chord affects the image, the error calculation, and t
 The connector search does not look for the shortest path.
 
 Instead, it searches for the highest-scoring connector chain.
+
+When a connector is needed between two same-color chords in region `Dn`, the search first looks for a TAS/chord of the required color in the next outer region, `Dn+1`.
+
+If no suitable connector is found there, the search continues outward one region at a time: `Dn+2`, `Dn+3`, and so on.
+
+Inside each candidate region, connectors that are already inside that region's active `A` limit are considered first.
+
+Within that active set, priority is:
+
+1. lower color-fit error first,
+2. then the more internal eligible region first.
+
+If no suitable connector is found within the active `A` ranges of eligible outer regions, the connector is considered unavailable. Connector chords outside the active `A` limit are not allowed.
+
+If no single connector chord can satisfy the continuity requirement, the search then considers combinations of two connector strings.
+
+If no two-string connector chain is found, the search expands to three strings, then four strings, and so on, until a valid connector chain is found or no valid chain exists.
+
+The search is breadth-first by connector count: if a valid one-string connector exists, two-string connector chains are not considered; if a valid two-string chain exists, three-string chains are not considered, and so on.
+
+When a connector uses a chord that was already present in an active SCCL, that chord is considered already drawn. It should be removed from the later active drawing list carefully, without adding a replacement chord just because the removal creates space under the `A` limit.
+
+The same connector chord may still be reused later if it helps create another good connection, but it should not be drawn a second time.
 
 The score is based on:
 

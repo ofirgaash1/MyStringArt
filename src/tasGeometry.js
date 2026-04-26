@@ -97,9 +97,12 @@ export function buildTasChordNetwork(nails) {
         regionIndex + 1 < radiiByRegion.length
           ? radiiByRegion[regionIndex + 1]
           : previewRadius;
+      const polygonSideHalfLength = tangentRadius * Math.tan(Math.PI / nailsCount);
       const tasHalfLength = Math.min(
         halfChordLength,
-        Math.sqrt(Math.max(0, outerRadius * outerRadius - tangentRadius * tangentRadius)),
+        polygonSideHalfLength > 1e-9
+          ? polygonSideHalfLength
+          : outerRadius,
       );
       const unitX = chordLength > 0 ? chordVectorX / chordLength : 0;
       const unitY = chordLength > 0 ? chordVectorY / chordLength : 0;
@@ -164,7 +167,7 @@ export function buildTasPreviewSegments(tasNetwork) {
     }));
 }
 
-function getSquaredDistanceToSegment(pointX, pointY, segment) {
+function getSquaredDistanceToTasSide(pointX, pointY, segment) {
   const dx = segment.tasX2 - segment.tasX1;
   const dy = segment.tasY2 - segment.tasY1;
   const lengthSquared = dx * dx + dy * dy;
@@ -179,9 +182,13 @@ function getSquaredDistanceToSegment(pointX, pointY, segment) {
     ((pointX - segment.tasX1) * dx) +
     ((pointY - segment.tasY1) * dy)
   ) / lengthSquared;
-  const t = Math.min(1, Math.max(0, unclampedT));
-  const projectedX = segment.tasX1 + dx * t;
-  const projectedY = segment.tasY1 + dy * t;
+
+  if (unclampedT < 0 || unclampedT > 1) {
+    return null;
+  }
+
+  const projectedX = segment.tasX1 + dx * unclampedT;
+  const projectedY = segment.tasY1 + dy * unclampedT;
   const projectedDx = pointX - projectedX;
   const projectedDy = pointY - projectedY;
   return projectedDx * projectedDx + projectedDy * projectedDy;
@@ -250,19 +257,10 @@ function buildChordsByRegion(tasNetwork) {
 function getCandidateChordsForRadius(radius, tasNetwork, chordsByRegion) {
   const baseRegionIndex = getRegionIndexForRadius(radius, tasNetwork.regions);
   if (baseRegionIndex === null) {
-    return tasNetwork.chords;
+    return [];
   }
 
-  const candidates = [];
-  for (
-    let regionIndex = Math.max(0, baseRegionIndex - 1);
-    regionIndex <= Math.min(tasNetwork.regionCount - 1, baseRegionIndex + 1);
-    regionIndex += 1
-  ) {
-    candidates.push(...(chordsByRegion[regionIndex] ?? []));
-  }
-
-  return candidates.length > 0 ? candidates : tasNetwork.chords;
+  return chordsByRegion[baseRegionIndex] ?? [];
 }
 
 function getTasPixelOwnerAssignments({
@@ -324,18 +322,26 @@ function getTasPixelOwnerAssignments({
         tasNetwork,
         chordsByRegion,
       );
-      let nearestChord = candidateChords[0];
+      let nearestChord = null;
       let nearestDistance = Infinity;
       for (let chordIndex = 0; chordIndex < candidateChords.length; chordIndex += 1) {
-        const distance = getSquaredDistanceToSegment(
+        const distance = getSquaredDistanceToTasSide(
           normalizedX,
           normalizedY,
           candidateChords[chordIndex],
         );
+        if (distance === null) {
+          continue;
+        }
+
         if (distance < nearestDistance) {
           nearestDistance = distance;
           nearestChord = candidateChords[chordIndex];
         }
+      }
+
+      if (!nearestChord) {
+        continue;
       }
 
       const ownerIndex = ownerIndexByChordKey.get(nearestChord.key);
@@ -440,6 +446,32 @@ function getNearestPaletteColor(red, green, blue, paletteColors) {
     : null;
 }
 
+function getRoundedRgb(red, green, blue) {
+  return {
+    r: Math.round(red),
+    g: Math.round(green),
+    b: Math.round(blue),
+  };
+}
+
+function getRgbCss({ r, g, b }) {
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function sortTasFitRowsByError(firstRow, secondRow) {
+  const firstError = Number.isFinite(firstRow.error) ? firstRow.error : -Infinity;
+  const secondError = Number.isFinite(secondRow.error) ? secondRow.error : -Infinity;
+  if (secondError !== firstError) {
+    return secondError - firstError;
+  }
+
+  if (secondRow.pixelCount !== firstRow.pixelCount) {
+    return secondRow.pixelCount - firstRow.pixelCount;
+  }
+
+  return firstRow.chordKey.localeCompare(secondRow.chordKey);
+}
+
 export function buildTasRegionPaletteFit({
   sourceImageData,
   imageCenter,
@@ -495,6 +527,7 @@ export function buildTasRegionPaletteFit({
   let fittedTasCount = 0;
   let totalError = 0;
   const segments = [];
+  const rows = [];
 
   for (let chordIndex = 0; chordIndex < assignments.ownerChords.length; chordIndex += 1) {
     const chord = assignments.ownerChords[chordIndex];
@@ -506,6 +539,7 @@ export function buildTasRegionPaletteFit({
     const averageRed = redSums[chordIndex] / pixelCount;
     const averageGreen = greenSums[chordIndex] / pixelCount;
     const averageBlue = blueSums[chordIndex] / pixelCount;
+    const averageRgb = getRoundedRgb(averageRed, averageGreen, averageBlue);
     const nearest = limitToPalette
       ? getNearestPaletteColor(
           averageRed,
@@ -516,7 +550,7 @@ export function buildTasRegionPaletteFit({
       : null;
     const displayColor = limitToPalette
       ? nearest?.color?.hex ?? '#0f172a'
-      : `rgb(${Math.round(averageRed)}, ${Math.round(averageGreen)}, ${Math.round(averageBlue)})`;
+      : getRgbCss(averageRgb);
     const error = limitToPalette ? nearest?.error ?? null : null;
     if (limitToPalette && error !== null) {
       fittedTasCount += 1;
@@ -527,6 +561,7 @@ export function buildTasRegionPaletteFit({
 
     segments.push({
       key: `tas-fit-${chord.key}`,
+      chordKey: chord.key,
       regionIndex: chord.regionIndex,
       x1: chord.tasX1,
       y1: chord.tasY1,
@@ -535,8 +570,29 @@ export function buildTasRegionPaletteFit({
       stroke: displayColor,
       pixelCount,
       error,
+      assignedColorId: nearest?.color?.id ?? null,
+      assignedColorLabel: nearest?.color?.label ?? null,
+    });
+    rows.push({
+      chordKey: chord.key,
+      startNailNumber: chord.startNailNumber,
+      endNailNumber: chord.endNailNumber,
+      chordLength: chord.chordLength,
+      regionIndex: chord.regionIndex,
+      pixelCount,
+      averageRgb,
+      averageColor: getRgbCss(averageRgb),
+      assignedColorId: nearest?.color?.id ?? null,
+      assignedColorLabel: nearest?.color?.label ?? null,
+      assignedColorHex: displayColor,
+      error,
     });
   }
+
+  const sortedRows = rows.sort(sortTasFitRowsByError).map((row, index) => ({
+    ...row,
+    errorRank: index + 1,
+  }));
 
   return {
     assignedPixelCount: assignments.assignedPixelCount,
@@ -544,6 +600,7 @@ export function buildTasRegionPaletteFit({
     fittedTasCount,
     regionTasCount: assignments.ownerChords.length,
     segments,
+    sortedRows,
   };
 }
 
@@ -603,6 +660,7 @@ export function buildAllTasRegionsPaletteFit({
   let fittedTasCount = 0;
   let totalError = 0;
   const segments = [];
+  const rows = [];
 
   for (let chordIndex = 0; chordIndex < assignments.ownerChords.length; chordIndex += 1) {
     const chord = assignments.ownerChords[chordIndex];
@@ -614,6 +672,7 @@ export function buildAllTasRegionsPaletteFit({
     const averageRed = redSums[chordIndex] / pixelCount;
     const averageGreen = greenSums[chordIndex] / pixelCount;
     const averageBlue = blueSums[chordIndex] / pixelCount;
+    const averageRgb = getRoundedRgb(averageRed, averageGreen, averageBlue);
     const nearest = limitToPalette
       ? getNearestPaletteColor(
           averageRed,
@@ -624,7 +683,7 @@ export function buildAllTasRegionsPaletteFit({
       : null;
     const displayColor = limitToPalette
       ? nearest?.color?.hex ?? '#0f172a'
-      : `rgb(${Math.round(averageRed)}, ${Math.round(averageGreen)}, ${Math.round(averageBlue)})`;
+      : getRgbCss(averageRgb);
     const error = limitToPalette ? nearest?.error ?? null : null;
     if (limitToPalette && error !== null) {
       fittedTasCount += 1;
@@ -635,6 +694,7 @@ export function buildAllTasRegionsPaletteFit({
 
     segments.push({
       key: `all-tas-fit-${chord.key}`,
+      chordKey: chord.key,
       regionIndex: chord.regionIndex,
       x1: chord.tasX1,
       y1: chord.tasY1,
@@ -643,8 +703,29 @@ export function buildAllTasRegionsPaletteFit({
       stroke: displayColor,
       pixelCount,
       error,
+      assignedColorId: nearest?.color?.id ?? null,
+      assignedColorLabel: nearest?.color?.label ?? null,
+    });
+    rows.push({
+      chordKey: chord.key,
+      startNailNumber: chord.startNailNumber,
+      endNailNumber: chord.endNailNumber,
+      chordLength: chord.chordLength,
+      regionIndex: chord.regionIndex,
+      pixelCount,
+      averageRgb,
+      averageColor: getRgbCss(averageRgb),
+      assignedColorId: nearest?.color?.id ?? null,
+      assignedColorLabel: nearest?.color?.label ?? null,
+      assignedColorHex: displayColor,
+      error,
     });
   }
+
+  const sortedRows = rows.sort(sortTasFitRowsByError).map((row, index) => ({
+    ...row,
+    errorRank: index + 1,
+  }));
 
   return {
     assignedPixelCount: assignments.assignedPixelCount,
@@ -653,5 +734,6 @@ export function buildAllTasRegionsPaletteFit({
     regionFits: [],
     regionTasCount: assignments.ownerChords.length,
     segments,
+    sortedRows,
   };
 }

@@ -33,6 +33,7 @@ import {
   buildTasPixelOwnershipPreview,
   buildTasPreviewSegments,
   buildTasRegionPaletteFit,
+  getTasRegionCount,
 } from './tasGeometry';
 import {
   allocateWholeUnitsByWeight,
@@ -66,6 +67,7 @@ const MIN_CONTRAST = 0;
 const MAX_CONTRAST = 100;
 const DEFAULT_CONTRAST = 100;
 const DEFAULT_MULTICOLOR_TARGET_TOTAL_LINES = 2000;
+const DEFAULT_TAS_REGION_CHORD_LIMIT_PERCENT = 100;
 const MIN_BRUSH_RADIUS = 1;
 const MAX_BRUSH_RADIUS = 40;
 const MIN_GROUP_VALUE = 0;
@@ -153,6 +155,119 @@ function areStringArraysEqual(left, right) {
   return left.every((value, index) => value === right[index]);
 }
 
+function getTasLimitCountForPercentage(totalCount, limitPercent) {
+  const normalizedTotalCount = Math.max(
+    0,
+    Math.round(Number.isFinite(totalCount) ? totalCount : 0),
+  );
+  const normalizedPercent = Math.min(
+    100,
+    Math.max(0, Number.isFinite(limitPercent) ? limitPercent : 0),
+  );
+
+  if (normalizedTotalCount <= 0 || normalizedPercent <= 0) {
+    return 0;
+  }
+
+  return Math.min(
+    normalizedTotalCount,
+    Math.max(1, Math.round((normalizedTotalCount * normalizedPercent) / 100)),
+  );
+}
+
+function getLimitedTasChordKeySet(sortedRows, regionLimitPercent) {
+  if (!Array.isArray(sortedRows) || sortedRows.length === 0) {
+    return new Set();
+  }
+
+  if (!Number.isFinite(regionLimitPercent) || regionLimitPercent <= 0) {
+    return new Set();
+  }
+
+  const rowsByRegion = new Map();
+  for (const row of sortedRows) {
+    const regionRows = rowsByRegion.get(row.regionIndex) ?? [];
+    regionRows.push(row);
+    rowsByRegion.set(row.regionIndex, regionRows);
+  }
+
+  const activeChordKeys = new Set();
+  for (const regionRows of rowsByRegion.values()) {
+    const regionLimit = getTasLimitCountForPercentage(regionRows.length, regionLimitPercent);
+    for (const row of regionRows.slice(-regionLimit)) {
+      activeChordKeys.add(row.chordKey);
+    }
+  }
+
+  return activeChordKeys;
+}
+
+function getMaxEnabledTasRegionIndexForMinDistance(nailsCount, minDistance) {
+  const regionCount = getTasRegionCount(nailsCount);
+  if (regionCount <= 0) {
+    return -1;
+  }
+
+  const normalizedMinDistance = Math.max(
+    0,
+    Math.round(Number.isFinite(minDistance) ? minDistance : 0),
+  );
+  return Math.min(
+    regionCount - 1,
+    Math.max(-1, regionCount - normalizedMinDistance),
+  );
+}
+
+function filterTasPaletteFitByMaxRegion(fit, maxRegionIndex) {
+  if (!fit) {
+    return null;
+  }
+
+  const segments = (fit.segments ?? []).filter(
+    (segment) => segment.regionIndex <= maxRegionIndex,
+  );
+  const sortedRows = (fit.sortedRows ?? []).filter(
+    (row) => row.regionIndex <= maxRegionIndex,
+  );
+  const finiteErrorRows = sortedRows.filter((row) => Number.isFinite(row.error));
+  const totalError = finiteErrorRows.reduce((sum, row) => sum + row.error, 0);
+
+  return {
+    ...fit,
+    assignedPixelCount: sortedRows.reduce((sum, row) => sum + row.pixelCount, 0),
+    averageError: finiteErrorRows.length > 0 ? totalError / finiteErrorRows.length : null,
+    fittedTasCount: sortedRows.length,
+    regionTasCount: sortedRows.length,
+    segments,
+    sortedRows,
+  };
+}
+
+function filterTasPaletteFitByRegion(fit, regionIndex, regionTasCount = 0) {
+  if (!fit) {
+    return null;
+  }
+
+  const segments = (fit.segments ?? []).filter(
+    (segment) => segment.regionIndex === regionIndex,
+  );
+  const sortedRows = (fit.sortedRows ?? []).filter(
+    (row) => row.regionIndex === regionIndex,
+  );
+  const finiteErrorRows = sortedRows.filter((row) => Number.isFinite(row.error));
+  const totalError = finiteErrorRows.reduce((sum, row) => sum + row.error, 0);
+
+  return {
+    ...fit,
+    assignedPixelCount: sortedRows.reduce((sum, row) => sum + row.pixelCount, 0),
+    averageError: finiteErrorRows.length > 0 ? totalError / finiteErrorRows.length : null,
+    fittedTasCount: sortedRows.length,
+    regionTasCount,
+    segments,
+    sortedRows,
+  };
+}
+
 function App() {
   const [imageName, setImageName] = useState('');
   const [imageSize, setImageSize] = useState(null);
@@ -227,6 +342,14 @@ function App() {
   const [isTasPaletteFitLimitedToPalette, setIsTasPaletteFitLimitedToPalette] = useState(true);
   const [tasViewScope, setTasViewScope] = useState('selected');
   const [selectedTasRegionIndex, setSelectedTasRegionIndex] = useState(0);
+  const [selectedTasChordKey, setSelectedTasChordKey] = useState(null);
+  const [selectedConnectorGapChordKey, setSelectedConnectorGapChordKey] = useState(null);
+  const [selectedChainChordKeys, setSelectedChainChordKeys] = useState([]);
+  const [selectedConnectorChordKeys, setSelectedConnectorChordKeys] = useState([]);
+  const [tasRegionChordLimitPercent, setTasRegionChordLimitPercent] = useState(
+    DEFAULT_TAS_REGION_CHORD_LIMIT_PERCENT,
+  );
+  const [isTasSameColorFocusEnabled, setIsTasSameColorFocusEnabled] = useState(false);
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -236,6 +359,7 @@ function App() {
   const previewScaleRef = useRef(INITIAL_PREVIEW_SCALE);
   const imageCenterRef = useRef({ x: 0, y: 0 });
   const previewOffsetRef = useRef({ x: 0, y: 0 });
+  const tasOwnershipPreviewCacheRef = useRef(new Map());
   const originalComparisonCanvasRef = useRef(null);
   const paletteComparisonCanvasRef = useRef(null);
   const ditheredComparisonCanvasRef = useRef(null);
@@ -2518,7 +2642,8 @@ function App() {
     () => buildNails(nailsCount, inversePreviewScale),
     [inversePreviewScale, nailsCount],
   );
-  const tasNetwork = useMemo(() => buildTasChordNetwork(nails), [nails]);
+  const tasGeometryNails = useMemo(() => buildNails(nailsCount, 1).nails, [nailsCount]);
+  const tasNetwork = useMemo(() => buildTasChordNetwork(tasGeometryNails), [tasGeometryNails]);
   const normalizedSelectedTasRegionIndex = clamp(
     selectedTasRegionIndex,
     0,
@@ -2526,43 +2651,143 @@ function App() {
   );
   const selectedTasRegion =
     tasNetwork.regions[normalizedSelectedTasRegionIndex] ?? null;
+  const tasMinDistance = parseMinDistanceValue(highlightRange);
+  const maxEnabledTasRegionIndex = getMaxEnabledTasRegionIndexForMinDistance(
+    nailsCount,
+    tasMinDistance,
+  );
+  const disabledTasRegionCount = Math.max(
+    0,
+    tasNetwork.regionCount - Math.max(0, maxEnabledTasRegionIndex + 1),
+  );
+  const isSelectedTasRegionEnabled =
+    maxEnabledTasRegionIndex >= 0 &&
+    normalizedSelectedTasRegionIndex <= maxEnabledTasRegionIndex;
+  const tasPreviewSegmentsByRegion = useMemo(() => {
+    const segmentsByRegion = new Map();
+    for (const segment of buildTasPreviewSegments(tasNetwork)) {
+      const regionSegments = segmentsByRegion.get(segment.regionIndex) ?? [];
+      regionSegments.push(segment);
+      segmentsByRegion.set(segment.regionIndex, regionSegments);
+    }
+    return segmentsByRegion;
+  }, [tasNetwork]);
   const tasPreviewSegments = useMemo(
-    () =>
-      isTasPreviewEnabled
-        ? buildTasPreviewSegments(tasNetwork).filter(
-            (segment) =>
-              tasViewScope === 'all' ||
-              segment.regionIndex === normalizedSelectedTasRegionIndex,
-          )
-        : [],
-    [isTasPreviewEnabled, normalizedSelectedTasRegionIndex, tasNetwork, tasViewScope],
+    () => {
+      if (!isTasPreviewEnabled) {
+        return [];
+      }
+
+      if (tasViewScope !== 'all') {
+        return normalizedSelectedTasRegionIndex <= maxEnabledTasRegionIndex
+          ? tasPreviewSegmentsByRegion.get(normalizedSelectedTasRegionIndex) ?? []
+          : [];
+      }
+
+      const segments = [];
+      for (let regionIndex = 0; regionIndex <= maxEnabledTasRegionIndex; regionIndex += 1) {
+        segments.push(...(tasPreviewSegmentsByRegion.get(regionIndex) ?? []));
+      }
+      return segments;
+    },
+    [
+      isTasPreviewEnabled,
+      maxEnabledTasRegionIndex,
+      normalizedSelectedTasRegionIndex,
+      tasPreviewSegmentsByRegion,
+      tasViewScope,
+    ],
   );
   const tasOwnershipPreview = useMemo(
-    () =>
-      isTasOwnershipPreviewEnabled && hasLoadedImage
-        ? buildTasPixelOwnershipPreview({
-            imageSize,
-            imageCenter,
-            imageScale,
-            previewSize,
-            regionIndex: normalizedSelectedTasRegionIndex,
-            tasNetwork,
-          })
-        : null,
+    () => {
+      if (
+        !isTasOwnershipPreviewEnabled ||
+        !hasLoadedImage ||
+        !isSelectedTasRegionEnabled
+      ) {
+        return null;
+      }
+
+      const cacheKey = [
+        imageName,
+        imageSize?.width ?? 0,
+        imageSize?.height ?? 0,
+        imageCenter.x,
+        imageCenter.y,
+        imageScale,
+        previewSize,
+        nailsCount,
+        normalizedSelectedTasRegionIndex,
+      ].join('|');
+      const cachedPreview = tasOwnershipPreviewCacheRef.current.get(cacheKey);
+      if (cachedPreview) {
+        return cachedPreview;
+      }
+
+      const nextPreview = buildTasPixelOwnershipPreview({
+        imageSize,
+        imageCenter,
+        imageScale,
+        previewSize,
+        regionIndex: normalizedSelectedTasRegionIndex,
+        tasNetwork,
+      });
+      tasOwnershipPreviewCacheRef.current.set(cacheKey, nextPreview);
+      return nextPreview;
+    },
     [
       hasLoadedImage,
+      imageName,
       imageCenter,
       imageScale,
       imageSize,
+      isSelectedTasRegionEnabled,
       isTasOwnershipPreviewEnabled,
+      nailsCount,
       normalizedSelectedTasRegionIndex,
       previewSize,
       tasNetwork,
     ],
   );
+  const allTasPaletteFit = useMemo(
+    () => {
+      if (
+        !isTasPaletteFitPreviewEnabled ||
+        !hasLoadedImage ||
+        tasViewScope !== 'all'
+      ) {
+        return null;
+      }
+
+      return filterTasPaletteFitByMaxRegion(
+        buildAllTasRegionsPaletteFit({
+            sourceImageData: originalImageDataRef.current,
+            imageCenter,
+            imageScale,
+            previewSize,
+            tasNetwork,
+            paletteColors: enabledPalettePreviewColors,
+            limitToPalette: isTasPaletteFitLimitedToPalette,
+          }),
+        maxEnabledTasRegionIndex,
+      );
+    },
+    [
+      enabledPalettePreviewColors,
+      hasLoadedImage,
+      imageCenter,
+      imageScale,
+      isTasPaletteFitPreviewEnabled,
+      isTasPaletteFitLimitedToPalette,
+      maxEnabledTasRegionIndex,
+      previewSize,
+      tasNetwork,
+      tasViewScope,
+    ],
+  );
   const tasPaletteFit = useMemo(
     () =>
-      isTasPaletteFitPreviewEnabled && tasViewScope === 'selected' && hasLoadedImage
+      isTasPaletteFitPreviewEnabled && hasLoadedImage && isSelectedTasRegionEnabled
         ? buildTasRegionPaletteFit({
             sourceImageData: originalImageDataRef.current,
             imageCenter,
@@ -2579,39 +2804,78 @@ function App() {
       hasLoadedImage,
       imageCenter,
       imageScale,
+      isSelectedTasRegionEnabled,
       isTasPaletteFitPreviewEnabled,
       isTasPaletteFitLimitedToPalette,
       normalizedSelectedTasRegionIndex,
       previewSize,
       tasNetwork,
-      tasViewScope,
     ],
   );
-  const allTasPaletteFit = useMemo(
+  const scopedTasPaletteFit =
+    tasViewScope === 'all' && allTasPaletteFit ? allTasPaletteFit : tasPaletteFit;
+  const tasPaletteFitActiveChordKeys = useMemo(
     () =>
-      isTasPaletteFitPreviewEnabled && tasViewScope === 'all' && hasLoadedImage
-        ? buildAllTasRegionsPaletteFit({
-            sourceImageData: originalImageDataRef.current,
-            imageCenter,
-            imageScale,
-            previewSize,
-            tasNetwork,
-            paletteColors: enabledPalettePreviewColors,
-            limitToPalette: isTasPaletteFitLimitedToPalette,
-          })
-        : null,
-    [
-      enabledPalettePreviewColors,
-      hasLoadedImage,
-      imageCenter,
-      imageScale,
-      isTasPaletteFitPreviewEnabled,
-      isTasPaletteFitLimitedToPalette,
-      previewSize,
-      tasNetwork,
-      tasViewScope,
-    ],
+      getLimitedTasChordKeySet(
+        scopedTasPaletteFit?.sortedRows ?? [],
+        tasRegionChordLimitPercent,
+      ),
+    [scopedTasPaletteFit, tasRegionChordLimitPercent],
   );
+  const activeLimitedTasCount = tasPaletteFitActiveChordKeys.size;
+  const visibleTasPaletteFitSegments = useMemo(() => {
+    const fitSegments = scopedTasPaletteFit?.segments ?? [];
+    return fitSegments.map((segment) => {
+      const isTasLimitActive = tasPaletteFitActiveChordKeys.has(segment.chordKey);
+      const isFocusedSameColorTas =
+        isTasSameColorFocusEnabled &&
+        isTasLimitActive &&
+        segment.assignedColorId === activePaletteColorId;
+      return {
+        ...segment,
+        isTasLimitActive,
+        isTasLimitInactive: !isTasLimitActive,
+        isFocusedSameColorTas,
+        isUnfocusedSameColorTas:
+          isTasSameColorFocusEnabled && isTasLimitActive && !isFocusedSameColorTas,
+      };
+    });
+  }, [
+    activePaletteColorId,
+    isTasSameColorFocusEnabled,
+    scopedTasPaletteFit,
+    tasPaletteFitActiveChordKeys,
+  ]);
+  const selectedConnectorPreviewSegments = useMemo(() => {
+    if (selectedChainChordKeys.length === 0 && selectedConnectorChordKeys.length === 0) {
+      return [];
+    }
+
+    const selectedChainChordKeySet = new Set(selectedChainChordKeys);
+    const selectedChordKeySet = new Set(selectedConnectorChordKeys);
+    return (tasNetwork?.chords ?? [])
+      .filter((chord) => selectedChainChordKeySet.has(chord.key) || selectedChordKeySet.has(chord.key))
+      .map((chord) => ({
+        key: `selected-connector-${chord.key}`,
+        chordKey: chord.key,
+        isChainChord: selectedChainChordKeySet.has(chord.key),
+        isConnectorChord: selectedChordKeySet.has(chord.key),
+        x1: chord.x1,
+        y1: chord.y1,
+        x2: chord.x2,
+        y2: chord.y2,
+      }));
+  }, [selectedChainChordKeys, selectedConnectorChordKeys, tasNetwork]);
+  useEffect(() => {
+    if (!selectedTasChordKey) {
+      return;
+    }
+
+    const currentRows = allTasPaletteFit?.sortedRows ?? tasPaletteFit?.sortedRows ?? [];
+    if (!currentRows.some((row) => row.chordKey === selectedTasChordKey)) {
+      setSelectedTasChordKey(null);
+    }
+  }, [allTasPaletteFit, selectedTasChordKey, tasPaletteFit]);
 
   const fromIndex = Number.parseInt(lineFrom, 10);
   const toIndex = Number.parseInt(lineTo, 10);
@@ -3608,6 +3872,10 @@ function App() {
               isTasPaletteFitPreviewEnabled={isTasPaletteFitPreviewEnabled}
               isTasPaletteFitLimitedToPalette={isTasPaletteFitLimitedToPalette}
               isTasPreviewEnabled={isTasPreviewEnabled}
+              isSelectedTasRegionEnabled={isSelectedTasRegionEnabled}
+              isTasSameColorFocusEnabled={isTasSameColorFocusEnabled}
+              disabledTasRegionCount={disabledTasRegionCount}
+              maxEnabledTasRegionIndex={maxEnabledTasRegionIndex}
               multicolorPaletteColors={multicolorPaletteColors}
               multicolorPaletteCoverage={multicolorPaletteCoverage}
               multicolorPaletteCoverageWithLineAllocation={multicolorPaletteCoverageWithLineAllocation}
@@ -3620,10 +3888,17 @@ function App() {
               originalComparisonCanvasRef={originalComparisonCanvasRef}
               paletteComparisonCanvasRef={paletteComparisonCanvasRef}
               selectedTasRegion={selectedTasRegion}
+              selectedTasChordKey={selectedTasChordKey}
+              selectedConnectorGapChordKey={selectedConnectorGapChordKey}
+              selectedChainChordKeys={selectedChainChordKeys}
+              selectedConnectorChordKeys={selectedConnectorChordKeys}
               shouldShowPaletteComparison={shouldShowPaletteComparison}
+              activeLimitedTasCount={activeLimitedTasCount}
+              tasRegionChordLimitPercent={tasRegionChordLimitPercent}
               tasOwnershipPreview={tasOwnershipPreview}
               tasPaletteFit={tasPaletteFit}
               tasNetwork={tasNetwork}
+              tasMinDistance={tasMinDistance}
               tasViewScope={tasViewScope}
               totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
               totalPaletteCoverageTenths={totalPaletteCoverageTenths}
@@ -3637,11 +3912,17 @@ function App() {
               setIsTasPaletteFitLimitedToPalette={setIsTasPaletteFitLimitedToPalette}
               setIsTasPaletteFitPreviewEnabled={setIsTasPaletteFitPreviewEnabled}
               setIsTasPreviewEnabled={setIsTasPreviewEnabled}
+              setIsTasSameColorFocusEnabled={setIsTasSameColorFocusEnabled}
               setMulticolorLockedLineOverride={setMulticolorLockedLineOverride}
               setMulticolorPaletteColors={setMulticolorPaletteColors}
               setMulticolorPalettePresetId={setMulticolorPalettePresetId}
               setMulticolorTargetTotalLines={setMulticolorTargetTotalLines}
               setSelectedTasRegionIndex={setSelectedTasRegionIndex}
+              setSelectedTasChordKey={setSelectedTasChordKey}
+              setSelectedChainChordKeys={setSelectedChainChordKeys}
+              setSelectedConnectorGapChordKey={setSelectedConnectorGapChordKey}
+              setSelectedConnectorChordKeys={setSelectedConnectorChordKeys}
+              setTasRegionChordLimitPercent={setTasRegionChordLimitPercent}
               setTasViewScope={setTasViewScope}
             />
           </Profiler>
@@ -3681,10 +3962,14 @@ function App() {
         previewRef={previewRef}
         previewStyle={previewStyle}
         selectionOverlayRef={selectionOverlayRef}
+        selectedTasChordKey={selectedTasChordKey}
+        selectedChainChordKeys={selectedChainChordKeys}
+        selectedConnectorChordKeys={selectedConnectorChordKeys}
+        selectedConnectorPreviewSegments={selectedConnectorPreviewSegments}
         shouldShowPreviewLine={shouldShowPreviewLine}
         showNailNumbers={showNailNumbers}
         selectedTasRegionIndex={normalizedSelectedTasRegionIndex}
-        tasPaletteFitSegments={allTasPaletteFit?.segments ?? tasPaletteFit?.segments ?? []}
+        tasPaletteFitSegments={visibleTasPaletteFitSegments}
         tasOwnershipPreviewImageData={tasOwnershipPreview?.imageData ?? null}
         tasPreviewSegments={tasPreviewSegments}
         />

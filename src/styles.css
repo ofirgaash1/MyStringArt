@@ -29,7 +29,7 @@ label {
 
 .app-shell {
   display: grid;
-  grid-template-columns: clamp(360px, 30vw, 460px) 1fr;
+  grid-template-columns: clamp(460px, 38vw, 640px) minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
@@ -47,6 +47,7 @@ label {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  overflow-x: hidden;
 }
 
 .sidebar-top-row {
@@ -89,6 +90,7 @@ label {
   flex: 1;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
   min-height: 0;
 }
 
@@ -132,6 +134,7 @@ label {
 }
 
 .multicolor-lab {
+  min-width: 0;
   padding: 12px;
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 14px;
@@ -586,6 +589,325 @@ label {
   font-weight: 700;
   color: #9a3412;
   text-align: right;
+}
+
+.tas-error-list {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(194, 65, 12, 0.1);
+}
+
+.tas-error-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tas-limit-control {
+  gap: 5px;
+}
+
+.tas-error-selected {
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.tas-error-table {
+  display: grid;
+  gap: 4px;
+}
+
+.tas-error-row {
+  display: grid;
+  grid-template-columns: 42px 56px minmax(72px, 1fr) 52px 62px 36px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #7c2d12;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+button.tas-error-row {
+  cursor: pointer;
+}
+
+.tas-error-row.is-header {
+  border-color: transparent;
+  background: transparent;
+  color: #9a3412;
+  font-weight: 700;
+}
+
+.tas-error-row.is-low-error {
+  opacity: 0.82;
+}
+
+.tas-error-row.is-limit-inactive {
+  opacity: 0.48;
+}
+
+.tas-error-row.is-limit-active {
+  border-color: rgba(34, 197, 94, 0.34);
+}
+
+.tas-error-row.is-selected {
+  border-color: rgba(15, 23, 42, 0.48);
+  background: rgba(255, 247, 237, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.tas-error-color-cell {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.tas-error-color-cell .multicolor-palette-swatch {
+  flex: 0 0 auto;
+}
+
+.tas-error-divider {
+  padding: 4px 8px 2px;
+  color: #9a3412;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.tas-sccl-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.tas-sccl-list {
+  display: grid;
+  gap: 6px;
+}
+
+.tas-sccl-chip {
+  display: grid;
+  grid-template-columns: 18px minmax(58px, 1fr) auto minmax(86px, 1.2fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #7c2d12;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tas-sccl-chip.is-active {
+  border-color: rgba(15, 23, 42, 0.48);
+  background: rgba(255, 247, 237, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.1);
+}
+
+.tas-sccl-name {
+  min-width: 0;
+  font-weight: 700;
+}
+
+.tas-sccl-count,
+.tas-sccl-sample {
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 700;
+}
+
+.tas-sccl-sample {
+  min-width: 0;
+  overflow: hidden;
+  color: #7c2d12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tas-chain-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(194, 65, 12, 0.1);
+}
+
+.tas-chain-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tas-chain-list {
+  display: grid;
+  gap: 4px;
+}
+
+.tas-chain-row {
+  display: grid;
+  grid-template-columns: 42px 74px 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(34, 197, 94, 0.26);
+  border-radius: 8px;
+  background: rgba(240, 253, 244, 0.7);
+  color: #166534;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tas-chain-row.needs-connector {
+  border-color: rgba(194, 65, 12, 0.28);
+  background: rgba(255, 247, 237, 0.92);
+  color: #9a3412;
+}
+
+.tas-chain-row.is-selected {
+  border-color: rgba(15, 23, 42, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.tas-connector-panel,
+.tas-connector-list {
+  display: grid;
+  gap: 6px;
+}
+
+.tas-connector-panel {
+  padding-top: 8px;
+  border-top: 1px solid rgba(194, 65, 12, 0.1);
+}
+
+.tas-connector-ranking-note {
+  margin: 0;
+  color: #9a3412;
+  font-size: 0.72rem;
+}
+
+.tas-connector-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1.2fr) minmax(150px, 1fr);
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(194, 65, 12, 0.26);
+  border-radius: 8px;
+  background: rgba(255, 247, 237, 0.9);
+  color: #9a3412;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tas-connector-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tas-connector-metrics {
+  color: #7c2d12;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.tas-connector-row.is-active-limit {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: rgba(240, 253, 244, 0.76);
+  color: #166534;
+}
+
+.tas-connector-row.is-inner-candidate {
+  opacity: 0.72;
+}
+
+.tas-connector-row.is-closest-outer {
+  border-color: rgba(15, 23, 42, 0.38);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.tas-connector-row strong,
+.tas-connector-targets strong {
+  color: #7c2d12;
+  font-weight: 800;
+}
+
+.tas-global-order-panel {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(194, 65, 12, 0.1);
+}
+
+.tas-global-order-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tas-global-order-list {
+  display: grid;
+  gap: 4px;
+}
+
+.tas-global-order-row {
+  display: grid;
+  grid-template-columns: 44px minmax(88px, 1fr) 64px 42px 82px 58px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #7c2d12;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tas-global-order-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tas-global-order-row.is-selected {
+  border-color: rgba(15, 23, 42, 0.48);
+  background: rgba(255, 247, 237, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.tas-global-order-color {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
 }
 
 .multicolor-histogram-helper {
@@ -1049,6 +1371,15 @@ label {
   pointer-events: none;
 }
 
+.selected-connector-preview-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
 .nails-labels-layer {
   position: absolute;
   inset: 0;
@@ -1096,6 +1427,59 @@ label {
 .tas-palette-fit-line {
   stroke-width: 0.52;
   vector-effect: non-scaling-stroke;
+}
+
+.tas-palette-fit-line.is-limit-inactive {
+  opacity: 0.12;
+  stroke-dasharray: 1 1;
+}
+
+.tas-palette-fit-line.is-limit-active {
+  opacity: 0.95;
+  stroke-width: 0.72;
+}
+
+.tas-palette-fit-line.is-unfocused-same-color {
+  opacity: 0.22;
+  stroke-width: 0.42;
+}
+
+.tas-palette-fit-line.is-focused-same-color {
+  opacity: 1;
+  stroke-width: 1.05;
+}
+
+.tas-palette-fit-line.is-selected-connector {
+  stroke: #f59e0b !important;
+  stroke-width: 1.45;
+  opacity: 1;
+  stroke-dasharray: none;
+}
+
+.tas-palette-fit-line.is-selected-tas {
+  stroke: #020617 !important;
+  stroke-width: 1.35;
+  opacity: 1;
+  stroke-dasharray: none;
+}
+
+.selected-connector-preview-line {
+  stroke-width: 1.45;
+  opacity: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.selected-connector-preview-line.is-chain-chord {
+  stroke: #020617;
+}
+
+.selected-connector-preview-line.is-connector-chord {
+  stroke: #f59e0b;
+}
+
+.selected-connector-preview-line.is-selected-tas {
+  stroke: #020617;
+  stroke-width: 1.35;
 }
 
 .nail-number {

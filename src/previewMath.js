@@ -182,7 +182,7 @@ export function getZoomedImageState(
 
 export function buildNails(nailsCount, inversePreviewScale) {
   const nailRadius = 0.8 * inversePreviewScale;
-  const nailOrbitRadius = 50 - nailRadius;
+  const nailOrbitRadius = 49.2;
   const nailLabelRadius = 50 + 2.6 * inversePreviewScale;
   const nailFontSize = 2.2 * inversePreviewScale;
 

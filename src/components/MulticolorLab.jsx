@@ -1,13 +1,404 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   clonePalettePreset,
   MULTICOLOR_PALETTE_PRESETS,
 } from '../multicolor';
 import { useRenderDiagnostics } from '../renderDiagnostics';
 
+function planSameColorChain(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return {
+      orderedRows: [],
+      continuousTransitions: 0,
+      connectorTransitions: 0,
+    };
+  }
+
+  const remainingRows = rows.map((row) => ({ ...row }));
+  const firstRow = remainingRows.shift();
+  const orderedRows = [{
+    ...firstRow,
+    chainFromNailNumber: firstRow.startNailNumber,
+    chainToNailNumber: firstRow.endNailNumber,
+    needsConnector: false,
+  }];
+  let currentNailNumber = firstRow.endNailNumber;
+  let continuousTransitions = 0;
+  let connectorTransitions = 0;
+
+  while (remainingRows.length > 0) {
+    let nextIndex = remainingRows.findIndex(
+      (row) =>
+        row.startNailNumber === currentNailNumber ||
+        row.endNailNumber === currentNailNumber,
+    );
+    let needsConnector = false;
+
+    if (nextIndex < 0) {
+      nextIndex = 0;
+      needsConnector = true;
+      connectorTransitions += 1;
+    } else {
+      continuousTransitions += 1;
+    }
+
+    const [nextRow] = remainingRows.splice(nextIndex, 1);
+    const shouldFlip = nextRow.endNailNumber === currentNailNumber;
+    const chainFromNailNumber = shouldFlip ? nextRow.endNailNumber : nextRow.startNailNumber;
+    const chainToNailNumber = shouldFlip ? nextRow.startNailNumber : nextRow.endNailNumber;
+    orderedRows.push({
+      ...nextRow,
+      chainFromNailNumber,
+      chainToNailNumber,
+      needsConnector,
+    });
+    currentNailNumber = chainToNailNumber;
+  }
+
+  return {
+    orderedRows,
+    continuousTransitions,
+    connectorTransitions,
+  };
+}
+
+function getChordEndpointKey(firstNailNumber, secondNailNumber) {
+  return firstNailNumber < secondNailNumber
+    ? `${firstNailNumber}-${secondNailNumber}`
+    : `${secondNailNumber}-${firstNailNumber}`;
+}
+
+function getTasLimitCountForPercentage(totalCount, limitPercent) {
+  if (totalCount <= 0 || limitPercent <= 0) {
+    return 0;
+  }
+
+  return Math.min(totalCount, Math.max(1, Math.round((totalCount * limitPercent) / 100)));
+}
+
+function getActiveChordKeysByRegionLimit(rows, limitPercent) {
+  const activeChordKeys = new Set();
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return activeChordKeys;
+  }
+
+  const rowsByRegion = new Map();
+  for (const row of rows) {
+    const regionRows = rowsByRegion.get(row.regionIndex) ?? [];
+    regionRows.push(row);
+    rowsByRegion.set(row.regionIndex, regionRows);
+  }
+
+  for (const regionRows of rowsByRegion.values()) {
+    const regionLimit = getTasLimitCountForPercentage(regionRows.length, limitPercent);
+    for (const row of regionRows.slice(-regionLimit)) {
+      activeChordKeys.add(row.chordKey);
+    }
+  }
+
+  return activeChordKeys;
+}
+
+function getActiveRowsByRegionOrder(rows, limitPercent) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return [];
+  }
+
+  if (!Number.isFinite(limitPercent) || limitPercent <= 0) {
+    return [];
+  }
+
+  const rowsByRegion = new Map();
+  for (const row of rows) {
+    const regionRows = rowsByRegion.get(row.regionIndex) ?? [];
+    regionRows.push(row);
+    rowsByRegion.set(row.regionIndex, regionRows);
+  }
+
+  return [...rowsByRegion.entries()]
+    .sort(([firstRegion], [secondRegion]) => firstRegion - secondRegion)
+    .flatMap(([, regionRows]) => {
+      const regionLimit = getTasLimitCountForPercentage(regionRows.length, limitPercent);
+      return regionRows.slice(-regionLimit);
+    });
+}
+
+function getConnectorSearchSummary({
+  allRows,
+  activeChordKeys,
+  colorId,
+  fromNailNumber,
+  toNailNumber,
+  sourceRegionIndex,
+}) {
+  if (
+    !Array.isArray(allRows) ||
+    allRows.length === 0 ||
+    !colorId ||
+    !Number.isInteger(fromNailNumber) ||
+    !Number.isInteger(toNailNumber)
+  ) {
+    return null;
+  }
+
+  const sameColorRows = allRows.filter(
+    (row) =>
+      row.assignedColorId === colorId &&
+      row.regionIndex > sourceRegionIndex &&
+      activeChordKeys.has(row.chordKey),
+  );
+  const rowsByNailNumber = new Map();
+  for (const row of sameColorRows) {
+    for (const nailNumber of [row.startNailNumber, row.endNailNumber]) {
+      const nailRows = rowsByNailNumber.get(nailNumber) ?? [];
+      nailRows.push(row);
+      rowsByNailNumber.set(nailNumber, nailRows);
+    }
+  }
+
+  const pathCandidates = [];
+  let frontier = [{
+    currentNailNumber: fromNailNumber,
+    nailPath: [fromNailNumber],
+    legs: [],
+    usedChordKeys: new Set(),
+  }];
+
+  while (frontier.length > 0 && pathCandidates.length === 0) {
+    const nextFrontier = [];
+    for (const state of frontier) {
+      const nextRows = rowsByNailNumber.get(state.currentNailNumber) ?? [];
+      for (const row of nextRows) {
+        if (state.usedChordKeys.has(row.chordKey)) {
+          continue;
+        }
+
+        const nextNailNumber =
+          row.startNailNumber === state.currentNailNumber
+            ? row.endNailNumber
+            : row.startNailNumber;
+        if (state.nailPath.includes(nextNailNumber) && nextNailNumber !== toNailNumber) {
+          continue;
+        }
+
+        const nextLegs = [...state.legs, row];
+        const nextNailPath = [...state.nailPath, nextNailNumber];
+        const nextUsedChordKeys = new Set(state.usedChordKeys);
+        nextUsedChordKeys.add(row.chordKey);
+
+        if (nextNailNumber === toNailNumber) {
+          const totalError = nextLegs.reduce(
+            (sum, leg) => sum + (Number.isFinite(leg.error) ? leg.error : Infinity),
+            0,
+          );
+          const totalLength = nextLegs.reduce(
+            (sum, leg) => sum + (Number.isFinite(leg.chordLength) ? leg.chordLength : 0),
+            0,
+          );
+          const totalDamage = nextLegs.reduce(
+            (sum, leg) => sum + getConnectorLegDamage(leg),
+            0,
+          );
+          pathCandidates.push({
+            key: nextLegs.map((leg) => leg.chordKey).join('+'),
+            legs: nextLegs,
+            nailPath: nextNailPath,
+            regionPath: nextLegs.map((leg) => leg.regionIndex),
+            minRegionIndex: Math.min(...nextLegs.map((leg) => leg.regionIndex)),
+            totalError,
+            totalLength,
+            totalDamage,
+            maxRegionIndex: Math.max(...nextLegs.map((leg) => leg.regionIndex)),
+          });
+        } else {
+          nextFrontier.push({
+            currentNailNumber: nextNailNumber,
+            nailPath: nextNailPath,
+            legs: nextLegs,
+            usedChordKeys: nextUsedChordKeys,
+          });
+        }
+      }
+    }
+
+    frontier = nextFrontier;
+  }
+
+  pathCandidates.sort((firstCandidate, secondCandidate) => {
+    if (firstCandidate.totalDamage !== secondCandidate.totalDamage) {
+      return firstCandidate.totalDamage - secondCandidate.totalDamage;
+    }
+
+    if (firstCandidate.totalError !== secondCandidate.totalError) {
+      return firstCandidate.totalError - secondCandidate.totalError;
+    }
+
+    if (firstCandidate.totalLength !== secondCandidate.totalLength) {
+      return firstCandidate.totalLength - secondCandidate.totalLength;
+    }
+
+    return firstCandidate.maxRegionIndex - secondCandidate.maxRegionIndex;
+  });
+
+  const decoratedCandidates = pathCandidates.map((candidate) => ({
+    ...candidate,
+    outerSpan: Math.max(0, candidate.maxRegionIndex - sourceRegionIndex),
+  }));
+  const nearestOuterSpan = decoratedCandidates.reduce(
+    (best, candidate) => Math.min(best, candidate.outerSpan),
+    Infinity,
+  );
+
+  return {
+    fromNailNumber,
+    sourceRegionIndex,
+    toNailNumber,
+    direct:
+      decoratedCandidates
+        .map((candidate) => ({
+          ...candidate,
+          isClosestOuterCandidate: candidate.outerSpan === nearestOuterSpan,
+        }))
+        .find((candidate) => candidate.legs.length === 1) ?? null,
+    pathCandidates: decoratedCandidates
+      .map((candidate) => ({
+        ...candidate,
+        isClosestOuterCandidate: candidate.outerSpan === nearestOuterSpan,
+      }))
+      .filter((candidate) => candidate.legs.length > 1)
+      .slice(0, 5),
+  };
+}
+
+function getPreviewChordKeys(...chordKeyGroups) {
+  return [...new Set(chordKeyGroups.flat().filter(Boolean))];
+}
+
+function getConnectorLegDamage(leg) {
+  if (!leg) {
+    return Infinity;
+  }
+
+  const error = Number.isFinite(leg.error) ? leg.error : Infinity;
+  const chordLength = Number.isFinite(leg.chordLength) ? leg.chordLength : Infinity;
+  return error * chordLength;
+}
+
+function sortRowsForGlobalWinding(rows) {
+  return [...rows].sort((firstRow, secondRow) => {
+    if (firstRow.regionIndex !== secondRow.regionIndex) {
+      return firstRow.regionIndex - secondRow.regionIndex;
+    }
+
+    const firstError = Number.isFinite(firstRow.error) ? firstRow.error : -Infinity;
+    const secondError = Number.isFinite(secondRow.error) ? secondRow.error : -Infinity;
+    if (secondError !== firstError) {
+      return secondError - firstError;
+    }
+
+    return firstRow.chordKey.localeCompare(secondRow.chordKey);
+  });
+}
+
+function buildGlobalWindingPreview(rows, paletteColors) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return {
+      steps: [],
+      totalStepCount: 0,
+      perColorCounts: [],
+    };
+  }
+
+  const paletteById = new Map(
+    (Array.isArray(paletteColors) ? paletteColors : []).map((color) => [color.id, color]),
+  );
+  const rowsByColorId = new Map();
+
+  for (const row of rows) {
+    if (!row.assignedColorId) {
+      continue;
+    }
+
+    const colorRows = rowsByColorId.get(row.assignedColorId) ?? [];
+    colorRows.push(row);
+    rowsByColorId.set(row.assignedColorId, colorRows);
+  }
+
+  const queues = [...rowsByColorId.entries()].map(([colorId, colorRows]) => {
+    const paletteColor = paletteById.get(colorId);
+    return {
+      colorId,
+      colorLabel: paletteColor?.label ?? colorId,
+      colorHex: paletteColor?.hex ?? colorRows[0]?.assignedColorHex ?? '#0f172a',
+      rows: sortRowsForGlobalWinding(colorRows),
+      index: 0,
+    };
+  }).filter((queue) => queue.rows.length > 0);
+
+  const perColorCounts = queues.map((queue) => ({
+    colorId: queue.colorId,
+    colorLabel: queue.colorLabel,
+    colorHex: queue.colorHex,
+    count: queue.rows.length,
+  })).sort((firstColor, secondColor) => secondColor.count - firstColor.count);
+
+  const totalStepCount = queues.reduce((sum, queue) => sum + queue.rows.length, 0);
+  const steps = [];
+
+  while (steps.length < totalStepCount) {
+    const candidates = queues
+      .filter((queue) => queue.index < queue.rows.length)
+      .map((queue) => ({
+        queue,
+        row: queue.rows[queue.index],
+      }));
+
+    if (candidates.length === 0) {
+      break;
+    }
+
+    const innermostRegion = candidates.reduce(
+      (minRegion, candidate) => Math.min(minRegion, candidate.row.regionIndex),
+      Infinity,
+    );
+    const chosenCandidate = candidates
+      .filter((candidate) => candidate.row.regionIndex === innermostRegion)
+      .sort((firstCandidate, secondCandidate) => {
+        const firstError = Number.isFinite(firstCandidate.row.error) ? firstCandidate.row.error : -Infinity;
+        const secondError = Number.isFinite(secondCandidate.row.error) ? secondCandidate.row.error : -Infinity;
+        if (secondError !== firstError) {
+          return secondError - firstError;
+        }
+
+        if (firstCandidate.queue.colorLabel !== secondCandidate.queue.colorLabel) {
+          return firstCandidate.queue.colorLabel.localeCompare(secondCandidate.queue.colorLabel);
+        }
+
+        return firstCandidate.row.chordKey.localeCompare(secondCandidate.row.chordKey);
+      })[0];
+
+    steps.push({
+      stepNumber: steps.length + 1,
+      colorId: chosenCandidate.queue.colorId,
+      colorLabel: chosenCandidate.queue.colorLabel,
+      colorHex: chosenCandidate.queue.colorHex,
+      remainingInColor: chosenCandidate.queue.rows.length - chosenCandidate.queue.index - 1,
+      ...chosenCandidate.row,
+    });
+    chosenCandidate.queue.index += 1;
+  }
+
+  return {
+    steps,
+    totalStepCount,
+    perColorCounts,
+  };
+}
+
 function MulticolorLab({
   activePaletteColor,
   activePaletteColorId,
+  activeLimitedTasCount,
   allTasPaletteFit,
   ditheredComparisonCanvasRef,
   hasOriginalImage,
@@ -19,6 +410,10 @@ function MulticolorLab({
   isTasPaletteFitPreviewEnabled,
   isTasPaletteFitLimitedToPalette,
   isTasPreviewEnabled,
+  isSelectedTasRegionEnabled,
+  isTasSameColorFocusEnabled,
+  disabledTasRegionCount,
+  maxEnabledTasRegionIndex,
   multicolorPaletteColors,
   multicolorPaletteCoverage,
   multicolorPaletteCoverageWithLineAllocation,
@@ -40,21 +435,33 @@ function MulticolorLab({
   setIsTasPaletteFitLimitedToPalette,
   setIsTasPaletteFitPreviewEnabled,
   setIsTasPreviewEnabled,
+  setIsTasSameColorFocusEnabled,
   setMulticolorLockedLineOverride,
   setMulticolorPaletteColors,
   setMulticolorPalettePresetId,
   setMulticolorTargetTotalLines,
   setSelectedTasRegionIndex,
+  setSelectedTasChordKey,
+  setSelectedChainChordKeys,
+  setSelectedConnectorGapChordKey,
+  setSelectedConnectorChordKeys,
+  setTasRegionChordLimitPercent,
   selectedTasRegion,
+  selectedTasChordKey,
+  selectedConnectorGapChordKey,
+  selectedConnectorChordKeys,
   shouldShowPaletteComparison,
+  tasRegionChordLimitPercent,
   tasOwnershipPreview,
   tasPaletteFit,
   tasNetwork,
+  tasMinDistance,
   tasViewScope,
   totalAllocatedSuggestedLines,
   totalPaletteCoverageTenths,
   setTasViewScope,
 }) {
+  const [scclScope, setScclScope] = useState('global');
   const suggestedLinesByColorId = useMemo(
     () => new Map(
       multicolorPaletteCoverageWithSuggestions.map((color) => [color.id, color.allocatedUnits]),
@@ -63,6 +470,145 @@ function MulticolorLab({
   );
   const sourceLabel = isPaletteDitheringEnabled ? 'dithered' : 'nearest';
   const hasSuggestedLineTarget = multicolorTargetTotalLines > 0;
+  const effectiveScclScope =
+    scclScope === 'global' && allTasPaletteFit ? 'global' : 'selected-region';
+  const selectedRegionTasRows = tasPaletteFit?.sortedRows ?? [];
+  const highErrorTasRows = selectedRegionTasRows.slice(0, 8);
+  const lowErrorTasRows = selectedRegionTasRows.length > 8
+    ? selectedRegionTasRows.slice(-4).reverse()
+    : [];
+  const selectedRegionChordCount = isSelectedTasRegionEnabled
+    ? selectedRegionTasRows.length || selectedTasRegion?.chordCount || 0
+    : 0;
+  const normalizedTasRegionChordLimitPercent = Math.min(
+    100,
+    Math.max(0, Number.isFinite(tasRegionChordLimitPercent) ? tasRegionChordLimitPercent : 0),
+  );
+  const selectedRegionActiveChordCount = selectedRegionChordCount > 0 && normalizedTasRegionChordLimitPercent > 0
+    ? Math.min(
+        selectedRegionChordCount,
+        Math.max(1, Math.round((selectedRegionChordCount * normalizedTasRegionChordLimitPercent) / 100)),
+      )
+    : 0;
+  const selectedRegionActiveFitRowCount = selectedRegionTasRows.length > 0 && normalizedTasRegionChordLimitPercent > 0
+    ? Math.min(
+        selectedRegionTasRows.length,
+        Math.max(1, Math.round((selectedRegionTasRows.length * normalizedTasRegionChordLimitPercent) / 100)),
+      )
+    : 0;
+  const activeSelectedRegionTasChordKeys = useMemo(
+    () => new Set(
+      selectedRegionActiveFitRowCount > 0
+        ? selectedRegionTasRows
+            .slice(-selectedRegionActiveFitRowCount)
+            .map((row) => row.chordKey)
+        : [],
+    ),
+    [selectedRegionActiveFitRowCount, selectedRegionTasRows],
+  );
+  const allActiveTasChordKeys = useMemo(
+    () =>
+      getActiveChordKeysByRegionLimit(
+        allTasPaletteFit?.sortedRows ?? [],
+        normalizedTasRegionChordLimitPercent,
+      ),
+    [allTasPaletteFit, normalizedTasRegionChordLimitPercent],
+  );
+  const activeGlobalTasRows = useMemo(
+    () =>
+      getActiveRowsByRegionOrder(
+        allTasPaletteFit?.sortedRows ?? [],
+        normalizedTasRegionChordLimitPercent,
+      ),
+    [allTasPaletteFit, normalizedTasRegionChordLimitPercent],
+  );
+  const selectedTasRow = selectedTasChordKey
+    ? selectedRegionTasRows.find((row) => row.chordKey === selectedTasChordKey) ?? null
+    : null;
+  const activeScclRows = useMemo(
+    () =>
+      effectiveScclScope === 'selected-region'
+        ? selectedRegionTasRows.filter((row) => activeSelectedRegionTasChordKeys.has(row.chordKey))
+        : activeGlobalTasRows,
+    [
+      activeGlobalTasRows,
+      activeSelectedRegionTasChordKeys,
+      effectiveScclScope,
+      selectedRegionTasRows,
+    ],
+  );
+  const activeSameColorChordLists = useMemo(
+    () =>
+      multicolorPaletteColors
+        .map((color) => {
+          const rows = activeScclRows.filter(
+            (row) =>
+              row.assignedColorId === color.id,
+          );
+          return {
+            ...color,
+            rows,
+            chordCount: rows.length,
+          };
+        })
+        .filter((color) => color.chordCount > 0),
+    [activeScclRows, multicolorPaletteColors],
+  );
+  const activeColorSameColorList = activeSameColorChordLists.find(
+    (color) => color.id === activePaletteColorId,
+  ) ?? null;
+  const activeColorChainPlan = useMemo(
+    () => planSameColorChain(activeColorSameColorList?.rows ?? []),
+    [activeColorSameColorList],
+  );
+  const selectedConnectorGap = useMemo(() => {
+    let gapIndex = activeColorChainPlan.orderedRows.findIndex(
+      (row) => row.chordKey === selectedConnectorGapChordKey && row.needsConnector,
+    );
+    if (gapIndex <= 0) {
+      gapIndex = activeColorChainPlan.orderedRows.findIndex((row) => row.needsConnector);
+    }
+    if (gapIndex <= 0) {
+      return null;
+    }
+
+    const previousRow = activeColorChainPlan.orderedRows[gapIndex - 1];
+    const nextRow = activeColorChainPlan.orderedRows[gapIndex];
+    return {
+      index: gapIndex,
+      previousRow,
+      nextRow,
+      fromNailNumber: previousRow.chainToNailNumber,
+      toNailNumber: nextRow.chainFromNailNumber,
+    };
+  }, [activeColorChainPlan, selectedConnectorGapChordKey]);
+  const connectorSearchSummary = useMemo(
+    () =>
+      selectedConnectorGap
+        ? getConnectorSearchSummary({
+            allRows: allTasPaletteFit?.sortedRows ?? [],
+            activeChordKeys: allActiveTasChordKeys,
+            colorId: activePaletteColorId,
+            fromNailNumber: selectedConnectorGap.fromNailNumber,
+            toNailNumber: selectedConnectorGap.toNailNumber,
+            sourceRegionIndex: selectedConnectorGap.nextRow.regionIndex,
+          })
+        : null,
+    [
+      activePaletteColorId,
+      allActiveTasChordKeys,
+      allTasPaletteFit,
+      selectedConnectorGap,
+    ],
+  );
+  const globalWindingPreview = useMemo(
+    () =>
+      buildGlobalWindingPreview(
+        activeGlobalTasRows,
+        multicolorPaletteColors,
+      ),
+    [activeGlobalTasRows, multicolorPaletteColors],
+  );
 
   useRenderDiagnostics(
     'MulticolorLab',
@@ -509,6 +1055,24 @@ function MulticolorLab({
                   disabled={tasNetwork.regionCount === 0}
                 />
               </label>
+              <label className="slider-control tas-limit-control">
+                <span>
+                  Region chord limit A: {normalizedTasRegionChordLimitPercent.toFixed(0)}% ={' '}
+                  {selectedRegionActiveChordCount.toLocaleString()} /{' '}
+                  {selectedRegionChordCount.toLocaleString()} in D{normalizedSelectedTasRegionIndex}
+                </span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={normalizedTasRegionChordLimitPercent}
+                  onChange={(event) =>
+                    setTasRegionChordLimitPercent(Number.parseInt(event.target.value, 10) || 0)
+                  }
+                  disabled={selectedRegionChordCount === 0}
+                />
+              </label>
               <div className="multicolor-inline-stats">
                 <span className="multicolor-inline-stat">
                   Regions {tasNetwork.regionCount.toLocaleString()}
@@ -516,14 +1080,32 @@ function MulticolorLab({
                 <span className="multicolor-inline-stat">
                   Chords {tasNetwork.totalChords.toLocaleString()}
                 </span>
+                <span className="multicolor-inline-stat">
+                  Min distance {tasMinDistance.toLocaleString()}
+                </span>
+                <span className="multicolor-inline-stat">
+                  Disabled outer D {disabledTasRegionCount.toLocaleString()}
+                </span>
+                <span className="multicolor-inline-stat">
+                  Enabled through {maxEnabledTasRegionIndex >= 0
+                    ? `D${maxEnabledTasRegionIndex.toLocaleString()}`
+                    : 'none'}
+                </span>
                 {selectedTasRegion && (
                   <>
                     <span className="multicolor-inline-stat">
                       Radius {selectedTasRegion.minRadius.toFixed(1)}-{selectedTasRegion.maxRadius.toFixed(1)}
                     </span>
                     <span className="multicolor-inline-stat">
-                      Active {selectedTasRegion.chordCount.toLocaleString()}
+                      Active {isSelectedTasRegionEnabled
+                        ? selectedTasRegion.chordCount.toLocaleString()
+                        : 'disabled'}
                     </span>
+                    {tasPaletteFit && (
+                      <span className="multicolor-inline-stat">
+                        Limited strings {activeLimitedTasCount.toLocaleString()}
+                      </span>
+                    )}
                     {tasOwnershipPreview && (
                       <>
                         <span className="multicolor-inline-stat">
@@ -566,9 +1148,435 @@ function MulticolorLab({
                   </>
                 )}
               </div>
+              {tasPaletteFit && (
+                <div className="tas-error-list">
+                  <div className="tas-error-list-head">
+                    <span className="multicolor-lab-label">Region error order</span>
+                    {selectedTasRow && (
+                      <span className="tas-error-selected">
+                        selected {selectedTasRow.startNailNumber}-{selectedTasRow.endNailNumber}
+                      </span>
+                    )}
+                  </div>
+                  <div className="tas-sccl-panel">
+                    <div
+                      className="multicolor-debug-toggle-group tas-sccl-scope-toggle"
+                      role="group"
+                      aria-label="SCCL scope"
+                    >
+                      {[
+                        ['global', 'Global SCCL'],
+                        ['selected-region', `D${normalizedSelectedTasRegionIndex} SCCL`],
+                      ].map(([scope, label]) => (
+                        <button
+                          key={scope}
+                          className={[
+                            'multicolor-debug-toggle',
+                            effectiveScclScope === scope ? 'is-active' : '',
+                          ].filter(Boolean).join(' ')}
+                          disabled={scope === 'global' && !allTasPaletteFit}
+                          type="button"
+                          onClick={() => {
+                            setScclScope(scope);
+                            setSelectedConnectorGapChordKey(null);
+                            setSelectedConnectorChordKeys([]);
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={isTasSameColorFocusEnabled}
+                        onChange={(event) => setIsTasSameColorFocusEnabled(event.target.checked)}
+                        disabled={activeSameColorChordLists.length === 0}
+                      />
+                      <span>Focus active color SCCL</span>
+                    </label>
+                    {activeSameColorChordLists.length > 0 ? (
+                      <div className="tas-sccl-list">
+                        {activeSameColorChordLists.map((color) => {
+                          const isActiveColor = color.id === activePaletteColorId;
+                          const firstRows = color.rows.slice(0, 3);
+                          return (
+                            <button
+                              key={color.id}
+                              className={[
+                                'tas-sccl-chip',
+                                isActiveColor ? 'is-active' : '',
+                              ].filter(Boolean).join(' ')}
+                              type="button"
+                              onClick={() => setActivePaletteColorId(color.id)}
+                            >
+                              <span
+                                className="multicolor-palette-swatch"
+                                style={{ backgroundColor: color.hex }}
+                              />
+                              <span className="tas-sccl-name">{color.label}</span>
+                              <span className="tas-sccl-count">
+                                {color.chordCount.toLocaleString()} TAS
+                              </span>
+                              <span className="tas-sccl-sample">
+                                {firstRows
+                                  .map((row) => `${row.startNailNumber}-${row.endNailNumber}`)
+                                  .join(', ')}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="multicolor-mini-note">
+                        No active same-color chord lists for this region limit.
+                      </p>
+                    )}
+                    {activeColorSameColorList && (
+                      <div className="tas-chain-panel">
+                        <div className="tas-chain-head">
+                          <span className="multicolor-lab-label">
+                            {effectiveScclScope === 'selected-region'
+                              ? `Selected D${normalizedSelectedTasRegionIndex} SCCL chain`
+                              : 'Selected global SCCL chain'}
+                          </span>
+                          <span className="tas-error-selected">
+                            {activeColorSameColorList.label}: {activeColorSameColorList.chordCount.toLocaleString()} TAS
+                          </span>
+                        </div>
+                        <div className="multicolor-inline-stats">
+                          <span className="multicolor-inline-stat">
+                            Natural {activeColorChainPlan.continuousTransitions.toLocaleString()}
+                          </span>
+                          <span className="multicolor-inline-stat">
+                            Connector gaps {activeColorChainPlan.connectorTransitions.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="tas-chain-list">
+                          {activeColorChainPlan.orderedRows.slice(0, 10).map((row, index) => (
+                            <button
+                              key={`chain-${row.chordKey}`}
+                              className={[
+                                'tas-chain-row',
+                                row.needsConnector ? 'needs-connector' : '',
+                                row.chordKey === selectedTasChordKey ? 'is-selected' : '',
+                              ].filter(Boolean).join(' ')}
+                              type="button"
+                              onClick={() => {
+                                const previousRow =
+                                  index > 0 ? activeColorChainPlan.orderedRows[index - 1] : null;
+                                setSelectedTasChordKey(row.chordKey);
+                                setSelectedConnectorGapChordKey(row.needsConnector ? row.chordKey : null);
+                                setSelectedChainChordKeys(
+                                  row.needsConnector
+                                    ? getPreviewChordKeys(previousRow?.chordKey, row.chordKey)
+                                    : getPreviewChordKeys(row.chordKey),
+                                );
+                                setSelectedConnectorChordKeys([]);
+                              }}
+                            >
+                              <span>#{index + 1}</span>
+                              <span>{row.chainFromNailNumber}-{row.chainToNailNumber}</span>
+                              <span>D{row.regionIndex}</span>
+                              <span>{row.needsConnector ? 'connector needed' : 'continuous'}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {selectedConnectorGap && (
+                          <div className="tas-connector-panel">
+                            <div className="tas-chain-head">
+                              <span className="multicolor-lab-label">Connector search</span>
+                              <span className="tas-error-selected">
+                                gap #{selectedConnectorGap.index + 1}:{' '}
+                                {selectedConnectorGap.fromNailNumber}-{selectedConnectorGap.toNailNumber}
+                              </span>
+                            </div>
+                            <div className="tas-connector-targets">
+                              <span>connect </span>
+                              <span>
+                                {selectedConnectorGap.previousRow.chainFromNailNumber}-{selectedConnectorGap.previousRow.chainToNailNumber}
+                              </span>
+                              <span> to </span>
+                              <span>
+                                {selectedConnectorGap.nextRow.chainFromNailNumber}-{selectedConnectorGap.nextRow.chainToNailNumber}
+                              </span>
+                            </div>
+                            <p className="tas-connector-ranking-note">
+                              ranked by damage = length x error, then error, then shorter length, then closer outer region
+                            </p>
+                            {connectorSearchSummary?.direct ? (
+                              <button
+                                className={[
+                                  'tas-connector-row',
+                                  connectorSearchSummary.direct.isClosestOuterCandidate ? 'is-closest-outer' : '',
+                                ].filter(Boolean).join(' ')}
+                                type="button"
+                                onClick={() => {
+                                  const directChordKey =
+                                    connectorSearchSummary.direct.legs[0]?.chordKey ??
+                                    connectorSearchSummary.direct.key;
+                                  setTasViewScope('all');
+                                  setSelectedTasChordKey(directChordKey);
+                                  setSelectedConnectorGapChordKey(selectedConnectorGap.nextRow.chordKey);
+                                  setSelectedChainChordKeys(
+                                    getPreviewChordKeys(
+                                      selectedConnectorGap.previousRow.chordKey,
+                                      selectedConnectorGap.nextRow.chordKey,
+                                    ),
+                                  );
+                                  setSelectedConnectorChordKeys(
+                                    getPreviewChordKeys(
+                                      directChordKey,
+                                    ),
+                                  );
+                                }}
+                              >
+                                <span>1 string</span>
+                                <span>
+                                  {connectorSearchSummary.direct.legs[0]?.chordKey ??
+                                    connectorSearchSummary.direct.key}
+                                </span>
+                                <span>
+                                  {connectorSearchSummary.direct.nailPath.join('-')} ·{' '}
+                                  {connectorSearchSummary.direct.regionPath.map((regionIndex) => `D${regionIndex}`).join('-')}
+                                </span>
+                                <span className="tas-connector-metrics">
+                                  err {Number.isFinite(connectorSearchSummary.direct.totalError)
+                                    ? Math.round(connectorSearchSummary.direct.totalError).toLocaleString()
+                                    : '-'}
+                                  {' '}| len {Number.isFinite(connectorSearchSummary.direct.totalLength)
+                                    ? Math.round(connectorSearchSummary.direct.totalLength).toLocaleString()
+                                    : '-'}
+                                  {' '}| dmg {Number.isFinite(connectorSearchSummary.direct.totalDamage)
+                                    ? Math.round(connectorSearchSummary.direct.totalDamage).toLocaleString()
+                                    : '-'}
+                                  {' '}| out +{connectorSearchSummary.direct.outerSpan}
+                                </span>
+                              </button>
+                            ) : (
+                              <p className="multicolor-mini-note">
+                                No direct same-color connector found for this gap.
+                              </p>
+                            )}
+                            {connectorSearchSummary?.pathCandidates.length > 0 && (
+                              <div className="tas-connector-list">
+                                {connectorSearchSummary.pathCandidates.map((candidate) => (
+                                  <button
+                                    key={candidate.key}
+                                    className={[
+                                      'tas-connector-row',
+                                      candidate.isClosestOuterCandidate ? 'is-closest-outer' : '',
+                                    ].filter(Boolean).join(' ')}
+                                    type="button"
+                                    onClick={() => {
+                                      setTasViewScope('all');
+                                      setSelectedTasChordKey(candidate.legs[0].chordKey);
+                                      setSelectedConnectorGapChordKey(selectedConnectorGap.nextRow.chordKey);
+                                      setSelectedChainChordKeys(
+                                        getPreviewChordKeys(
+                                          selectedConnectorGap.previousRow.chordKey,
+                                          selectedConnectorGap.nextRow.chordKey,
+                                        ),
+                                      );
+                                      setSelectedConnectorChordKeys(
+                                        getPreviewChordKeys(
+                                          candidate.legs.map((leg) => leg.chordKey),
+                                        ),
+                                      );
+                                    }}
+                                  >
+                                    <span>{candidate.legs.length} strings</span>
+                                    <span>
+                                      {candidate.legs.map((leg, legIndex) => (
+                                        <span key={leg.chordKey}>
+                                          {legIndex > 0 ? ' + ' : ''}
+                                          {leg.chordKey}
+                                        </span>
+                                      ))}
+                                    </span>
+                                    <span>
+                                      {candidate.nailPath.join('-')} ·{' '}
+                                      {candidate.regionPath.map((regionIndex) => `D${regionIndex}`).join('-')}
+                                    </span>
+                                    {/*
+                                    <span>
+                                      via {candidate.middleNailNumber} · D{candidate.legs[0].regionIndex}/D{candidate.legs[1].regionIndex}
+                                    </span>
+                                    */}
+                                    <span className="tas-connector-metrics">
+                                      err {Math.round(candidate.totalError).toLocaleString()}
+                                      {' '}| len {Math.round(candidate.totalLength).toLocaleString()}
+                                      {' '}| dmg {Math.round(candidate.totalDamage).toLocaleString()}
+                                      {' '}| out +{candidate.outerSpan}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {connectorSearchSummary &&
+                              !connectorSearchSummary.direct &&
+                              connectorSearchSummary.pathCandidates.length === 0 && (
+                                <p className="multicolor-mini-note">
+                                  No same-color outer connector path found.
+                                </p>
+                              )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {globalWindingPreview.totalStepCount > 0 && (
+                    <div className="tas-global-order-panel">
+                      <div className="tas-chain-head">
+                        <span className="multicolor-lab-label">Global winding order</span>
+                        <span className="tas-error-selected">
+                          first {Math.min(24, globalWindingPreview.totalStepCount).toLocaleString()} /{' '}
+                          {globalWindingPreview.totalStepCount.toLocaleString()} active chords
+                        </span>
+                      </div>
+                      <div className="multicolor-inline-stats">
+                        {globalWindingPreview.perColorCounts.slice(0, 6).map((color) => (
+                          <span key={color.colorId} className="multicolor-inline-stat tas-global-order-stat">
+                            <span
+                              className="multicolor-palette-swatch"
+                              style={{ backgroundColor: color.colorHex }}
+                            />
+                            {color.colorLabel} {color.count.toLocaleString()}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="tas-global-order-list">
+                        {globalWindingPreview.steps.slice(0, 24).map((step) => (
+                          <button
+                            key={`global-order-${step.stepNumber}-${step.chordKey}`}
+                            className={[
+                              'tas-global-order-row',
+                              step.chordKey === selectedTasChordKey ? 'is-selected' : '',
+                            ].filter(Boolean).join(' ')}
+                            type="button"
+                            onClick={() => {
+                              setTasViewScope('all');
+                              setActivePaletteColorId(step.colorId);
+                              setSelectedTasChordKey(step.chordKey);
+                              setSelectedChainChordKeys(getPreviewChordKeys(step.chordKey));
+                              setSelectedConnectorGapChordKey(null);
+                              setSelectedConnectorChordKeys([]);
+                            }}
+                          >
+                            <span>#{step.stepNumber}</span>
+                            <span className="tas-global-order-color">
+                              <span
+                                className="multicolor-palette-swatch"
+                                style={{ backgroundColor: step.colorHex }}
+                              />
+                              {step.colorLabel}
+                            </span>
+                            <span>{step.startNailNumber}-{step.endNailNumber}</span>
+                            <span>D{step.regionIndex}</span>
+                            <span>
+                              err {Number.isFinite(step.error)
+                                ? Math.round(step.error).toLocaleString()
+                                : '-'}
+                            </span>
+                            <span>left {step.remainingInColor.toLocaleString()}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="tas-error-table" role="table" aria-label="Selected region TAS error order">
+                    <div className="tas-error-row is-header" role="row">
+                      <span>Rank</span>
+                      <span>Chord</span>
+                      <span>Color</span>
+                      <span>Pixels</span>
+                      <span>Error</span>
+                      <span>Use</span>
+                    </div>
+                    {highErrorTasRows.map((row) => {
+                      const isActiveLimitRow = activeSelectedRegionTasChordKeys.has(row.chordKey);
+                      return (
+                        <button
+                          key={`high-${row.chordKey}`}
+                          className={[
+                            'tas-error-row',
+                            isActiveLimitRow ? 'is-limit-active' : 'is-limit-inactive',
+                            row.chordKey === selectedTasChordKey ? 'is-selected' : '',
+                          ].filter(Boolean).join(' ')}
+                          type="button"
+                          role="row"
+                          onClick={() => {
+                            setSelectedTasChordKey(row.chordKey);
+                            setSelectedConnectorGapChordKey(null);
+                            setSelectedChainChordKeys(getPreviewChordKeys(row.chordKey));
+                            setSelectedConnectorChordKeys([]);
+                          }}
+                        >
+                          <span>#{row.errorRank}</span>
+                          <span>{row.startNailNumber}-{row.endNailNumber}</span>
+                          <span className="tas-error-color-cell">
+                            <span
+                              className="multicolor-palette-swatch"
+                              style={{ backgroundColor: row.assignedColorHex }}
+                            />
+                            {row.assignedColorLabel ?? 'average'}
+                          </span>
+                          <span>{row.pixelCount.toLocaleString()}</span>
+                          <span>
+                            {Number.isFinite(row.error) ? Math.round(row.error).toLocaleString() : '-'}
+                          </span>
+                          <span>{isActiveLimitRow ? 'yes' : 'no'}</span>
+                        </button>
+                      );
+                    })}
+                    {lowErrorTasRows.length > 0 && (
+                      <div className="tas-error-divider">lowest error</div>
+                    )}
+                    {lowErrorTasRows.map((row) => {
+                      const isActiveLimitRow = activeSelectedRegionTasChordKeys.has(row.chordKey);
+                      return (
+                        <button
+                          key={`low-${row.chordKey}`}
+                          className={[
+                            'tas-error-row',
+                            'is-low-error',
+                            isActiveLimitRow ? 'is-limit-active' : 'is-limit-inactive',
+                            row.chordKey === selectedTasChordKey ? 'is-selected' : '',
+                          ].filter(Boolean).join(' ')}
+                          type="button"
+                          role="row"
+                          onClick={() => {
+                            setSelectedTasChordKey(row.chordKey);
+                            setSelectedConnectorGapChordKey(null);
+                            setSelectedChainChordKeys(getPreviewChordKeys(row.chordKey));
+                            setSelectedConnectorChordKeys([]);
+                          }}
+                        >
+                          <span>#{row.errorRank}</span>
+                          <span>{row.startNailNumber}-{row.endNailNumber}</span>
+                          <span className="tas-error-color-cell">
+                            <span
+                              className="multicolor-palette-swatch"
+                              style={{ backgroundColor: row.assignedColorHex }}
+                            />
+                            {row.assignedColorLabel ?? 'average'}
+                          </span>
+                          <span>{row.pixelCount.toLocaleString()}</span>
+                          <span>
+                            {Number.isFinite(row.error) ? Math.round(row.error).toLocaleString() : '-'}
+                          </span>
+                          <span>{isActiveLimitRow ? 'yes' : 'no'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <p className="multicolor-mini-note">
-                Pixel ownership assigns each in-circle pixel to the nearest finite TAS globally.
-                The selected preview shows pixels whose winning TAS belongs to the selected D.
+                Pixel ownership uses only pixels whose centers project onto a finite TAS side.
+                The selected preview shows side-near pixels whose winning TAS belongs to the selected D.
+                Min distance disables outer TAS regions whose nail distance is too small.
+                Region chord limit A is a global percentage applied separately to each region.
                 For a quick geometry check, set nails to 10: D0 should show 5 diameter TASs,
                 and D1-D4 should show 10 TASs each.
               </p>
