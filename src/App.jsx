@@ -1,7 +1,7 @@
 import { Profiler, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import BrushPanel from './components/BrushPanel';
 import HoveredPixelOverlay from './components/HoveredPixelOverlay';
-import MulticolorLab from './components/MulticolorLab';
+import MulticolorLab, { buildFinalDrawingPlanFromTasRows } from './components/MulticolorLab';
 import PreviewWorkspace from './components/PreviewWorkspace';
 import {
   buildArtLineSegments,
@@ -35,6 +35,7 @@ import {
   buildTasRegionPaletteFit,
   getTasRegionCount,
 } from './tasGeometry';
+import { getAreaWeightedTasRegionLimitCounts } from './tasLimits';
 import {
   allocateWholeUnitsByWeight,
   allocateWholeUnitsByWeightWithLock,
@@ -42,13 +43,16 @@ import {
   clonePalettePreset,
   countPixelsByCurrentPaletteSource,
   countPixelsByNearestPaletteColor,
+  createAutomaticPaletteColors,
   createPaletteMaskImageCollection,
   createPaletteMaskImageData,
   createPalettePreviewImageData,
   drawImageDataToCanvas,
+  getOklabDistanceSquared,
   hexToRgb,
   isImagePixelInsidePreviewCircle,
   MULTICOLOR_PALETTE_PRESETS,
+  rgbToOklab,
 } from './multicolor';
 
 const MIN_SCALE = 0.2;
@@ -68,6 +72,10 @@ const MAX_CONTRAST = 100;
 const DEFAULT_CONTRAST = 100;
 const DEFAULT_MULTICOLOR_TARGET_TOTAL_LINES = 2000;
 const DEFAULT_TAS_REGION_CHORD_LIMIT_PERCENT = 100;
+const DEFAULT_FINAL_STRING_TRIM_PERCENT = 0;
+const MIN_RESIDUAL_STRING_THICKNESS = 0;
+const MAX_RESIDUAL_STRING_THICKNESS = 100;
+const DEFAULT_RESIDUAL_STRING_THICKNESS = 35;
 const MIN_BRUSH_RADIUS = 1;
 const MAX_BRUSH_RADIUS = 40;
 const MIN_GROUP_VALUE = 0;
@@ -155,27 +163,306 @@ function areStringArraysEqual(left, right) {
   return left.every((value, index) => value === right[index]);
 }
 
-function getTasLimitCountForPercentage(totalCount, limitPercent) {
-  const normalizedTotalCount = Math.max(
-    0,
-    Math.round(Number.isFinite(totalCount) ? totalCount : 0),
-  );
-  const normalizedPercent = Math.min(
-    100,
-    Math.max(0, Number.isFinite(limitPercent) ? limitPercent : 0),
-  );
+function lerpNumber(startValue, endValue, amount) {
+  return startValue + (endValue - startValue) * amount;
+}
 
-  if (normalizedTotalCount <= 0 || normalizedPercent <= 0) {
-    return 0;
+function getOrientedTasEndpoints(chord, fromNailNumber, toNailNumber) {
+  if (!chord) {
+    return null;
   }
 
-  return Math.min(
-    normalizedTotalCount,
-    Math.max(1, Math.round((normalizedTotalCount * normalizedPercent) / 100)),
+  if (chord.startNailNumber === fromNailNumber && chord.endNailNumber === toNailNumber) {
+    return {
+      from: { x: chord.tasX1, y: chord.tasY1 },
+      to: { x: chord.tasX2, y: chord.tasY2 },
+    };
+  }
+
+  if (chord.endNailNumber === fromNailNumber && chord.startNailNumber === toNailNumber) {
+    return {
+      from: { x: chord.tasX2, y: chord.tasY2 },
+      to: { x: chord.tasX1, y: chord.tasY1 },
+    };
+  }
+
+  return null;
+}
+
+function buildFinalPlanLineSegments(steps, nails, chordByKey, trimPercent) {
+  const trimAmount = clamp(
+    Number.isFinite(trimPercent) ? trimPercent / 100 : 0,
+    0,
+    1,
+  );
+
+  return steps.reduce((segments, step, index) => {
+    const startNail = nails[step.drawFromNailNumber - 1];
+    const endNail = nails[step.drawToNailNumber - 1];
+    if (!startNail || !endNail) {
+      return segments;
+    }
+
+    const tasEndpoints = getOrientedTasEndpoints(
+      chordByKey.get(step.chordKey),
+      step.drawFromNailNumber,
+      step.drawToNailNumber,
+    );
+    const targetFrom = tasEndpoints?.from ?? { x: startNail.cx, y: startNail.cy };
+    const targetTo = tasEndpoints?.to ?? { x: endNail.cx, y: endNail.cy };
+
+    segments.push({
+      key: `final-drawing-plan-line-${index}-${step.drawFromNailNumber}-${step.drawToNailNumber}`,
+      x1: lerpNumber(startNail.cx, targetFrom.x, trimAmount),
+      y1: lerpNumber(startNail.cy, targetFrom.y, trimAmount),
+      x2: lerpNumber(endNail.cx, targetTo.x, trimAmount),
+      y2: lerpNumber(endNail.cy, targetTo.y, trimAmount),
+      stroke: step.colorHex,
+      className: 'art-line final-plan-line',
+    });
+
+    return segments;
+  }, []);
+}
+
+function createWhiteSharedBoard(imageSize) {
+  if (!imageSize?.width || !imageSize?.height) {
+    return null;
+  }
+
+  const board = new Float32Array(imageSize.width * imageSize.height * 3);
+  board.fill(255);
+  return board;
+}
+
+function createSharedResidualVisibilityMask(imageSize) {
+  if (!imageSize?.width || !imageSize?.height) {
+    return null;
+  }
+
+  const visibilityMask = new Float32Array(imageSize.width * imageSize.height);
+  visibilityMask.fill(1);
+  return visibilityMask;
+}
+
+function getTargetPixelOklab(targetData, offset) {
+  return rgbToOklab(targetData[offset], targetData[offset + 1], targetData[offset + 2]);
+}
+
+function getOklabSquaredError(red, green, blue, targetData, offset) {
+  return getOklabDistanceSquared(
+    rgbToOklab(red, green, blue),
+    getTargetPixelOklab(targetData, offset),
   );
 }
 
-function getLimitedTasChordKeySet(sortedRows, regionLimitPercent) {
+function buildPaletteTargetColorIndexes(targetImageData, paletteColors) {
+  if (!targetImageData || paletteColors.length === 0) {
+    return {
+      colorTargetIndexById: new Map(),
+      targetColorIndexes: null,
+      targetPixelCountById: new Map(),
+      totalTargetPixelCount: 0,
+    };
+  }
+
+  const colorTargetIndexById = new Map();
+  const colorIndexByRgb = new Map();
+  const colorIdByTargetIndex = new Map();
+  const targetPixelCountById = new Map(paletteColors.map((color) => [color.id, 0]));
+  paletteColors.forEach((color, index) => {
+    const targetIndex = index + 1;
+    colorTargetIndexById.set(color.id, targetIndex);
+    colorIdByTargetIndex.set(targetIndex, color.id);
+    if (color.rgb) {
+      colorIndexByRgb.set(`${color.rgb.r}-${color.rgb.g}-${color.rgb.b}`, targetIndex);
+    }
+  });
+
+  const targetColorIndexes = new Uint16Array(targetImageData.width * targetImageData.height);
+  let totalTargetPixelCount = 0;
+  for (let offset = 0; offset < targetImageData.data.length; offset += 4) {
+    const pixelIndex = offset / 4;
+    const targetIndex =
+      colorIndexByRgb.get(
+        `${targetImageData.data[offset]}-${targetImageData.data[offset + 1]}-${targetImageData.data[offset + 2]}`,
+      ) ?? 0;
+    targetColorIndexes[pixelIndex] = targetIndex;
+    const colorId = colorIdByTargetIndex.get(targetIndex);
+    if (colorId) {
+      targetPixelCountById.set(colorId, (targetPixelCountById.get(colorId) ?? 0) + 1);
+      totalTargetPixelCount += 1;
+    }
+  }
+
+  return {
+    colorTargetIndexById,
+    targetPixelCountById,
+    targetColorIndexes,
+    totalTargetPixelCount,
+  };
+}
+
+function getSharedResidualColorBalanceMultiplier({
+  colorId,
+  lineCountByColorId,
+  targetPixelCountById,
+  totalLineCount,
+  totalTargetPixelCount,
+}) {
+  const targetPixelCount = targetPixelCountById?.get(colorId) ?? 0;
+  if (targetPixelCount <= 0 || totalTargetPixelCount <= 0) {
+    return 1;
+  }
+
+  const targetShare = targetPixelCount / totalTargetPixelCount;
+  const expectedLineCount = Math.max(0, (totalLineCount + 1) * targetShare);
+  const candidateLineCount = (lineCountByColorId?.get(colorId) ?? 0) + 1;
+  return clamp((expectedLineCount + 10) / (candidateLineCount + 10), 0.15, 8);
+}
+
+function getResidualCoveredPixelWeight(thicknessPercent) {
+  const normalizedThickness = clamp(
+    Number.isFinite(thicknessPercent) ? thicknessPercent : DEFAULT_RESIDUAL_STRING_THICKNESS,
+    MIN_RESIDUAL_STRING_THICKNESS,
+    MAX_RESIDUAL_STRING_THICKNESS,
+  ) / 100;
+  return 0.95 - normalizedThickness * 0.9;
+}
+
+function getResidualOcclusionPixelStride(thicknessPercent) {
+  const normalizedThickness = clamp(
+    Number.isFinite(thicknessPercent) ? thicknessPercent : DEFAULT_RESIDUAL_STRING_THICKNESS,
+    MIN_RESIDUAL_STRING_THICKNESS,
+    MAX_RESIDUAL_STRING_THICKNESS,
+  );
+
+  if (normalizedThickness <= 10) {
+    return 5;
+  }
+
+  if (normalizedThickness <= 25) {
+    return 4;
+  }
+
+  if (normalizedThickness <= 45) {
+    return 3;
+  }
+
+  if (normalizedThickness <= 70) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function scoreSharedResidualLine({
+  board,
+  colorRgb,
+  colorTargetIndex,
+  imageSize,
+  linePixels,
+  targetData,
+  targetColorIndexes,
+  threadOpacity,
+  visibilityMask,
+}) {
+  if (!board || !targetData || !colorRgb || !imageSize || linePixels.length === 0) {
+    return -Infinity;
+  }
+
+  let score = 0;
+  for (const pixel of linePixels) {
+    const pixelIndex = pixel.y * imageSize.width + pixel.x;
+    const visibilityWeight = visibilityMask?.[pixelIndex] ?? 1;
+
+    const boardOffset = pixelIndex * 3;
+    const targetOffset = pixelIndex * 4;
+    const boardRed = board[boardOffset];
+    const boardGreen = board[boardOffset + 1];
+    const boardBlue = board[boardOffset + 2];
+    const effectiveThreadOpacity = threadOpacity * visibilityWeight;
+    const nextRed = boardRed * (1 - effectiveThreadOpacity) + colorRgb.r * effectiveThreadOpacity;
+    const nextGreen =
+      boardGreen * (1 - effectiveThreadOpacity) + colorRgb.g * effectiveThreadOpacity;
+    const nextBlue =
+      boardBlue * (1 - effectiveThreadOpacity) + colorRgb.b * effectiveThreadOpacity;
+
+    const improvement =
+      getOklabSquaredError(boardRed, boardGreen, boardBlue, targetData, targetOffset) -
+      getOklabSquaredError(nextRed, nextGreen, nextBlue, targetData, targetOffset);
+
+    if (targetColorIndexes && targetColorIndexes[pixelIndex] !== colorTargetIndex) {
+      score += visibilityWeight * Math.min(0, improvement);
+    } else {
+      score += visibilityWeight * improvement;
+    }
+  }
+
+  return score;
+}
+
+function applySharedResidualLineToBoard({
+  board,
+  colorRgb,
+  imageSize,
+  linePixels,
+  threadOpacity,
+  visibilityMask,
+}) {
+  if (!board || !colorRgb || !imageSize || linePixels.length === 0) {
+    return false;
+  }
+
+  let didUpdate = false;
+  for (const pixel of linePixels) {
+    const pixelIndex = pixel.y * imageSize.width + pixel.x;
+    const visibilityWeight = visibilityMask?.[pixelIndex] ?? 1;
+    const effectiveThreadOpacity = threadOpacity * visibilityWeight;
+
+    const boardOffset = pixelIndex * 3;
+    board[boardOffset] =
+      board[boardOffset] * (1 - effectiveThreadOpacity) + colorRgb.r * effectiveThreadOpacity;
+    board[boardOffset + 1] =
+      board[boardOffset + 1] * (1 - effectiveThreadOpacity) +
+      colorRgb.g * effectiveThreadOpacity;
+    board[boardOffset + 2] =
+      board[boardOffset + 2] * (1 - effectiveThreadOpacity) +
+      colorRgb.b * effectiveThreadOpacity;
+    didUpdate = true;
+  }
+
+  return didUpdate;
+}
+
+function markSharedResidualLineOccluded({
+  coveredPixelWeight,
+  imageSize,
+  linePixels,
+  pixelStride = 1,
+  visibilityMask,
+}) {
+  if (!imageSize || !visibilityMask || linePixels.length === 0) {
+    return;
+  }
+
+  const normalizedStride = Math.max(1, Math.round(pixelStride));
+  for (let index = 0; index < linePixels.length; index += normalizedStride) {
+    const pixel = linePixels[index];
+    const pixelIndex = pixel.y * imageSize.width + pixel.x;
+    visibilityMask[pixelIndex] = Math.min(
+      visibilityMask[pixelIndex],
+      coveredPixelWeight,
+    );
+  }
+}
+
+function getLimitedTasChordKeySet({
+  sortedRows,
+  regionLimitPercent,
+  regions,
+  maxRegionIndex,
+}) {
   if (!Array.isArray(sortedRows) || sortedRows.length === 0) {
     return new Set();
   }
@@ -191,9 +478,21 @@ function getLimitedTasChordKeySet(sortedRows, regionLimitPercent) {
     rowsByRegion.set(row.regionIndex, regionRows);
   }
 
+  const regionLimitCounts = getAreaWeightedTasRegionLimitCounts({
+    regions,
+    limitPercent: regionLimitPercent,
+    maxRegionIndex,
+  });
   const activeChordKeys = new Set();
-  for (const regionRows of rowsByRegion.values()) {
-    const regionLimit = getTasLimitCountForPercentage(regionRows.length, regionLimitPercent);
+  for (const [regionIndex, regionRows] of rowsByRegion.entries()) {
+    const regionLimit = Math.min(
+      regionRows.length,
+      regionLimitCounts.get(regionIndex) ?? 0,
+    );
+    if (regionLimit <= 0) {
+      continue;
+    }
+
     for (const row of regionRows.slice(-regionLimit)) {
       activeChordKeys.add(row.chordKey);
     }
@@ -274,14 +573,15 @@ function App() {
   const [cropToCircle, setCropToCircle] = useState(true);
   const [isBlackAndWhite, setIsBlackAndWhite] = useState(true);
   const [showNailNumbers, setShowNailNumbers] = useState(true);
-  const [nailsCount, setNailsCount] = useState(300);
+  const [nailsCount, setNailsCount] = useState(100);
   const [lineFrom, setLineFrom] = useState('1');
   const [lineTo, setLineTo] = useState('1');
   const [highlightRange, setHighlightRange] = useState(String(DEFAULT_HIGHLIGHT_DISTANCE));
   const [lineStrength, setLineStrength] = useState(String(DEFAULT_LINE_STRENGTH));
   const [contrast, setContrast] = useState(String(DEFAULT_CONTRAST));
   const [savedNailSequence, setSavedNailSequence] = useState([]);
-  const [isArtMode, setIsArtMode] = useState(false);
+  const [isArtMode, setIsArtMode] = useState(true);
+  const [plannerMode, setPlannerMode] = useState('residual');
   const [isPerformingSteps, setIsPerformingSteps] = useState(false);
   const [isStepLoopPaused, setIsStepLoopPaused] = useState(false);
   const [hiddenPreviewLineKey, setHiddenPreviewLineKey] = useState(null);
@@ -305,8 +605,9 @@ function App() {
   const [multicolorPaletteColors, setMulticolorPaletteColors] = useState(() =>
     clonePalettePreset(MULTICOLOR_PALETTE_PRESETS[0]).colors,
   );
-  const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(false);
-  const [isPaletteDitheringEnabled, setIsPaletteDitheringEnabled] = useState(false);
+  const [automaticPaletteColorCount, setAutomaticPaletteColorCount] = useState(4);
+  const [isPalettePreviewEnabled, setIsPalettePreviewEnabled] = useState(true);
+  const [isPaletteDitheringEnabled, setIsPaletteDitheringEnabled] = useState(true);
   const [multicolorPalettePixelCounts, setMulticolorPalettePixelCounts] = useState([]);
   const [multicolorPaletteCoverage, setMulticolorPaletteCoverage] = useState([]);
   const [multicolorLockedLineOverride, setMulticolorLockedLineOverride] = useState(null);
@@ -338,9 +639,9 @@ function App() {
   const [multicolorInterleaveEntryIds, setMulticolorInterleaveEntryIds] = useState([]);
   const [isTasPreviewEnabled, setIsTasPreviewEnabled] = useState(false);
   const [isTasOwnershipPreviewEnabled, setIsTasOwnershipPreviewEnabled] = useState(false);
-  const [isTasPaletteFitPreviewEnabled, setIsTasPaletteFitPreviewEnabled] = useState(false);
+  const [isTasPaletteFitPreviewEnabled, setIsTasPaletteFitPreviewEnabled] = useState(true);
   const [isTasPaletteFitLimitedToPalette, setIsTasPaletteFitLimitedToPalette] = useState(true);
-  const [tasViewScope, setTasViewScope] = useState('selected');
+  const [tasViewScope, setTasViewScope] = useState('all');
   const [selectedTasRegionIndex, setSelectedTasRegionIndex] = useState(0);
   const [selectedTasChordKey, setSelectedTasChordKey] = useState(null);
   const [selectedConnectorGapChordKey, setSelectedConnectorGapChordKey] = useState(null);
@@ -349,7 +650,16 @@ function App() {
   const [tasRegionChordLimitPercent, setTasRegionChordLimitPercent] = useState(
     DEFAULT_TAS_REGION_CHORD_LIMIT_PERCENT,
   );
+  const [finalStringTrimPercent, setFinalStringTrimPercent] = useState(
+    DEFAULT_FINAL_STRING_TRIM_PERCENT,
+  );
   const [isTasSameColorFocusEnabled, setIsTasSameColorFocusEnabled] = useState(false);
+  const [sharedResidualLines, setSharedResidualLines] = useState([]);
+  const [sharedResidualCurrentNails, setSharedResidualCurrentNails] = useState({});
+  const [sharedResidualLastStep, setSharedResidualLastStep] = useState(null);
+  const [residualStringThickness, setResidualStringThickness] = useState(
+    DEFAULT_RESIDUAL_STRING_THICKNESS,
+  );
 
   const previewRef = useRef(null);
   const imageRef = useRef(null);
@@ -374,6 +684,8 @@ function App() {
   const lineBoostMapRef = useRef(null);
   const usedLineKeysRef = useRef(new Set());
   const currentCanvasRevisionRef = useRef(0);
+  const sharedResidualBoardRef = useRef(null);
+  const sharedResidualVisibilityMaskRef = useRef(null);
   const currentCanvasMaskCollectionCacheRef = useRef({ key: '', masks: [] });
   const pendingMulticolorStepProfileRef = useRef(null);
   const skipNextActiveTargetImageEffectRef = useRef(false);
@@ -430,7 +742,11 @@ function App() {
 
   const multicolorPalettePreset = MULTICOLOR_PALETTE_PRESETS.find(
     (preset) => preset.id === multicolorPalettePresetId,
-  ) ?? MULTICOLOR_PALETTE_PRESETS[0];
+  ) ?? {
+    id: multicolorPalettePresetId,
+    name: 'Automatic palette',
+    colors: multicolorPaletteColors,
+  };
   const enabledPaletteColors = useMemo(
     () => multicolorPaletteColors.filter((color) => color.enabled),
     [multicolorPaletteColors],
@@ -449,6 +765,17 @@ function App() {
   const activePalettePreviewColor = enabledPalettePreviewColors.find(
     (color) => color.id === activePaletteColorId,
   ) ?? null;
+  const getInitialSharedResidualCurrentNails = useCallback(
+    () => Object.fromEntries(enabledPalettePreviewColors.map((color) => [color.id, 1])),
+    [enabledPalettePreviewColors],
+  );
+  useEffect(() => {
+    sharedResidualBoardRef.current = createWhiteSharedBoard(imageSize);
+    sharedResidualVisibilityMaskRef.current = createSharedResidualVisibilityMask(imageSize);
+    setSharedResidualLines([]);
+    setSharedResidualCurrentNails(getInitialSharedResidualCurrentNails());
+    setSharedResidualLastStep(null);
+  }, [getInitialSharedResidualCurrentNails, imageName, imageSize, nailsCount]);
   const canUseActiveColorMaskForLineScoring =
     isMulticolorLabEnabled &&
     isPalettePreviewEnabled &&
@@ -462,6 +789,22 @@ function App() {
   const multicolorPalettePixelCountMap = new Map(
     multicolorPalettePixelCounts.map((color) => [color.id, color.pixelCount]),
   );
+  const sharedResidualLineCountMap = useMemo(() => {
+    const lineCounts = new Map();
+    for (const line of sharedResidualLines) {
+      lineCounts.set(line.colorId, (lineCounts.get(line.colorId) ?? 0) + 1);
+    }
+    return lineCounts;
+  }, [sharedResidualLines]);
+  const residualCoveredPixelWeight = getResidualCoveredPixelWeight(residualStringThickness);
+  const residualOcclusionPixelStride = getResidualOcclusionPixelStride(residualStringThickness);
+  const getSharedResidualLineCountMap = (lines) => {
+    const lineCounts = new Map();
+    for (const line of lines) {
+      lineCounts.set(line.colorId, (lineCounts.get(line.colorId) ?? 0) + 1);
+    }
+    return lineCounts;
+  };
   const totalPaletteCoverageTenths = multicolorPaletteCoverage.reduce(
     (sum, color) => sum + color.percentageTenths,
     0,
@@ -647,6 +990,65 @@ function App() {
     Boolean(originalImageDataRef.current);
   const shouldDeferMulticolorStepVisuals =
     false;
+  const residualImagePreviewMode =
+    !isPalettePreviewEnabled || multicolorDebugView === 'original'
+      ? 'original'
+      : isPaletteDitheringEnabled
+        ? 'dithered'
+        : 'palette';
+  const residualPreviewMode = isArtMode ? 'strings' : residualImagePreviewMode;
+  const getSharedResidualTarget = () => {
+    const originalImageData = originalImageDataRef.current;
+    if (!originalImageData) {
+      return null;
+    }
+
+    if (residualImagePreviewMode === 'original' || enabledPalettePreviewColors.length === 0) {
+      return {
+        colorTargetIndexById: null,
+        imageData: originalImageData,
+        targetColorIndexes: null,
+        targetPixelCountById: null,
+        totalTargetPixelCount: 0,
+      };
+    }
+
+    const targetImageData = createPalettePreviewImageData(
+      originalImageData,
+      enabledPalettePreviewColors,
+      residualImagePreviewMode === 'dithered',
+      null,
+      false,
+    ) ?? originalImageData;
+    const targetColorIndexInfo = buildPaletteTargetColorIndexes(
+      targetImageData,
+      enabledPalettePreviewColors,
+    );
+
+    return {
+      ...targetColorIndexInfo,
+      imageData: targetImageData,
+    };
+  };
+
+  const setResidualPreviewMode = (nextMode) => {
+    if (nextMode === 'strings') {
+      setIsArtMode(true);
+      setHoveredPixel(null);
+      return;
+    }
+
+    setIsArtMode(false);
+    if (nextMode === 'original') {
+      setMulticolorDebugView('original');
+      setIsPalettePreviewEnabled(false);
+      return;
+    }
+
+    setMulticolorDebugView('palette-preview');
+    setIsPalettePreviewEnabled(true);
+    setIsPaletteDitheringEnabled(nextMode === 'dithered');
+  };
 
   function invalidateCurrentCanvasMaskCollectionCache() {
     currentCanvasRevisionRef.current += 1;
@@ -2061,6 +2463,348 @@ function App() {
     return context?.getImageData(0, 0, imageSize.width, imageSize.height) ?? null;
   };
 
+  const resetSharedResidualExperiment = () => {
+    sharedResidualBoardRef.current = createWhiteSharedBoard(imageSize);
+    sharedResidualVisibilityMaskRef.current = createSharedResidualVisibilityMask(imageSize);
+    setSharedResidualLines([]);
+    setSharedResidualCurrentNails(getInitialSharedResidualCurrentNails());
+    setSharedResidualLastStep(null);
+  };
+
+  const handleResidualStringThicknessChange = (nextValue) => {
+    setResidualStringThickness(
+      clamp(nextValue, MIN_RESIDUAL_STRING_THICKNESS, MAX_RESIDUAL_STRING_THICKNESS),
+    );
+    sharedResidualBoardRef.current = createWhiteSharedBoard(imageSize);
+    sharedResidualVisibilityMaskRef.current = createSharedResidualVisibilityMask(imageSize);
+    setSharedResidualLines([]);
+    setSharedResidualCurrentNails(getInitialSharedResidualCurrentNails());
+    setSharedResidualLastStep(null);
+    setIsStepLoopPaused(false);
+  };
+
+  const ensureSharedResidualVisibilityMask = (lines = sharedResidualLines) => {
+    if (sharedResidualVisibilityMaskRef.current || !imageSize) {
+      return sharedResidualVisibilityMaskRef.current;
+    }
+
+    const visibilityMask = createSharedResidualVisibilityMask(imageSize);
+    for (const line of lines) {
+      markSharedResidualLineOccluded({
+        coveredPixelWeight: residualCoveredPixelWeight,
+        imageSize,
+        linePixels: getLinePixelsForIndexes(line.startNailNumber, line.endNailNumber),
+        pixelStride: residualOcclusionPixelStride,
+        visibilityMask,
+      });
+    }
+    sharedResidualVisibilityMaskRef.current = visibilityMask;
+    return visibilityMask;
+  };
+
+  const getSharedResidualUsedLineKeys = (lines) =>
+    new Set(
+      lines
+        .map((line) => getNormalizedLineKey(line.startNailNumber, line.endNailNumber))
+        .filter(Boolean),
+    );
+
+  const findBestSharedResidualCandidate = ({
+    board,
+    currentNails,
+    minimumAllowedDistance,
+    targetData,
+    targetColorIndexes,
+    colorTargetIndexById,
+    lineCountByColorId,
+    threadOpacity,
+    targetPixelCountById,
+    totalLineCount,
+    totalTargetPixelCount,
+    usedLineKeys,
+    visibilityMask,
+  }) => {
+    let bestCandidate = null;
+
+    for (const color of enabledPalettePreviewColors) {
+      const originNailNumber = currentNails[color.id] ?? 1;
+      for (const targetNail of nails) {
+        if (targetNail.number === originNailNumber) {
+          continue;
+        }
+
+        if (
+          minimumAllowedDistance > 0 &&
+          getCircularNailDistance(targetNail.number, originNailNumber, nailsCount) <=
+            minimumAllowedDistance
+        ) {
+          continue;
+        }
+
+        const lineKey = getNormalizedLineKey(originNailNumber, targetNail.number);
+        if (!lineKey || usedLineKeys.has(lineKey)) {
+          continue;
+        }
+
+        const linePixels = getLinePixelsForIndexes(originNailNumber, targetNail.number);
+        const score = scoreSharedResidualLine({
+          board,
+          colorTargetIndex: colorTargetIndexById?.get(color.id) ?? 0,
+          colorRgb: color.rgb,
+          imageSize,
+          linePixels,
+          targetData,
+          targetColorIndexes,
+          threadOpacity,
+          visibilityMask,
+        });
+        const balancedScore = score * getSharedResidualColorBalanceMultiplier({
+          colorId: color.id,
+          lineCountByColorId,
+          targetPixelCountById,
+          totalLineCount,
+          totalTargetPixelCount,
+        });
+
+        if (!bestCandidate || balancedScore > bestCandidate.balancedScore) {
+          bestCandidate = {
+            balancedScore,
+            color,
+            endNailNumber: targetNail.number,
+            lineKey,
+            linePixels,
+            score,
+            startNailNumber: originNailNumber,
+          };
+        }
+      }
+    }
+
+    return bestCandidate;
+  };
+
+  const applySharedResidualCandidate = (
+    candidate,
+    board,
+    threadOpacity,
+    visibilityMask,
+    coveredPixelWeight,
+    pixelStride,
+  ) => {
+    applySharedResidualLineToBoard({
+      board,
+      colorRgb: candidate.color.rgb,
+      imageSize,
+      linePixels: candidate.linePixels,
+      threadOpacity,
+      visibilityMask,
+    });
+    markSharedResidualLineOccluded({
+      coveredPixelWeight,
+      imageSize,
+      linePixels: candidate.linePixels,
+      pixelStride,
+      visibilityMask,
+    });
+
+    return {
+      colorId: candidate.color.id,
+      endNailNumber: candidate.endNailNumber,
+      hex: candidate.color.hex,
+      label: candidate.color.label,
+      score: candidate.score,
+      startNailNumber: candidate.startNailNumber,
+    };
+  };
+
+  const createSharedResidualLastStep = (line) => ({
+    colorLabel: line.label,
+    endNailNumber: line.endNailNumber,
+    score: line.score,
+    startNailNumber: line.startNailNumber,
+    status: 'Applied',
+  });
+
+  const handleApplySharedResidualStep = () => {
+    if (
+      !imageSize ||
+      !originalImageDataRef.current ||
+      enabledPalettePreviewColors.length === 0
+    ) {
+      return;
+    }
+
+    if (!sharedResidualBoardRef.current) {
+      sharedResidualBoardRef.current = createWhiteSharedBoard(imageSize);
+    }
+
+    const board = sharedResidualBoardRef.current;
+    const visibilityMask = ensureSharedResidualVisibilityMask();
+    const target = getSharedResidualTarget();
+    if (!target) {
+      return;
+    }
+
+    const targetData = target.imageData.data;
+    const minimumAllowedDistance = parseMinDistanceValue(highlightRange);
+    const threadOpacity = clamp(getLineDarknessStep() / 100, 0.01, 0.95);
+    const bestCandidate = findBestSharedResidualCandidate({
+      board,
+      colorTargetIndexById: target.colorTargetIndexById,
+      currentNails: sharedResidualCurrentNails,
+      lineCountByColorId: getSharedResidualLineCountMap(sharedResidualLines),
+      minimumAllowedDistance,
+      targetData,
+      targetColorIndexes: target.targetColorIndexes,
+      targetPixelCountById: target.targetPixelCountById,
+      threadOpacity,
+      totalLineCount: sharedResidualLines.length,
+      totalTargetPixelCount: target.totalTargetPixelCount,
+      usedLineKeys: getSharedResidualUsedLineKeys(sharedResidualLines),
+      visibilityMask,
+    });
+
+    if (!bestCandidate || bestCandidate.score <= 0) {
+      setSharedResidualLastStep({
+        status: 'No improving move',
+        score: bestCandidate?.score ?? null,
+      });
+      return;
+    }
+
+    const nextLine = applySharedResidualCandidate(
+      bestCandidate,
+      board,
+      threadOpacity,
+      visibilityMask,
+      residualCoveredPixelWeight,
+      residualOcclusionPixelStride,
+    );
+    setSharedResidualLines((currentLines) => [...currentLines, nextLine]);
+    setSharedResidualCurrentNails((currentNails) => ({
+      ...currentNails,
+      [nextLine.colorId]: nextLine.endNailNumber,
+    }));
+    setSharedResidualLastStep(createSharedResidualLastStep(nextLine));
+    setIsArtMode(true);
+  };
+
+  const handleLoopSharedResidualSteps = async () => {
+    if (isPerformingSteps) {
+      pauseRequestedRef.current = true;
+      return;
+    }
+
+    if (
+      !imageSize ||
+      !originalImageDataRef.current ||
+      enabledPalettePreviewColors.length === 0
+    ) {
+      return;
+    }
+
+    if (!sharedResidualBoardRef.current) {
+      sharedResidualBoardRef.current = createWhiteSharedBoard(imageSize);
+    }
+
+    const board = sharedResidualBoardRef.current;
+    const visibilityMask = ensureSharedResidualVisibilityMask(sharedResidualLines);
+    const target = getSharedResidualTarget();
+    if (!target) {
+      return;
+    }
+
+    const targetData = target.imageData.data;
+    const minimumAllowedDistance = parseMinDistanceValue(highlightRange);
+    const threadOpacity = clamp(getLineDarknessStep() / 100, 0.01, 0.95);
+    const currentLines = [...sharedResidualLines];
+    const currentNails = {
+      ...getInitialSharedResidualCurrentNails(),
+      ...sharedResidualCurrentNails,
+    };
+    const usedLineKeys = getSharedResidualUsedLineKeys(currentLines);
+    const lineCountByColorId = getSharedResidualLineCountMap(currentLines);
+    let lastStep = null;
+    let didReachNaturalStop = false;
+    let loopStepCount = 0;
+    let lastUiYieldAt = performance.now();
+
+    pauseRequestedRef.current = false;
+    setIsStepLoopPaused(false);
+    setIsPerformingSteps(true);
+    setHoveredPixel(null);
+    setIsArtMode(true);
+
+    try {
+      while (loopStepCount < 9000 && isMountedRef.current && !pauseRequestedRef.current) {
+          const bestCandidate = findBestSharedResidualCandidate({
+            board,
+            colorTargetIndexById: target.colorTargetIndexById,
+            currentNails,
+            lineCountByColorId,
+            minimumAllowedDistance,
+            targetData,
+            targetColorIndexes: target.targetColorIndexes,
+            targetPixelCountById: target.targetPixelCountById,
+            threadOpacity,
+            totalLineCount: currentLines.length,
+            totalTargetPixelCount: target.totalTargetPixelCount,
+            usedLineKeys,
+            visibilityMask,
+          });
+
+        if (!bestCandidate || bestCandidate.score <= 0) {
+          didReachNaturalStop = true;
+          break;
+        }
+
+        const nextLine = applySharedResidualCandidate(
+          bestCandidate,
+          board,
+          threadOpacity,
+          visibilityMask,
+          residualCoveredPixelWeight,
+          residualOcclusionPixelStride,
+        );
+          currentLines.push(nextLine);
+          currentNails[nextLine.colorId] = nextLine.endNailNumber;
+          lineCountByColorId.set(
+            nextLine.colorId,
+            (lineCountByColorId.get(nextLine.colorId) ?? 0) + 1,
+          );
+          usedLineKeys.add(bestCandidate.lineKey);
+        lastStep = createSharedResidualLastStep(nextLine);
+        loopStepCount += 1;
+
+        const now = performance.now();
+        if (loopStepCount % 50 === 0 || now - lastUiYieldAt >= 500) {
+          setSharedResidualLines([...currentLines]);
+          setSharedResidualCurrentNails({ ...currentNails });
+          setSharedResidualLastStep(lastStep);
+          lastUiYieldAt = now;
+          await waitForNextWorkSlice();
+        }
+      }
+    } finally {
+      const didPause = pauseRequestedRef.current;
+      pauseRequestedRef.current = false;
+      if (isMountedRef.current) {
+        setSharedResidualLines([...currentLines]);
+        setSharedResidualCurrentNails({ ...currentNails });
+        setSharedResidualLastStep(
+          didReachNaturalStop
+            ? {
+                status: 'No improving move',
+                score: lastStep?.score ?? null,
+              }
+            : lastStep,
+        );
+        setIsPerformingSteps(false);
+        setIsStepLoopPaused(didPause);
+      }
+    }
+  };
+
   const getEligibleMulticolorStepBuckets = (bucketList = multicolorLineBuckets) =>
     bucketList.filter(
       (bucket) =>
@@ -2644,6 +3388,10 @@ function App() {
   );
   const tasGeometryNails = useMemo(() => buildNails(nailsCount, 1).nails, [nailsCount]);
   const tasNetwork = useMemo(() => buildTasChordNetwork(tasGeometryNails), [tasGeometryNails]);
+  const tasChordByKey = useMemo(
+    () => new Map((tasNetwork.chords ?? []).map((chord) => [chord.key, chord])),
+    [tasNetwork],
+  );
   const normalizedSelectedTasRegionIndex = clamp(
     selectedTasRegionIndex,
     0,
@@ -2663,6 +3411,7 @@ function App() {
   const isSelectedTasRegionEnabled =
     maxEnabledTasRegionIndex >= 0 &&
     normalizedSelectedTasRegionIndex <= maxEnabledTasRegionIndex;
+  const isTasPlannerActive = plannerMode === 'tas';
   const tasPreviewSegmentsByRegion = useMemo(() => {
     const segmentsByRegion = new Map();
     for (const segment of buildTasPreviewSegments(tasNetwork)) {
@@ -2674,7 +3423,7 @@ function App() {
   }, [tasNetwork]);
   const tasPreviewSegments = useMemo(
     () => {
-      if (!isTasPreviewEnabled) {
+      if (!isTasPlannerActive || !isTasPreviewEnabled) {
         return [];
       }
 
@@ -2691,6 +3440,7 @@ function App() {
       return segments;
     },
     [
+      isTasPlannerActive,
       isTasPreviewEnabled,
       maxEnabledTasRegionIndex,
       normalizedSelectedTasRegionIndex,
@@ -2701,6 +3451,7 @@ function App() {
   const tasOwnershipPreview = useMemo(
     () => {
       if (
+        !isTasPlannerActive ||
         !isTasOwnershipPreviewEnabled ||
         !hasLoadedImage ||
         !isSelectedTasRegionEnabled
@@ -2741,6 +3492,7 @@ function App() {
       imageCenter,
       imageScale,
       imageSize,
+      isTasPlannerActive,
       isSelectedTasRegionEnabled,
       isTasOwnershipPreviewEnabled,
       nailsCount,
@@ -2749,19 +3501,56 @@ function App() {
       tasNetwork,
     ],
   );
+  const tasPaletteFitSourceImageData = useMemo(() => {
+    if (
+      !isTasPlannerActive ||
+      !isTasPaletteFitPreviewEnabled ||
+      !hasLoadedImage ||
+      !imageCanvasRef.current ||
+      !imageSize
+    ) {
+      return null;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    const sourceImageData = context?.getImageData(0, 0, imageSize.width, imageSize.height) ?? null;
+    if (!sourceImageData || enabledPalettePreviewColors.length === 0) {
+      return sourceImageData;
+    }
+
+    return createPalettePreviewImageData(
+      sourceImageData,
+      enabledPalettePreviewColors,
+      isPaletteDitheringEnabled,
+      null,
+      false,
+    );
+  }, [
+    contrast,
+    enabledPalettePreviewColors,
+    hasLoadedImage,
+    imageName,
+    imageSize,
+    isTasPlannerActive,
+    isPaletteDitheringEnabled,
+    isTasPaletteFitPreviewEnabled,
+  ]);
   const allTasPaletteFit = useMemo(
     () => {
       if (
+        !isTasPlannerActive ||
         !isTasPaletteFitPreviewEnabled ||
         !hasLoadedImage ||
-        tasViewScope !== 'all'
+        !tasPaletteFitSourceImageData
       ) {
         return null;
       }
 
       return filterTasPaletteFitByMaxRegion(
         buildAllTasRegionsPaletteFit({
-            sourceImageData: originalImageDataRef.current,
+            sourceImageData: tasPaletteFitSourceImageData,
             imageCenter,
             imageScale,
             previewSize,
@@ -2777,19 +3566,24 @@ function App() {
       hasLoadedImage,
       imageCenter,
       imageScale,
+      isTasPlannerActive,
       isTasPaletteFitPreviewEnabled,
       isTasPaletteFitLimitedToPalette,
       maxEnabledTasRegionIndex,
       previewSize,
+      tasPaletteFitSourceImageData,
       tasNetwork,
-      tasViewScope,
     ],
   );
   const tasPaletteFit = useMemo(
     () =>
-      isTasPaletteFitPreviewEnabled && hasLoadedImage && isSelectedTasRegionEnabled
+      isTasPlannerActive &&
+      isTasPaletteFitPreviewEnabled &&
+      hasLoadedImage &&
+      isSelectedTasRegionEnabled &&
+      tasPaletteFitSourceImageData
         ? buildTasRegionPaletteFit({
-            sourceImageData: originalImageDataRef.current,
+            sourceImageData: tasPaletteFitSourceImageData,
             imageCenter,
             imageScale,
             previewSize,
@@ -2805,10 +3599,12 @@ function App() {
       imageCenter,
       imageScale,
       isSelectedTasRegionEnabled,
+      isTasPlannerActive,
       isTasPaletteFitPreviewEnabled,
       isTasPaletteFitLimitedToPalette,
       normalizedSelectedTasRegionIndex,
       previewSize,
+      tasPaletteFitSourceImageData,
       tasNetwork,
     ],
   );
@@ -2816,11 +3612,13 @@ function App() {
     tasViewScope === 'all' && allTasPaletteFit ? allTasPaletteFit : tasPaletteFit;
   const tasPaletteFitActiveChordKeys = useMemo(
     () =>
-      getLimitedTasChordKeySet(
-        scopedTasPaletteFit?.sortedRows ?? [],
-        tasRegionChordLimitPercent,
-      ),
-    [scopedTasPaletteFit, tasRegionChordLimitPercent],
+      getLimitedTasChordKeySet({
+        sortedRows: scopedTasPaletteFit?.sortedRows ?? [],
+        regionLimitPercent: tasRegionChordLimitPercent,
+        regions: tasNetwork.regions,
+        maxRegionIndex: maxEnabledTasRegionIndex,
+      }),
+    [maxEnabledTasRegionIndex, scopedTasPaletteFit, tasNetwork, tasRegionChordLimitPercent],
   );
   const activeLimitedTasCount = tasPaletteFitActiveChordKeys.size;
   const visibleTasPaletteFitSegments = useMemo(() => {
@@ -2846,8 +3644,61 @@ function App() {
     scopedTasPaletteFit,
     tasPaletteFitActiveChordKeys,
   ]);
+  const finalDrawingPlan = useMemo(
+    () =>
+      isTasPlannerActive
+        ? buildFinalDrawingPlanFromTasRows({
+            maxRegionIndex: maxEnabledTasRegionIndex,
+            paletteColors: multicolorPaletteColors,
+            regionLimitPercent: tasRegionChordLimitPercent,
+            regions: tasNetwork.regions,
+            sortedRows: allTasPaletteFit?.sortedRows ?? [],
+          })
+        : buildFinalDrawingPlanFromTasRows({
+            maxRegionIndex: -1,
+            paletteColors: [],
+            regionLimitPercent: 0,
+            regions: [],
+            sortedRows: [],
+          }),
+    [
+      allTasPaletteFit,
+      isTasPlannerActive,
+      maxEnabledTasRegionIndex,
+      multicolorPaletteColors,
+      tasNetwork,
+      tasRegionChordLimitPercent,
+    ],
+  );
+  const isFinalDrawingPlanRenderable =
+    isTasPlannerActive &&
+    isMulticolorLabEnabled &&
+    isPalettePreviewEnabled &&
+    isTasPaletteFitPreviewEnabled &&
+    finalDrawingPlan.totalStepCount > 0;
+  const finalDrawingPlanLineSegments = useMemo(
+    () =>
+      isFinalDrawingPlanRenderable
+        ? buildFinalPlanLineSegments(
+            finalDrawingPlan.steps,
+            nails,
+            tasChordByKey,
+            finalStringTrimPercent,
+          )
+        : [],
+    [
+      finalDrawingPlan,
+      finalStringTrimPercent,
+      isFinalDrawingPlanRenderable,
+      nails,
+      tasChordByKey,
+    ],
+  );
   const selectedConnectorPreviewSegments = useMemo(() => {
-    if (selectedChainChordKeys.length === 0 && selectedConnectorChordKeys.length === 0) {
+    if (
+      !isTasPlannerActive ||
+      (selectedChainChordKeys.length === 0 && selectedConnectorChordKeys.length === 0)
+    ) {
       return [];
     }
 
@@ -2865,7 +3716,7 @@ function App() {
         x2: chord.x2,
         y2: chord.y2,
       }));
-  }, [selectedChainChordKeys, selectedConnectorChordKeys, tasNetwork]);
+  }, [isTasPlannerActive, selectedChainChordKeys, selectedConnectorChordKeys, tasNetwork]);
   useEffect(() => {
     if (!selectedTasChordKey) {
       return;
@@ -3102,13 +3953,41 @@ function App() {
     nails,
     'experimental-art-line',
   );
+  const sharedResidualArtLineSegments = buildManualArtLineSegments(
+    [...sharedResidualLines]
+      .reverse()
+      .map((line) => ({
+        startNailNumber: line.startNailNumber,
+        endNailNumber: line.endNailNumber,
+        stroke: line.hex,
+        className: 'art-line shared-residual-line',
+      })),
+    nails,
+    'shared-residual-line',
+  );
+  const isGreyscalePlannerMode = plannerMode === 'greyscale';
+  const isResidualPlannerVisible = plannerMode === 'residual';
+  const isResidualFocusedMode = plannerMode === 'residual';
   const artLineSegments = isArtMode
-    ? (
-        isExperimentalColorLinesOnlyPreviewEnabled
-          ? experimentalArtLineSegments
-          : [...monochromeArtLineSegments, ...experimentalArtLineSegments]
-      )
+    ? isResidualPlannerVisible
+      ? sharedResidualArtLineSegments
+      : isFinalDrawingPlanRenderable
+      ? finalDrawingPlanLineSegments
+      : (
+          isExperimentalColorLinesOnlyPreviewEnabled
+            ? experimentalArtLineSegments
+            : [...monochromeArtLineSegments, ...experimentalArtLineSegments]
+        )
     : [];
+  const artSourceLabel = isResidualPlannerVisible
+    ? `Shared residual: ${sharedResidualLines.length.toLocaleString()} lines`
+    : isFinalDrawingPlanRenderable
+    ? `Final TAS plan: ${finalDrawingPlan.totalStepCount.toLocaleString()} rows, ${finalDrawingPlan.connectorCount.toLocaleString()} connectors, ${finalDrawingPlan.unresolvedGapCount.toLocaleString()} gaps`
+    : isExperimentalColorLinesOnlyPreviewEnabled
+      ? 'Manual multicolor lines only'
+      : 'Manual/algorithm lines';
+  const shouldHideTasInspectionOverlaysInPreview =
+    !isArtMode || isResidualPlannerVisible || (isArtMode && isFinalDrawingPlanRenderable);
   const activeGroup =
     pixelGroups.find((group) => group.id === activeGroupId) ?? pixelGroups[0] ?? null;
   const averageLineDarknessDisplay =
@@ -3486,16 +4365,75 @@ function App() {
   };
 
   const handleExportNailList = () => {
-    const nailListContent = [1, ...savedNailSequence].join('\n');
+    const nailListContent = isResidualPlannerVisible
+      ? [
+          'step\tcolor\tfrom\tto\tscore',
+          ...sharedResidualLines.map((line, index) => [
+            index + 1,
+            line.label,
+            line.startNailNumber,
+            line.endNailNumber,
+            Math.round(line.score),
+          ].join('\t')),
+        ].join('\n')
+      : isFinalDrawingPlanRenderable
+      ? [
+          'step\tcolor\tfrom\tto\tD\ttype\tchord',
+          ...finalDrawingPlan.steps.map((step) => [
+            step.stepNumber,
+            step.colorLabel,
+            step.drawFromNailNumber,
+            step.drawToNailNumber,
+            `D${step.regionIndex}`,
+            step.rowType,
+            step.chordKey,
+          ].join('\t')),
+        ].join('\n')
+      : [1, ...savedNailSequence].join('\n');
     const fileBaseName = imageName
       ? imageName.replace(/\.[^.]+$/, '')
       : 'string-art';
     const exportUrl = URL.createObjectURL(new Blob([nailListContent], { type: 'text/plain' }));
     const downloadLink = document.createElement('a');
     downloadLink.href = exportUrl;
-    downloadLink.download = `${fileBaseName}-nail-list.txt`;
+    downloadLink.download = isResidualPlannerVisible
+      ? `${fileBaseName}-shared-residual-lines.tsv`
+      : isFinalDrawingPlanRenderable
+      ? `${fileBaseName}-final-winding-plan.tsv`
+      : `${fileBaseName}-nail-list.txt`;
     downloadLink.click();
     URL.revokeObjectURL(exportUrl);
+  };
+
+  const handleGenerateAutomaticPalette = (colorCount) => {
+    if (!imageCanvasRef.current || !imageSize || previewSize <= 0) {
+      return;
+    }
+
+    const context = imageCanvasRef.current.getContext('2d', {
+      willReadFrequently: true,
+    });
+    const sourceImageData = context?.getImageData(0, 0, imageSize.width, imageSize.height);
+    if (!sourceImageData) {
+      return;
+    }
+
+    const nextPaletteColors = createAutomaticPaletteColors({
+      colorCount,
+      imageCenter,
+      imageScale,
+      previewSize,
+      sourceImageData,
+    });
+    if (nextPaletteColors.length === 0) {
+      return;
+    }
+
+    setMulticolorPalettePresetId('auto-generated');
+    setMulticolorPaletteColors(nextPaletteColors);
+    setActivePaletteColorId(nextPaletteColors[0]?.id ?? null);
+    setIsPalettePreviewEnabled(true);
+    setIsTasPaletteFitPreviewEnabled(true);
   };
 
   return (
@@ -3511,26 +4449,76 @@ function App() {
               onChange={handleFileChange}
             />
           </label>
-          <form
-            action="https://www.paypal.com/donate"
-            method="post"
-            target="_top"
-            className="donate-form"
-          >
-            <input
-              type="hidden"
-              name="hosted_button_id"
-              value="MRJF9A83YR2BE"
-            />
-            <input
-              type="image"
-              alt="Donate with PayPal button"
-              src="https://www.paypalobjects.com/en_US/IL/i/btn/btn_donateCC_LG.gif"
-              border="0"
-              name="submit"
-              title="PayPal - The safer, easier way to pay online!"
-            />
-          </form>
+          {!isResidualFocusedMode && (
+            <form
+              action="https://www.paypal.com/donate"
+              method="post"
+              target="_top"
+              className="donate-form"
+            >
+              <input
+                type="hidden"
+                name="hosted_button_id"
+                value="MRJF9A83YR2BE"
+              />
+              <input
+                type="image"
+                alt="Donate with PayPal button"
+                src="https://www.paypalobjects.com/en_US/IL/i/btn/btn_donateCC_LG.gif"
+                border="0"
+                name="submit"
+                title="PayPal - The safer, easier way to pay online!"
+              />
+            </form>
+          )}
+        </div>
+
+        <div className="planner-mode-panel">
+          <span className="multicolor-lab-label">Planner</span>
+          <div className="multicolor-debug-toggle-group" role="radiogroup" aria-label="Planner mode">
+            <button
+              className={[
+                'multicolor-debug-toggle',
+                plannerMode === 'residual' ? 'is-active' : '',
+              ].filter(Boolean).join(' ')}
+              type="button"
+              role="radio"
+              aria-checked={plannerMode === 'residual'}
+              onClick={() => {
+                setPlannerMode('residual');
+                setIsArtMode(true);
+              }}
+            >
+              residual
+            </button>
+            <button
+              className={[
+                'multicolor-debug-toggle',
+                plannerMode === 'greyscale' ? 'is-active' : '',
+              ].filter(Boolean).join(' ')}
+              type="button"
+              role="radio"
+              aria-checked={plannerMode === 'greyscale'}
+              onClick={() => {
+                setPlannerMode('greyscale');
+                setIsArtMode(true);
+              }}
+            >
+              greyscale
+            </button>
+            <button
+              className={[
+                'multicolor-debug-toggle',
+                plannerMode === 'tas' ? 'is-active' : '',
+              ].filter(Boolean).join(' ')}
+              type="button"
+              role="radio"
+              aria-checked={plannerMode === 'tas'}
+              onClick={() => setPlannerMode('tas')}
+            >
+              TAS legacy
+            </button>
+          </div>
         </div>
 
         <div className="panel">
@@ -3550,28 +4538,32 @@ function App() {
             </label>
 
             <div className="line-inputs">
-              <label className="slider-control line-input">
-                <span>From: {lineFrom || 1}</span>
-                <input
-                  type="range"
-                  min="1"
-                  max={Math.max(nailsCount, 1)}
-                  step="1"
-                  value={lineFrom === '' ? 1 : lineFrom}
-                  onChange={(event) => setLineFrom(event.target.value)}
-                />
-              </label>
-              <label className="slider-control line-input">
-                <span>To: {lineTo || 1}</span>
-                <input
-                  type="range"
-                  min="1"
-                  max={Math.max(nailsCount, 1)}
-                  step="1"
-                  value={lineTo === '' ? 1 : lineTo}
-                  onChange={(event) => setLineTo(event.target.value)}
-                />
-              </label>
+              {!isResidualFocusedMode && (
+                <>
+                  <label className="slider-control line-input">
+                    <span>From: {lineFrom || 1}</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max={Math.max(nailsCount, 1)}
+                      step="1"
+                      value={lineFrom === '' ? 1 : lineFrom}
+                      onChange={(event) => setLineFrom(event.target.value)}
+                    />
+                  </label>
+                  <label className="slider-control line-input">
+                    <span>To: {lineTo || 1}</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max={Math.max(nailsCount, 1)}
+                      step="1"
+                      value={lineTo === '' ? 1 : lineTo}
+                      onChange={(event) => setLineTo(event.target.value)}
+                    />
+                  </label>
+                </>
+              )}
               <label className="slider-control line-input">
                 <span>Min distance: {highlightRange}</span>
                 <input
@@ -3615,6 +4607,7 @@ function App() {
                 />
               </label>
             </div>
+            {!isResidualFocusedMode && (
             <label className="slider-control slider-control-wide">
               <span>Contrast: {contrast}%</span>
               <input
@@ -3636,13 +4629,38 @@ function App() {
                 }}
               />
             </label>
+            )}
           </div>
+          {!isResidualFocusedMode && (
+          <>
           <p className="line-darkness">
             Average darkness: {averageLineDarknessDisplay}
           </p>
           <p className="line-darkness-source">
             Scoring source: {lineScoringModeLabel}
           </p>
+          {isArtMode && (
+            <p className="line-darkness-source">
+              Art source: {artSourceLabel}
+            </p>
+          )}
+          {isArtMode && plannerMode === 'tas' && isFinalDrawingPlanRenderable && (
+            <label className="slider-control slider-control-wide final-string-trim-control">
+              <span>Trim strings toward TAS: {finalStringTrimPercent}%</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={finalStringTrimPercent}
+                onChange={(event) =>
+                  setFinalStringTrimPercent(
+                    clamp(Number(event.target.value), 0, 100),
+                  )
+                }
+              />
+            </label>
+          )}
           {darknessSeries.length > 0 && (
             <div className="darkness-chart">
               <svg
@@ -3817,11 +4835,21 @@ function App() {
               className="action-button action-button-secondary"
               type="button"
               onClick={handleExportNailList}
-              disabled={savedNailSequence.length === 0}
+              disabled={
+                isResidualPlannerVisible
+                  ? sharedResidualLines.length === 0
+                  : !isFinalDrawingPlanRenderable && savedNailSequence.length === 0
+              }
             >
-              export nail list
+              {isResidualPlannerVisible
+                ? 'export residual lines'
+                : isFinalDrawingPlanRenderable
+                  ? 'export final winding'
+                  : 'export nail list'}
             </button>
           </div>
+          </>
+          )}
           {SHOW_BRUSH_TOOLS && (
             <Profiler id="BrushPanel" onRender={handleReactProfile}>
               <BrushPanel
@@ -3857,6 +4885,249 @@ function App() {
               />
             </Profiler>
           )}
+          {isResidualPlannerVisible && (
+            <section className="multicolor-lab-section residual-lab-section">
+              <div className="multicolor-lab-section-head">
+                <h3>Shared residual solver</h3>
+                <p>All enabled thread colors compete against one shared board image.</p>
+              </div>
+              <div className="multicolor-lab-section-card">
+                <div className="multicolor-inline-stats">
+                  <span className="multicolor-inline-stat">
+                    Lines {sharedResidualLines.length.toLocaleString()}
+                  </span>
+                  <span className="multicolor-inline-stat">
+                    Colors {enabledPalettePreviewColors.length.toLocaleString()}
+                  </span>
+                  <span className="multicolor-inline-stat">
+                    Opacity {Math.round(clamp(getLineDarknessStep() / 100, 0.01, 0.95) * 100)}%
+                  </span>
+                  <span className="multicolor-inline-stat">
+                    Thickness {residualStringThickness}%
+                  </span>
+                  <span className="multicolor-inline-stat">
+                    Target {residualImagePreviewMode}
+                  </span>
+                  <span className="multicolor-inline-stat">
+                    Error OKLab
+                  </span>
+                </div>
+                <div className="multicolor-inline-controls">
+                  <span className="multicolor-lab-label">Preview</span>
+                  <div
+                    className="multicolor-debug-toggle-group"
+                    role="radiogroup"
+                    aria-label="Residual preview source"
+                  >
+                    <button
+                      className={[
+                        'multicolor-debug-toggle',
+                        residualPreviewMode === 'original' ? 'is-active' : '',
+                      ].filter(Boolean).join(' ')}
+                      type="button"
+                      role="radio"
+                      aria-checked={residualPreviewMode === 'original'}
+                      onClick={() => setResidualPreviewMode('original')}
+                    >
+                      original
+                    </button>
+                    <button
+                      className={[
+                        'multicolor-debug-toggle',
+                        residualPreviewMode === 'palette' ? 'is-active' : '',
+                      ].filter(Boolean).join(' ')}
+                      type="button"
+                      role="radio"
+                      aria-checked={residualPreviewMode === 'palette'}
+                      onClick={() => setResidualPreviewMode('palette')}
+                      disabled={enabledPalettePreviewColors.length === 0}
+                    >
+                      palette
+                    </button>
+                    <button
+                      className={[
+                        'multicolor-debug-toggle',
+                        residualPreviewMode === 'dithered' ? 'is-active' : '',
+                      ].filter(Boolean).join(' ')}
+                      type="button"
+                      role="radio"
+                      aria-checked={residualPreviewMode === 'dithered'}
+                      onClick={() => setResidualPreviewMode('dithered')}
+                      disabled={enabledPalettePreviewColors.length === 0}
+                    >
+                      dithered
+                    </button>
+                    <button
+                      className={[
+                        'multicolor-debug-toggle',
+                        residualPreviewMode === 'strings' ? 'is-active' : '',
+                      ].filter(Boolean).join(' ')}
+                      type="button"
+                      role="radio"
+                      aria-checked={residualPreviewMode === 'strings'}
+                      onClick={() => setResidualPreviewMode('strings')}
+                    >
+                      strings
+                    </button>
+                  </div>
+                </div>
+                <label className="slider-control slider-control-wide">
+                  <span>
+                    String thickness: {residualStringThickness}% · keeps{' '}
+                    {Math.round(residualCoveredPixelWeight * 100)}% every{' '}
+                    {residualOcclusionPixelStride}px
+                  </span>
+                  <input
+                    type="range"
+                    min={MIN_RESIDUAL_STRING_THICKNESS}
+                    max={MAX_RESIDUAL_STRING_THICKNESS}
+                    step="1"
+                    value={residualStringThickness}
+                    onChange={(event) =>
+                      handleResidualStringThicknessChange(Number(event.target.value))
+                    }
+                    disabled={isPerformingSteps}
+                  />
+                </label>
+                <div className="automatic-palette-panel">
+                  <label className="slider-control automatic-palette-count">
+                    <span>Automatic colors: {automaticPaletteColorCount}</span>
+                    <input
+                      type="range"
+                      min="2"
+                      max="12"
+                      step="1"
+                      value={automaticPaletteColorCount}
+                      onChange={(event) =>
+                        setAutomaticPaletteColorCount(Number.parseInt(event.target.value, 10))
+                      }
+                    />
+                  </label>
+                  <button
+                    className="action-button action-button-secondary automatic-palette-button"
+                    type="button"
+                    disabled={!hasLoadedImage}
+                    onClick={() => handleGenerateAutomaticPalette(automaticPaletteColorCount)}
+                  >
+                    find palette
+                  </button>
+                  <p className="multicolor-mini-note">
+                    Finds thread colors from the image inside the circle using OKLab clustering.
+                  </p>
+                </div>
+                <div className="multicolor-palette-list">
+                  {multicolorPaletteColors.map((color) => (
+                    <div
+                      key={color.id}
+                      className={[
+                        'multicolor-palette-row',
+                        color.enabled ? '' : 'is-disabled',
+                        color.id === activePaletteColorId ? 'is-active' : '',
+                      ].filter(Boolean).join(' ')}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={color.enabled}
+                        onChange={(event) => {
+                          setMulticolorPaletteColors((currentColors) =>
+                            currentColors.map((currentColor) =>
+                              currentColor.id === color.id
+                                ? { ...currentColor, enabled: event.target.checked }
+                                : currentColor,
+                            ),
+                          );
+                        }}
+                      />
+                      <button
+                        className={[
+                          'multicolor-palette-swatch-button',
+                          color.id === activePaletteColorId ? 'is-active' : '',
+                        ].filter(Boolean).join(' ')}
+                        type="button"
+                        onClick={() => setActivePaletteColorId(color.id)}
+                        aria-label={`Set active palette color ${color.label}`}
+                        title={`Active color: ${color.label}`}
+                      >
+                        <span
+                          className="multicolor-palette-swatch"
+                          style={{ backgroundColor: color.hex }}
+                        />
+                      </button>
+                      <span className="multicolor-palette-name">{color.label}</span>
+                      <span className="multicolor-palette-count-value">
+                        <span>
+                          {hasLoadedImage
+                            ? `${(multicolorPalettePixelCountMap.get(color.id) ?? 0).toLocaleString()} px`
+                            : '-'}
+                        </span>
+                        <span>
+                          {(sharedResidualLineCountMap.get(color.id) ?? 0).toLocaleString()} strings
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {sharedResidualLastStep && (
+                  <p className="multicolor-mini-note">
+                    {sharedResidualLastStep.status}
+                    {sharedResidualLastStep.colorLabel
+                      ? ` ${sharedResidualLastStep.colorLabel} ${sharedResidualLastStep.startNailNumber}-${sharedResidualLastStep.endNailNumber}`
+                      : ''}
+                    {Number.isFinite(sharedResidualLastStep.score)
+                      ? `, score ${Math.round(sharedResidualLastStep.score).toLocaleString()}`
+                      : ''}
+                  </p>
+                )}
+                <div className="residual-action-grid">
+                  <button
+                    className="action-button"
+                    type="button"
+                    onClick={handleApplySharedResidualStep}
+                    disabled={
+                      isPerformingSteps ||
+                      !hasLoadedImage ||
+                      enabledPalettePreviewColors.length === 0
+                    }
+                  >
+                    apply one residual step
+                  </button>
+                  <button
+                    className="action-button action-button-secondary"
+                    type="button"
+                    onClick={handleLoopSharedResidualSteps}
+                    disabled={
+                      !isPerformingSteps &&
+                      (!hasLoadedImage || enabledPalettePreviewColors.length === 0)
+                    }
+                  >
+                    {isPerformingSteps
+                      ? `pause at ${sharedResidualLines.length.toLocaleString()}`
+                      : isStepLoopPaused
+                        ? `continue (${sharedResidualLines.length.toLocaleString()})`
+                        : 'loop steps'}
+                  </button>
+                  <button
+                    className="action-button action-button-secondary"
+                    type="button"
+                    onClick={resetSharedResidualExperiment}
+                    disabled={
+                      isPerformingSteps ||
+                      (!hasLoadedImage && sharedResidualLines.length === 0)
+                    }
+                  >
+                    reset residual
+                  </button>
+                </div>
+                <p className="multicolor-mini-note">
+                  Board starts white. Each candidate colored line is alpha-blended onto the shared
+                  board and scored against the selected target. Palette targets only give positive
+                  credit to the matching thread color, with a balance penalty for overused colors.
+                  Thickness controls how strongly earlier strings claim pixels for future scoring.
+                </p>
+              </div>
+            </section>
+          )}
+          {plannerMode === 'tas' && (
           <Profiler id="MulticolorLab" onRender={handleReactProfile}>
             <MulticolorLab
               activePaletteColor={activePaletteColor}
@@ -3902,6 +5173,7 @@ function App() {
               tasViewScope={tasViewScope}
               totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
               totalPaletteCoverageTenths={totalPaletteCoverageTenths}
+              onGenerateAutomaticPalette={handleGenerateAutomaticPalette}
               onDiagnosticRender={handleDiagnosticRender}
               setActivePaletteColorId={setActivePaletteColorId}
               setIsBlackAndWhite={setIsBlackAndWhite}
@@ -3926,6 +5198,7 @@ function App() {
               setTasViewScope={setTasViewScope}
             />
           </Profiler>
+          )}
         </div>
 
       </aside>
@@ -3969,9 +5242,13 @@ function App() {
         shouldShowPreviewLine={shouldShowPreviewLine}
         showNailNumbers={showNailNumbers}
         selectedTasRegionIndex={normalizedSelectedTasRegionIndex}
-        tasPaletteFitSegments={visibleTasPaletteFitSegments}
-        tasOwnershipPreviewImageData={tasOwnershipPreview?.imageData ?? null}
-        tasPreviewSegments={tasPreviewSegments}
+        tasPaletteFitSegments={
+          shouldHideTasInspectionOverlaysInPreview ? [] : visibleTasPaletteFitSegments
+        }
+        tasOwnershipPreviewImageData={
+          shouldHideTasInspectionOverlaysInPreview ? null : tasOwnershipPreview?.imageData ?? null
+        }
+        tasPreviewSegments={shouldHideTasInspectionOverlaysInPreview ? [] : tasPreviewSegments}
         />
       </Profiler>
       <Profiler id="HoveredPixelOverlay" onRender={handleReactProfile}>

@@ -57,6 +57,16 @@ label {
   margin-bottom: 14px;
 }
 
+.planner-mode-panel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
 .donate-form {
   margin: 0;
   flex-shrink: 0;
@@ -184,6 +194,99 @@ label {
   font-weight: 700;
 }
 
+.multicolor-status-chip.is-ready {
+  border-color: rgba(22, 163, 74, 0.24);
+  background: rgba(240, 253, 244, 0.88);
+  color: #166534;
+}
+
+.multicolor-status-chip.needs-attention {
+  border-color: rgba(220, 38, 38, 0.24);
+  background: rgba(254, 242, 242, 0.88);
+  color: #991b1b;
+}
+
+.multicolor-status-chip.is-muted {
+  border-color: rgba(148, 163, 184, 0.26);
+  background: rgba(248, 250, 252, 0.88);
+  color: #475569;
+}
+
+.lab-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lab-overview-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(194, 65, 12, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #7c2d12;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lab-overview-card:hover {
+  background: rgba(255, 247, 237, 0.9);
+  border-color: rgba(194, 65, 12, 0.28);
+}
+
+.lab-overview-card.is-ready {
+  border-color: rgba(22, 163, 74, 0.24);
+  background: rgba(240, 253, 244, 0.78);
+  color: #166534;
+}
+
+.lab-overview-card.needs-attention {
+  border-color: rgba(220, 38, 38, 0.26);
+  background: rgba(254, 242, 242, 0.84);
+  color: #991b1b;
+}
+
+.lab-overview-card.is-muted {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(248, 250, 252, 0.84);
+  color: #475569;
+}
+
+.lab-overview-label,
+.lab-overview-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lab-overview-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.lab-overview-value {
+  min-width: 0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.lab-overview-detail {
+  font-size: 0.76rem;
+  font-weight: 700;
+  opacity: 0.86;
+}
+
+@media (max-width: 760px) {
+  .lab-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .multicolor-lab-section {
   display: grid;
   gap: 8px;
@@ -256,6 +359,120 @@ label {
 .multicolor-inline-controls {
   display: grid;
   gap: 8px;
+}
+
+.automatic-palette-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(14, 165, 233, 0.18);
+  border-radius: 8px;
+  background: rgba(240, 249, 255, 0.72);
+}
+
+.automatic-palette-count {
+  min-width: 0;
+}
+
+.automatic-palette-button {
+  width: auto;
+  min-width: 112px;
+  padding: 8px 10px;
+}
+
+.automatic-palette-panel .multicolor-mini-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 760px) {
+  .automatic-palette-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .automatic-palette-button {
+    width: 100%;
+  }
+}
+
+.lab-collapsible-panel {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(194, 65, 12, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.lab-collapsible-panel.is-open {
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.lab-collapsible-trigger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  background: rgba(255, 247, 237, 0.72);
+  color: #7c2d12;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lab-collapsible-trigger:hover {
+  background: rgba(255, 237, 213, 0.86);
+}
+
+.lab-collapsible-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+}
+
+.lab-collapsible-arrow {
+  width: 12px;
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+}
+
+.lab-collapsible-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: #9a3412;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lab-collapsible-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border-top: 1px solid rgba(194, 65, 12, 0.12);
+}
+
+@media (max-width: 760px) {
+  .lab-collapsible-trigger {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lab-collapsible-summary {
+    text-align: left;
+  }
 }
 
 .multicolor-inspect-block {
@@ -448,6 +665,8 @@ label {
 }
 
 .multicolor-palette-count-value {
+  display: grid;
+  gap: 2px;
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.84rem;
   font-weight: 700;
@@ -751,6 +970,29 @@ button.tas-error-row {
   gap: 10px;
 }
 
+.tas-chain-head-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.final-plan-export-button {
+  padding: 5px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.final-plan-export-button:hover {
+  background: #e2e8f0;
+}
+
 .tas-chain-list {
   display: grid;
   gap: 4px;
@@ -900,6 +1142,93 @@ button.tas-error-row {
   border-color: rgba(15, 23, 42, 0.48);
   background: rgba(255, 247, 237, 0.96);
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.tas-global-order-row.is-connector {
+  border-color: rgba(202, 138, 4, 0.34);
+  background: rgba(254, 249, 195, 0.72);
+  color: #854d0e;
+}
+
+.tas-global-order-row.is-reserve-replacement {
+  border-color: rgba(14, 165, 233, 0.32);
+  background: rgba(240, 249, 255, 0.78);
+  color: #075985;
+}
+
+.tas-unresolved-gap-list {
+  display: grid;
+  gap: 4px;
+}
+
+.tas-unresolved-gap-row {
+  display: grid;
+  grid-template-columns: 44px minmax(88px, 1fr) minmax(142px, 1.4fr) 42px 82px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(220, 38, 38, 0.28);
+  border-radius: 8px;
+  background: rgba(254, 242, 242, 0.82);
+  color: #991b1b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tas-unresolved-gap-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tas-region-accounting-table {
+  display: grid;
+  gap: 4px;
+}
+
+.tas-region-accounting-row {
+  display: grid;
+  grid-template-columns: 44px repeat(9, minmax(48px, 1fr));
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #7c2d12;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.tas-region-accounting-row.is-header {
+  border-color: transparent;
+  background: transparent;
+  color: #9a3412;
+  font-family: inherit;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+
+.tas-region-accounting-row.has-delta {
+  border-color: rgba(202, 138, 4, 0.3);
+  background: rgba(254, 249, 195, 0.62);
+}
+
+.tas-region-accounting-row.has-gap {
+  border-color: rgba(220, 38, 38, 0.28);
+  background: rgba(254, 242, 242, 0.82);
+}
+
+.tas-region-accounting-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tas-global-order-color {
@@ -1187,6 +1516,26 @@ button.tas-error-row {
   margin: 0 0 10px;
   font-size: 0.9rem;
   color: #475569;
+}
+
+.final-string-trim-control {
+  margin: 0 0 10px;
+}
+
+.residual-lab-section {
+  margin-top: 12px;
+}
+
+.residual-action-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .residual-action-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .panel-footer-actions {

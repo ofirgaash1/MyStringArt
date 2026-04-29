@@ -1,6 +1,8 @@
 /node_modules
 /dist
 vite-dev*.log
+/test-results
+/playwright-report
 /another project
 
 /computational-thread-art-v2-main

@@ -181,16 +181,28 @@ The global list is ordered so that inner regions appear first and outer regions 
 
 Inside each region, chords are ordered from higher color-fit error to lower color-fit error.
 
-We define a parameter `A`, which limits the number of chords allowed in each region.
+We define a parameter `A`, controlled as a 0%-100% slider, which limits the number of chords allowed in active regions.
 
-The limit `A` applies to the region as a whole, not per color.
+`A = 0%` means no active chords.
+
+`A = 100%` means all chords in every enabled region are active.
+
+For intermediate values, `A` defines a global active chord budget. That budget is allocated across enabled regions in proportion to each region's annular area:
+
+```text
+region area = outer radius^2 - inner radius^2
+```
+
+This means small-area rings receive fewer active chords, and large-area rings receive more active chords.
+
+Each allocated regional limit applies to the region as a whole, not per color.
 
 Therefore, it is possible that all selected chords in a region belong to the same color, if those chords have the lowest color-fit error.
 
-For example, if a region contains 100 chords and:
+For example, if the area-weighted allocation gives a region a limit of:
 
 ```text
-A = 10
+regional limit = 10
 ```
 
 then we keep only the last 10 items in that region’s sorted list.
@@ -296,6 +308,24 @@ Within that active set, priority is:
 2. then the more internal eligible region first.
 
 If no suitable connector is found within the active `A` ranges of eligible outer regions, the connector is considered unavailable. Connector chords outside the active `A` limit are not allowed.
+
+This is the normal connector rule.
+
+If the normal rule leaves a gap unresolved, the system may run an explicit repair step. This repair step must be reported separately from normal active connectors.
+
+The repair step compares at least these alternatives:
+
+1. Use the best two-string reserve connector outside the current region, minimizing:
+
+```text
+sum(chord_length × color_error)
+```
+
+2. Delete the current TAS from the active plan and replace it with a reserve TAS from the same region and same color, if that reserve TAS can continue from the current nail.
+
+The chosen repair is the lower-damage option.
+
+Reserve repair chords are not silently added back into the active `A` limit. They are explicit repair rows in the final plan and must be counted separately from normal active rows.
 
 If no single connector chord can satisfy the continuity requirement, the search then considers combinations of two connector strings.
 

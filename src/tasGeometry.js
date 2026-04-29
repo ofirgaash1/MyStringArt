@@ -1,3 +1,5 @@
+import { getNearestPaletteFit } from './multicolor';
+
 export function getTasRegionCount(nailsCount) {
   if (!Number.isInteger(nailsCount) || nailsCount < 2) {
     return 0;
@@ -419,33 +421,6 @@ export function buildTasPixelOwnershipPreview({
   };
 }
 
-function getNearestPaletteColor(red, green, blue, paletteColors) {
-  let nearestColor = null;
-  let nearestError = Infinity;
-
-  for (const color of paletteColors) {
-    if (!color.rgb) {
-      continue;
-    }
-
-    const error =
-      (red - color.rgb.r) * (red - color.rgb.r) +
-      (green - color.rgb.g) * (green - color.rgb.g) +
-      (blue - color.rgb.b) * (blue - color.rgb.b);
-    if (error < nearestError) {
-      nearestError = error;
-      nearestColor = color;
-    }
-  }
-
-  return nearestColor
-    ? {
-        color: nearestColor,
-        error: nearestError,
-      }
-    : null;
-}
-
 function getRoundedRgb(red, green, blue) {
   return {
     r: Math.round(red),
@@ -541,7 +516,7 @@ export function buildTasRegionPaletteFit({
     const averageBlue = blueSums[chordIndex] / pixelCount;
     const averageRgb = getRoundedRgb(averageRed, averageGreen, averageBlue);
     const nearest = limitToPalette
-      ? getNearestPaletteColor(
+      ? getNearestPaletteFit(
           averageRed,
           averageGreen,
           averageBlue,
@@ -674,7 +649,7 @@ export function buildAllTasRegionsPaletteFit({
     const averageBlue = blueSums[chordIndex] / pixelCount;
     const averageRgb = getRoundedRgb(averageRed, averageGreen, averageBlue);
     const nearest = limitToPalette
-      ? getNearestPaletteColor(
+      ? getNearestPaletteFit(
           averageRed,
           averageGreen,
           averageBlue,

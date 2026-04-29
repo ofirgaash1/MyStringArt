@@ -236,6 +236,7 @@ export function buildManualArtLineSegments(lines, nails, keyPrefix = 'manual-art
         y1: startNail.cy,
         x2: endNail.cx,
         y2: endNail.cy,
+        className: line.className ?? undefined,
         stroke: line.stroke ?? null,
       });
     }

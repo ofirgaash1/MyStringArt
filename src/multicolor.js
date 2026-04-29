@@ -37,6 +37,14 @@ export function hexToRgb(hex) {
   return { r: red, g: green, b: blue };
 }
 
+function channelToHex(value) {
+  return Math.round(clampColorChannel(value)).toString(16).padStart(2, '0');
+}
+
+export function rgbToHex(red, green, blue) {
+  return `#${channelToHex(red)}${channelToHex(green)}${channelToHex(blue)}`;
+}
+
 export function clonePalettePreset(preset) {
   return {
     ...preset,
@@ -44,19 +52,104 @@ export function clonePalettePreset(preset) {
   };
 }
 
-export function getNearestPaletteMatch(red, green, blue, paletteColors) {
+export const COLOR_ERROR_SPACE_LABEL = 'OKLab';
+
+const OKLAB_ERROR_SCALE = 100000;
+const paletteOklabCache = new WeakMap();
+
+function clampColorChannel(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(255, Math.max(0, value));
+}
+
+function srgbByteToLinear(value) {
+  const normalizedValue = clampColorChannel(value) / 255;
+  if (normalizedValue <= 0.04045) {
+    return normalizedValue / 12.92;
+  }
+
+  return ((normalizedValue + 0.055) / 1.055) ** 2.4;
+}
+
+export function rgbToOklab(red, green, blue) {
+  const linearRed = srgbByteToLinear(red);
+  const linearGreen = srgbByteToLinear(green);
+  const linearBlue = srgbByteToLinear(blue);
+
+  const long = Math.cbrt(
+    0.4122214708 * linearRed +
+      0.5363325363 * linearGreen +
+      0.0514459929 * linearBlue,
+  );
+  const medium = Math.cbrt(
+    0.2119034982 * linearRed +
+      0.6806995451 * linearGreen +
+      0.1073969566 * linearBlue,
+  );
+  const short = Math.cbrt(
+    0.0883024619 * linearRed +
+      0.2817188376 * linearGreen +
+      0.6299787005 * linearBlue,
+  );
+
+  return {
+    l: 0.2104542553 * long + 0.793617785 * medium - 0.0040720468 * short,
+    a: 1.9779984951 * long - 2.428592205 * medium + 0.4505937099 * short,
+    b: 0.0259040371 * long + 0.7827717662 * medium - 0.808675766 * short,
+  };
+}
+
+function getPaletteColorOklab(color) {
+  if (!color?.rgb) {
+    return null;
+  }
+
+  const cacheKey = `${color.rgb.r}-${color.rgb.g}-${color.rgb.b}`;
+  const cachedColor = paletteOklabCache.get(color);
+  if (cachedColor?.cacheKey === cacheKey) {
+    return cachedColor.oklab;
+  }
+
+  const oklab = rgbToOklab(color.rgb.r, color.rgb.g, color.rgb.b);
+  paletteOklabCache.set(color, { cacheKey, oklab });
+  return oklab;
+}
+
+export function getOklabColorError(red, green, blue, color) {
+  return getOklabColorErrorFromOklab(rgbToOklab(red, green, blue), color);
+}
+
+function getOklabColorErrorFromOklab(sourceOklab, color) {
+  const colorOklab = getPaletteColorOklab(color);
+  if (!colorOklab) {
+    return Infinity;
+  }
+
+  const lightnessDelta = sourceOklab.l - colorOklab.l;
+  const greenRedDelta = sourceOklab.a - colorOklab.a;
+  const blueYellowDelta = sourceOklab.b - colorOklab.b;
+  return (
+    (lightnessDelta * lightnessDelta +
+      greenRedDelta * greenRedDelta +
+      blueYellowDelta * blueYellowDelta) *
+    OKLAB_ERROR_SCALE
+  );
+}
+
+export function getNearestPaletteFit(red, green, blue, paletteColors) {
   let closestColor = null;
   let minimumDistance = Infinity;
+  const sourceOklab = rgbToOklab(red, green, blue);
 
   for (const color of paletteColors) {
     if (!color.rgb) {
       continue;
     }
 
-    const distance =
-      (red - color.rgb.r) * (red - color.rgb.r) +
-      (green - color.rgb.g) * (green - color.rgb.g) +
-      (blue - color.rgb.b) * (blue - color.rgb.b);
+    const distance = getOklabColorErrorFromOklab(sourceOklab, color);
 
     if (distance < minimumDistance) {
       minimumDistance = distance;
@@ -64,7 +157,190 @@ export function getNearestPaletteMatch(red, green, blue, paletteColors) {
     }
   }
 
-  return closestColor;
+  return closestColor
+    ? {
+        color: closestColor,
+        error: minimumDistance,
+      }
+    : null;
+}
+
+export function getNearestPaletteMatch(red, green, blue, paletteColors) {
+  return getNearestPaletteFit(red, green, blue, paletteColors)?.color ?? null;
+}
+
+export function getOklabDistanceSquared(firstOklab, secondOklab) {
+  const lightnessDelta = firstOklab.l - secondOklab.l;
+  const greenRedDelta = firstOklab.a - secondOklab.a;
+  const blueYellowDelta = firstOklab.b - secondOklab.b;
+  return (
+    lightnessDelta * lightnessDelta +
+    greenRedDelta * greenRedDelta +
+    blueYellowDelta * blueYellowDelta
+  );
+}
+
+function getNearestCentroidIndex(sample, centroids) {
+  let nearestIndex = 0;
+  let nearestDistance = Infinity;
+
+  for (let index = 0; index < centroids.length; index += 1) {
+    const distance = getOklabDistanceSquared(sample.oklab, centroids[index]);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  }
+
+  return nearestIndex;
+}
+
+function getInitialPaletteCentroids(samples, colorCount) {
+  const sortedSamples = [...samples].sort((firstSample, secondSample) => {
+    if (firstSample.oklab.l !== secondSample.oklab.l) {
+      return firstSample.oklab.l - secondSample.oklab.l;
+    }
+
+    if (firstSample.oklab.a !== secondSample.oklab.a) {
+      return firstSample.oklab.a - secondSample.oklab.a;
+    }
+
+    return firstSample.oklab.b - secondSample.oklab.b;
+  });
+
+  return Array.from({ length: colorCount }, (_, index) => {
+    const sampleIndex = colorCount === 1
+      ? Math.floor(sortedSamples.length / 2)
+      : Math.round((index / (colorCount - 1)) * (sortedSamples.length - 1));
+    return { ...sortedSamples[sampleIndex].oklab };
+  });
+}
+
+export function createAutomaticPaletteColors({
+  colorCount,
+  imageCenter,
+  imageScale,
+  previewSize,
+  sourceImageData,
+}) {
+  if (
+    !sourceImageData ||
+    !Number.isInteger(colorCount) ||
+    colorCount <= 0
+  ) {
+    return [];
+  }
+
+  const clampedColorCount = Math.min(12, Math.max(2, colorCount));
+  const maxSampleCount = 12000;
+  const totalPixels = sourceImageData.width * sourceImageData.height;
+  const stride = Math.max(1, Math.floor(Math.sqrt(totalPixels / maxSampleCount)));
+  const samples = [];
+
+  for (let y = 0; y < sourceImageData.height; y += stride) {
+    for (let x = 0; x < sourceImageData.width; x += stride) {
+      const offset = (y * sourceImageData.width + x) * 4;
+      if (sourceImageData.data[offset + 3] <= 0) {
+        continue;
+      }
+
+      if (
+        !isImagePixelInsidePreviewCircle(
+          x,
+          y,
+          imageCenter,
+          imageScale,
+          previewSize,
+        )
+      ) {
+        continue;
+      }
+
+      const red = sourceImageData.data[offset];
+      const green = sourceImageData.data[offset + 1];
+      const blue = sourceImageData.data[offset + 2];
+      samples.push({
+        r: red,
+        g: green,
+        b: blue,
+        oklab: rgbToOklab(red, green, blue),
+      });
+    }
+  }
+
+  if (samples.length === 0) {
+    return [];
+  }
+
+  const effectiveColorCount = Math.min(clampedColorCount, samples.length);
+  let centroids = getInitialPaletteCentroids(samples, effectiveColorCount);
+  let assignments = new Int16Array(samples.length);
+
+  for (let iteration = 0; iteration < 10; iteration += 1) {
+    const nextCentroids = Array.from({ length: effectiveColorCount }, () => ({
+      l: 0,
+      a: 0,
+      b: 0,
+      count: 0,
+    }));
+
+    for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex += 1) {
+      const centroidIndex = getNearestCentroidIndex(samples[sampleIndex], centroids);
+      assignments[sampleIndex] = centroidIndex;
+      nextCentroids[centroidIndex].l += samples[sampleIndex].oklab.l;
+      nextCentroids[centroidIndex].a += samples[sampleIndex].oklab.a;
+      nextCentroids[centroidIndex].b += samples[sampleIndex].oklab.b;
+      nextCentroids[centroidIndex].count += 1;
+    }
+
+    centroids = nextCentroids.map((centroid, index) => (
+      centroid.count > 0
+        ? {
+            l: centroid.l / centroid.count,
+            a: centroid.a / centroid.count,
+            b: centroid.b / centroid.count,
+          }
+        : centroids[index]
+    ));
+  }
+
+  const clusters = Array.from({ length: effectiveColorCount }, (_, index) => ({
+    index,
+    count: 0,
+    redSum: 0,
+    greenSum: 0,
+    blueSum: 0,
+    oklab: centroids[index],
+  }));
+
+  for (let sampleIndex = 0; sampleIndex < samples.length; sampleIndex += 1) {
+    const cluster = clusters[assignments[sampleIndex]];
+    if (!cluster) {
+      continue;
+    }
+
+    cluster.count += 1;
+    cluster.redSum += samples[sampleIndex].r;
+    cluster.greenSum += samples[sampleIndex].g;
+    cluster.blueSum += samples[sampleIndex].b;
+  }
+
+  return clusters
+    .filter((cluster) => cluster.count > 0)
+    .sort((firstCluster, secondCluster) => firstCluster.oklab.l - secondCluster.oklab.l)
+    .map((cluster, index) => {
+      const red = cluster.redSum / cluster.count;
+      const green = cluster.greenSum / cluster.count;
+      const blue = cluster.blueSum / cluster.count;
+      const hex = rgbToHex(red, green, blue);
+      return {
+        id: `auto-${index + 1}-${hex.slice(1)}`,
+        label: `auto ${index + 1}`,
+        hex,
+        rgb: hexToRgb(hex),
+        enabled: true,
+      };
+    });
 }
 
 export function createNearestPalettePreviewImageData(
@@ -131,12 +407,20 @@ export function createDitheredPalettePreviewImageData(
   };
 
   for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
+    const isLeftToRight = y % 2 === 0;
+    const startX = isLeftToRight ? 0 : width - 1;
+    const endX = isLeftToRight ? width : -1;
+    const xStep = isLeftToRight ? 1 : -1;
+
+    for (let x = startX; x !== endX; x += xStep) {
       const offset = (y * width + x) * 4;
+      const currentRed = clampColorChannel(workingData[offset]);
+      const currentGreen = clampColorChannel(workingData[offset + 1]);
+      const currentBlue = clampColorChannel(workingData[offset + 2]);
       const nearestColor = getNearestPaletteMatch(
-        workingData[offset],
-        workingData[offset + 1],
-        workingData[offset + 2],
+        currentRed,
+        currentGreen,
+        currentBlue,
         paletteColors,
       );
       if (!nearestColor) {
@@ -150,21 +434,27 @@ export function createDitheredPalettePreviewImageData(
         nextData[offset + 3] = 0;
       }
 
-      const redError = workingData[offset] - nearestColor.rgb.r;
-      const greenError = workingData[offset + 1] - nearestColor.rgb.g;
-      const blueError = workingData[offset + 2] - nearestColor.rgb.b;
+      const redError = currentRed - nearestColor.rgb.r;
+      const greenError = currentGreen - nearestColor.rgb.g;
+      const blueError = currentBlue - nearestColor.rgb.b;
+      const forwardOffset = offset + xStep * 4;
+      const nextRowOffset = offset + width * 4;
+      const downForwardOffset = nextRowOffset + xStep * 4;
+      const downBackwardOffset = nextRowOffset - xStep * 4;
 
-      if (x + 1 < width) {
-        diffuseError(offset + 4, redError, greenError, blueError, 7 / 16);
+      if ((isLeftToRight && x + 1 < width) || (!isLeftToRight && x > 0)) {
+        diffuseError(forwardOffset, redError, greenError, blueError, 7 / 16);
       }
+
       if (y + 1 < height) {
-        const nextRowOffset = offset + width * 4;
         diffuseError(nextRowOffset, redError, greenError, blueError, 5 / 16);
-        if (x > 0) {
-          diffuseError(nextRowOffset - 4, redError, greenError, blueError, 3 / 16);
+
+        if ((isLeftToRight && x > 0) || (!isLeftToRight && x + 1 < width)) {
+          diffuseError(downBackwardOffset, redError, greenError, blueError, 3 / 16);
         }
-        if (x + 1 < width) {
-          diffuseError(nextRowOffset + 4, redError, greenError, blueError, 1 / 16);
+
+        if ((isLeftToRight && x + 1 < width) || (!isLeftToRight && x > 0)) {
+          diffuseError(downForwardOffset, redError, greenError, blueError, 1 / 16);
         }
       }
     }

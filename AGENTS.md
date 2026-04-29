@@ -38,7 +38,19 @@ This repo is implementing the algorithm described in `new.txt`.
 
 ## Current Implementation Status
 
-The app is implementing the multicolor thread-art algorithm in `new.txt`. The current work is in the TAS/SCCL/connector/global-order phase.
+The app is now being redirected toward the shared color residual solver described in `todo-shared-color-residual.txt` from `origin/main`. The current branch is `residual-shared-image`.
+
+Residual-first status:
+
+- The default planner mode is `residual`.
+- TAS planning is retained behind the `TAS legacy` planner toggle.
+- The residual solver maintains one shared simulated board image initialized to white.
+- Each residual step lets every enabled palette color compete from its current nail.
+- Candidate colored lines are alpha-blended onto the shared board and scored by RGB error reduction against the target image.
+- The accepted line updates the shared board, the selected color's current nail, and a separate residual line history.
+- Residual line history drives the main art SVG and TSV export in residual mode.
+
+Legacy TAS/SCCL status:
 
 Implemented and visually testable:
 
@@ -46,6 +58,8 @@ Implemented and visually testable:
 - TAS region inspection with selected-D and all-D view modes.
 - Pixel ownership preview for selected TAS region.
 - TAS palette-fit preview for selected D, with SVG rendering for vector-true zoom.
+- Palette matching and TAS color-fit error use OKLab distance instead of squared sRGB distance.
+- Automatic palette finding from the loaded image, using OKLab clustering over pixels inside the preview circle.
 - Active A-limit per region, preserving the selected low-error tail inside each region.
 - Same-color chord lists (SCCLs), with scope toggle:
   - `Global SCCL` uses active A-limited rows from all enabled regions.
@@ -54,8 +68,10 @@ Implemented and visually testable:
   - active rows are collected region-by-region from inner to outer,
   - each region applies the A-limit,
   - selected region order is preserved before splitting by color.
-- Greedy SCCL continuity planning:
-  - continuous rows are chained by shared endpoint where possible,
+- Region-aware SCCL continuity planning:
+  - global SCCL chains preserve consecutive D-region blocks,
+  - each region block is split into continuous trails by shared endpoint,
+  - the longest natural trail in each region is pushed toward the end of that region block,
   - missing continuity is shown as connector gaps.
 - Connector search UI:
   - direct and multi-string connector candidates,
@@ -65,10 +81,19 @@ Implemented and visually testable:
   - two SCCL endpoint strings draw in black,
   - connector strings draw in yellow,
   - full nail-to-nail strings are drawn, not only TAS tangent segments.
-- Global winding-order preview:
+- Final drawing plan preview:
   - interleaves active color lists by innermost available region,
   - breaks same-region ties by larger error,
+  - builds final row objects with row type, draw endpoints, color, region, and remaining color count,
+  - inserts best available connector rows before SCCL gaps,
+  - removes reused connector chord keys from their later normal position in the same color list,
+  - shows per-D final accounting for active A rows, normal final rows, connectors, removed duplicates, final rows, deltas, and unresolved gaps,
+  - repairs unresolved gaps by comparing best two-string reserve connector damage against delete-and-reserve-replacement damage,
+  - reserve repairs are explicit and accounted separately from active A rows,
+  - reports unresolved connector gaps as clickable rows,
   - rows are clickable and highlight their full string in the preview.
+  - can export the final drawing plan as JSON rows with color, region, nails, connector metadata, and per-D accounting.
+  - drives the main art SVG preview and text export when a final TAS plan is available.
 
 Important corrections already made:
 
@@ -81,12 +106,9 @@ Important corrections already made:
 
 Known remaining gaps:
 
-- SCCL continuity planning is still greedy. It does not yet implement the full `new.txt` goal of finding the longest possible natural chain within each region and pushing that chain toward the end of the region sequence.
-- Connector insertion is visual/planning-level. Generated connector chords are not yet inserted into final color lists as durable drawing-order objects.
-- Connector reuse/removal rules from `new.txt` are not fully implemented:
-  - reused active connector chords are not yet removed from later active drawing lists,
-  - duplicate drawing prevention is not complete.
-- Global winding order previews active TAS chords, but does not yet include generated connectors as final inserted rows.
+- SCCL continuity planning is region-aware but still heuristic. It does not prove the mathematically longest possible natural chain within each region.
+- Automatic palette finding is implemented as deterministic OKLab clustering, but it does not yet expose advanced controls such as locked colors, seeded colors, or palette-quality diagnostics.
+- Duplicate prevention is implemented within a color queue for connector-consumed and already-drawn active chords, but cross-color/global persistence still needs an exported final-output data structure.
 - All-region palette fit at 300 nails can still be heavy; selected-D fit is the safer default.
 
 ## Communication Style
