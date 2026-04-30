@@ -10,6 +10,7 @@ import { useRenderDiagnostics } from '../renderDiagnostics';
 const DEBUG_VIEW_LABELS = {
   original: 'original',
   'current-grayscale': 'grayscale',
+  'shared-residual': 'residual',
   'palette-preview': 'preview',
   'color-mask': 'isolate',
 };
@@ -24,7 +25,10 @@ function MulticolorLab({
   activeBucketRemainingLineCount,
   blurredActiveMaskImage,
   canApplyExperimentalStep,
+  isSharedStateLoopRunning,
+  sharedStateLoopStatus,
   currentActiveTargetImage,
+  exactColorAreaStats,
   ditheredComparisonCanvasRef,
   enabledPalettePreviewColors,
   globalLineStrength,
@@ -33,6 +37,7 @@ function MulticolorLab({
   isActiveColorOnlyControlVisible,
   isExperimentalColorLinesOnlyPreviewEnabled,
   isExperimentalRoundRobinSteppingEnabled,
+  isExperimentalSharedBestSteppingEnabled,
   isActivePaletteColorOnlyEnabled,
   isMulticolorFastSteppingEnabled,
   isMulticolorStepProfilingEnabled,
@@ -40,6 +45,7 @@ function MulticolorLab({
   isPaletteDitheringEnabled,
   isPaletteMaskVisible,
   isPalettePreviewEnabled,
+  isWhiteTestOverlayEnabled,
   maskBlurRadius,
   multicolorDebugView,
   multicolorLineBuckets,
@@ -48,10 +54,13 @@ function MulticolorLab({
   multicolorPaletteCoverage,
   multicolorPaletteCoverageWithLineAllocation,
   multicolorPaletteCoverageWithSuggestions,
+  multicolorPaletteFinderColorCount,
   multicolorInterleaveOrder,
   multicolorLineStrengthMode,
   multicolorLockedLineOverride,
   multicolorMinDistanceMode,
+  lineCoverageBackendId,
+  lineCoverageBackendOptions,
   multicolorPalettePixelCountMap,
   multicolorPalettePreset,
   multicolorReadOnlyInterleavePassCount,
@@ -67,6 +76,7 @@ function MulticolorLab({
   onToggleMulticolorBucketVisibility,
   originalComparisonCanvasRef,
   onApplyActiveColorExperimentStep,
+  onFindBestFitPalette,
   onExportMulticolorSession,
   onImportMulticolorSession,
   onRefreshMulticolorPreviews,
@@ -80,6 +90,7 @@ function MulticolorLab({
   setIsActivePaletteColorOnlyEnabled,
   setIsExperimentalColorLinesOnlyPreviewEnabled,
   setIsExperimentalRoundRobinSteppingEnabled,
+  setIsExperimentalSharedBestSteppingEnabled,
   setIsMulticolorFastSteppingEnabled,
   setIsMulticolorStepProfilingEnabled,
   setIsMulticolorLabEnabled,
@@ -90,14 +101,19 @@ function MulticolorLab({
   setMulticolorLineStrengthMode,
   setMulticolorLockedLineOverride,
   setMulticolorMinDistanceMode,
+  setLineCoverageBackendId,
   setMulticolorPaletteColors,
+  setMulticolorPaletteFinderColorCount,
   setMulticolorPalettePresetId,
   setMulticolorTargetTotalLines,
   setMulticolorUsedLineExclusionMode,
   shouldShowPaletteComparison,
+  sharedStateNextColorLabel,
   totalExperimentalMulticolorLines,
   totalAllocatedSuggestedLines,
   totalPaletteCoverageTenths,
+  onToggleSharedStateLoop,
+  onToggleWhiteTestOverlay,
 }) {
   const rawMaskCanvasRef = useRef(null);
   const blurredMaskCanvasRef = useRef(null);
@@ -132,11 +148,22 @@ function MulticolorLab({
   const visibleExperimentalBucketCount = multicolorLineBuckets.filter((bucket) => bucket.visible).length;
   const enabledBucketCount = multicolorLineBuckets.filter((bucket) => bucket.enabled).length;
   const sourceLabel = isPaletteDitheringEnabled ? 'dithered' : 'nearest';
-  const steppingModeLabel = isExperimentalRoundRobinSteppingEnabled ? 'round-robin' : 'single';
-  const scoringModeShortLabel = selectedDebugViewLabel === 'isolate' ? 'active color' : 'grayscale';
+  const steppingModeLabel = isExperimentalSharedBestSteppingEnabled
+    ? 'shared best'
+    : isExperimentalRoundRobinSteppingEnabled
+      ? 'round-robin'
+      : 'single';
+  const scoringModeShortLabel = isExperimentalSharedBestSteppingEnabled
+    ? 'shared masks'
+    : selectedDebugViewLabel === 'isolate'
+      ? 'active color'
+      : 'grayscale';
   const hasSuggestedLineTarget = multicolorTargetTotalLines > 0;
   const hasInterleaveOrder = multicolorInterleaveOrder.length > 0;
+  const coverageBackendOptions = lineCoverageBackendOptions ?? [];
   const [isAdvancedControlsExpanded, setIsAdvancedControlsExpanded] = useState(false);
+  const exactAreaRows = exactColorAreaStats?.stats ?? [];
+  const exactAreaTotal = exactColorAreaStats?.totalArea ?? 0;
 
   useRenderDiagnostics(
     'MulticolorLab',
@@ -223,7 +250,57 @@ function MulticolorLab({
             <span className="multicolor-status-chip">Source: {sourceLabel}</span>
             <span className="multicolor-status-chip">Step: {steppingModeLabel}</span>
             <span className="multicolor-status-chip">Score: {scoringModeShortLabel}</span>
+            <span className="multicolor-status-chip">Coverage: {lineCoverageBackendId}</span>
+            <span className="multicolor-status-chip">
+              Exact painted: {exactAreaRows.length > 0 ? 'on' : 'off'}
+            </span>
           </div>
+
+          <section className="multicolor-lab-section">
+            <div className="multicolor-lab-section-head">
+              <h3>Exact areas</h3>
+              <p>Vector boolean regions in current art order.</p>
+              <button
+                className="multicolor-debug-toggle"
+                type="button"
+                onClick={onToggleWhiteTestOverlay}
+              >
+                {isWhiteTestOverlayEnabled ? 'hide test white' : 'test white'}
+              </button>
+            </div>
+            <div className="multicolor-lab-section-card">
+              {exactAreaRows.length === 0 ? (
+                <p className="multicolor-mini-note">No area data yet.</p>
+              ) : (
+                <>
+                  <div className="multicolor-inline-stats">
+                    <span className="multicolor-inline-stat">
+                      Total area {exactAreaTotal.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="multicolor-bucket-list">
+                    {exactAreaRows.map((row) => (
+                      <div key={row.id} className="multicolor-bucket-row">
+                        <div className="multicolor-bucket-row-main">
+                          <span
+                            className="multicolor-palette-swatch"
+                            style={{ backgroundColor: row.hex }}
+                          />
+                          <span className="multicolor-bucket-name">{row.label}</span>
+                          <span className="multicolor-bucket-stat">
+                            {row.percent.toFixed(2)}%
+                          </span>
+                          <span className="multicolor-bucket-stat">
+                            area {row.area.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
 
           <section className="multicolor-lab-section">
             <div className="multicolor-lab-section-head">
@@ -292,6 +369,34 @@ function MulticolorLab({
                     </button>
                   );
                 })}
+              </div>
+              <div className="multicolor-inline-controls">
+                <label className="multicolor-histogram-input">
+                  <span>Find colors</span>
+                  <input
+                    type="number"
+                    min="2"
+                    max="12"
+                    value={multicolorPaletteFinderColorCount}
+                    onChange={(event) =>
+                      setMulticolorPaletteFinderColorCount(
+                        Math.max(2, Math.min(12, Number.parseInt(event.target.value, 10) || 2)),
+                      )
+                    }
+                    disabled={!hasOriginalImage}
+                  />
+                </label>
+                <button
+                  className="multicolor-debug-toggle"
+                  type="button"
+                  onClick={onFindBestFitPalette}
+                  disabled={!hasOriginalImage}
+                >
+                  find best palette
+                </button>
+                <p className="multicolor-mini-note">
+                  Uses OKLab clustering over the visible image circle.
+                </p>
               </div>
               <div className="multicolor-palette-list">
                 {multicolorPaletteColors.map((color) => (
@@ -678,9 +783,9 @@ function MulticolorLab({
               <div className="multicolor-inline-controls">
                 <span className="multicolor-lab-label">Line source</span>
                 <span className="multicolor-inline-stat">
-                  {selectedDebugViewLabel === 'isolate'
-                    ? `active isolate (${sourceLabel})`
-                    : 'whole image (grayscale)'}
+                  {isExperimentalSharedBestSteppingEnabled
+                    ? `shared residual masks (${sourceLabel})`
+                    : `palette isolate (${sourceLabel})`}
                 </span>
               </div>
 
@@ -694,12 +799,21 @@ function MulticolorLab({
                   <button
                     className={[
                       'multicolor-debug-toggle',
-                      !isExperimentalRoundRobinSteppingEnabled ? 'is-active' : '',
+                      !isExperimentalRoundRobinSteppingEnabled &&
+                      !isExperimentalSharedBestSteppingEnabled
+                        ? 'is-active'
+                        : '',
                     ].filter(Boolean).join(' ')}
                     type="button"
                     role="radio"
-                    aria-checked={!isExperimentalRoundRobinSteppingEnabled}
-                    onClick={() => setIsExperimentalRoundRobinSteppingEnabled(false)}
+                    aria-checked={
+                      !isExperimentalRoundRobinSteppingEnabled &&
+                      !isExperimentalSharedBestSteppingEnabled
+                    }
+                    onClick={() => {
+                      setIsExperimentalSharedBestSteppingEnabled(false);
+                      setIsExperimentalRoundRobinSteppingEnabled(false);
+                    }}
                   >
                     single
                   </button>
@@ -715,6 +829,19 @@ function MulticolorLab({
                     disabled={enabledBucketCount === 0}
                   >
                     round-robin
+                  </button>
+                  <button
+                    className={[
+                      'multicolor-debug-toggle',
+                      isExperimentalSharedBestSteppingEnabled ? 'is-active' : '',
+                    ].filter(Boolean).join(' ')}
+                    type="button"
+                    role="radio"
+                    aria-checked={isExperimentalSharedBestSteppingEnabled}
+                    onClick={() => setIsExperimentalSharedBestSteppingEnabled(true)}
+                    disabled={enabledBucketCount === 0}
+                  >
+                    shared best
                   </button>
                 </div>
                 <label className="checkbox-row">
@@ -754,7 +881,11 @@ function MulticolorLab({
                   onClick={onApplyActiveColorExperimentStep}
                   disabled={!canApplyExperimentalStep}
                 >
-                  {isExperimentalRoundRobinSteppingEnabled
+                  {isExperimentalSharedBestSteppingEnabled
+                    ? sharedStateNextColorLabel
+                      ? `Apply one shared-state line (last: ${sharedStateNextColorLabel})`
+                      : 'Apply one shared-state line'
+                    : isExperimentalRoundRobinSteppingEnabled
                     ? 'Apply one round-robin line'
                     : activeBucketRemainingLineCount <= 0
                       ? 'Active bucket is at target'
@@ -774,6 +905,25 @@ function MulticolorLab({
                   <span>Show only experiment lines in art mode</span>
                 </label>
               </div>
+              {isExperimentalSharedBestSteppingEnabled && (
+                <div className="multicolor-inline-controls">
+                  <button
+                    className="action-button action-button-secondary"
+                    type="button"
+                    onClick={onToggleSharedStateLoop}
+                    disabled={!isSharedStateLoopRunning && !canApplyExperimentalStep}
+                  >
+                    {isSharedStateLoopRunning
+                      ? 'Stop shared-state loop'
+                      : sharedStateNextColorLabel
+                        ? `Start shared-state loop (last: ${sharedStateNextColorLabel})`
+                        : 'Start shared-state loop'}
+                  </button>
+                </div>
+              )}
+              {isExperimentalSharedBestSteppingEnabled && sharedStateLoopStatus && (
+                <p className="multicolor-mini-note">{sharedStateLoopStatus}</p>
+              )}
 
               <div className="multicolor-inline-stats">
                 <span className="multicolor-inline-stat">
@@ -854,7 +1004,7 @@ function MulticolorLab({
                         </button>
                         <span className="multicolor-bucket-name">{bucket.label}</span>
                         <span className="multicolor-bucket-stat">
-                          actual {bucket.lines.length.toLocaleString()}
+                          actual {(bucket.lineCount ?? 0).toLocaleString()}
                         </span>
                         <span className="multicolor-bucket-stat">
                           planned {plannedLineCount.toLocaleString()}
@@ -888,7 +1038,7 @@ function MulticolorLab({
                           className="multicolor-debug-toggle"
                           type="button"
                           onClick={() => onResetMulticolorBucket(bucket.colorId)}
-                          disabled={bucket.lines.length === 0}
+                          disabled={(bucket.lineCount ?? 0) === 0}
                         >
                           reset
                         </button>
@@ -1087,7 +1237,8 @@ function MulticolorLab({
                 <span className="multicolor-advanced-summary">
                   exclusion {multicolorUsedLineExclusionMode},
                   {' '}strength {multicolorLineStrengthMode},
-                  {' '}distance {multicolorMinDistanceMode}
+                  {' '}distance {multicolorMinDistanceMode},
+                  {' '}coverage {lineCoverageBackendId}
                 </span>
               </button>
               {isAdvancedControlsExpanded && (
@@ -1181,6 +1332,27 @@ function MulticolorLab({
                     >
                       per-color min distance
                     </button>
+                  </div>
+                  <div
+                    className="multicolor-debug-toggle-group"
+                    role="radiogroup"
+                    aria-label="Line coverage backend"
+                  >
+                    {coverageBackendOptions.map((backend) => (
+                      <button
+                        key={backend.id}
+                        className={[
+                          'multicolor-debug-toggle',
+                          lineCoverageBackendId === backend.id ? 'is-active' : '',
+                        ].filter(Boolean).join(' ')}
+                        type="button"
+                        role="radio"
+                        aria-checked={lineCoverageBackendId === backend.id}
+                        onClick={() => setLineCoverageBackendId(backend.id)}
+                      >
+                        coverage {backend.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}

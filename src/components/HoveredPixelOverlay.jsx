@@ -18,7 +18,7 @@ function HoveredPixelOverlay({
     onDiagnosticRender,
   );
 
-  if (!hoveredPixel || isArtMode) {
+  if (!hoveredPixel) {
     return null;
   }
 
@@ -31,6 +31,7 @@ function HoveredPixelOverlay({
           top: hoveredPixel.top,
           width: hoveredPixel.width,
           height: hoveredPixel.height,
+          borderRadius: hoveredPixel.borderRadius ?? undefined,
         }}
       />
       <div
@@ -42,9 +43,18 @@ function HoveredPixelOverlay({
       >
         {isBrushMode
           ? `${hoveredPixel.pixelX},${hoveredPixel.pixelY}`
-          : isBlackAndWhite
-            ? `Darkness ${hoveredPixel.darkness}`
-            : `RGB(${hoveredPixel.r}, ${hoveredPixel.g}, ${hoveredPixel.b})`}
+          : `${hoveredPixel.hoverModeLabel ?? 'pixel'} target: ${
+            hoveredPixel.targetColorNumber !== null ? `#${hoveredPixel.targetColorNumber}` : 'n/a'
+          }; current: ${
+            hoveredPixel.currentColorLabel ??
+            (
+              hoveredPixel.isCurrentColorWhite
+                ? 'white'
+                : hoveredPixel.currentColorNumber !== null
+                  ? `#${hoveredPixel.currentColorNumber}`
+                  : 'n/a'
+            )
+          }`}
       </div>
     </>
   );
