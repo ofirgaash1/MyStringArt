@@ -23,6 +23,8 @@ function PreviewWorkspace({
   selectionOverlayRef,
   shouldShowPreviewLine,
   showNailNumbers,
+  isWhiteTestOverlayEnabled,
+  whiteTestOverlayPathData,
   onDiagnosticRender,
   onPointerUp,
   onPointerCancel,
@@ -39,6 +41,7 @@ function PreviewWorkspace({
       isArtMode,
       linePixelCount: linePixels.length,
       nailsCount,
+      whiteTestOverlayEnabled: isWhiteTestOverlayEnabled,
       showNailNumbers,
       shouldShowPreviewLine,
     },
@@ -90,16 +93,27 @@ function PreviewWorkspace({
                   preserveAspectRatio="none"
                 >
                   {artLineSegments.map((segment) => (
-                    <line
+                    <polygon
                       key={segment.key}
                       className={segment.className ?? 'art-line'}
-                      x1={segment.x1}
-                      y1={segment.y1}
-                      x2={segment.x2}
-                      y2={segment.y2}
-                      style={segment.stroke ? { stroke: segment.stroke } : undefined}
+                      points={segment.polygonPoints}
+                      style={segment.stroke ? { fill: segment.stroke } : undefined}
                     />
                   ))}
+                </svg>
+              )}
+              {isWhiteTestOverlayEnabled && whiteTestOverlayPathData && (
+                <svg
+                  className="art-white-test-layer"
+                  aria-hidden="true"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    className="art-white-test-path"
+                    d={whiteTestOverlayPathData}
+                    fillRule="evenodd"
+                  />
                 </svg>
               )}
               {nailsCount > 0 && (

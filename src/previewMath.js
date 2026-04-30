@@ -224,6 +224,59 @@ export function buildArtLineSegments(savedNailSequence, nails) {
   }, []);
 }
 
+function buildLinePolygonPoints(x1, y1, x2, y2, width) {
+  const safeWidth = Math.max(0.001, Number.isFinite(width) ? width : 0.2);
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lineLength = Math.hypot(dx, dy);
+  if (lineLength <= 1e-9) {
+    const half = safeWidth / 2;
+    return [
+      `${x1 - half},${y1 - half}`,
+      `${x1 + half},${y1 - half}`,
+      `${x1 + half},${y1 + half}`,
+      `${x1 - half},${y1 + half}`,
+    ].join(' ');
+  }
+
+  const half = safeWidth / 2;
+  const ux = dx / lineLength;
+  const uy = dy / lineLength;
+  const nx = -uy;
+  const ny = ux;
+  const p1x = x1 + nx * half;
+  const p1y = y1 + ny * half;
+  const p2x = x2 + nx * half;
+  const p2y = y2 + ny * half;
+  const p3x = x2 - nx * half;
+  const p3y = y2 - ny * half;
+  const p4x = x1 - nx * half;
+  const p4y = y1 - ny * half;
+
+  return [
+    `${p1x},${p1y}`,
+    `${p2x},${p2y}`,
+    `${p3x},${p3y}`,
+    `${p4x},${p4y}`,
+  ].join(' ');
+}
+
+export function buildLinePolygonSegments(
+  segments,
+  polygonWidth,
+) {
+  return segments.map((segment) => ({
+    ...segment,
+    polygonPoints: buildLinePolygonPoints(
+      segment.x1,
+      segment.y1,
+      segment.x2,
+      segment.y2,
+      polygonWidth,
+    ),
+  }));
+}
+
 export function buildManualArtLineSegments(lines, nails, keyPrefix = 'manual-art-line') {
   return lines.reduce((segments, line, index) => {
     const startNail = nails[line.startNailNumber - 1];
@@ -237,6 +290,7 @@ export function buildManualArtLineSegments(lines, nails, keyPrefix = 'manual-art
         x2: endNail.cx,
         y2: endNail.cy,
         stroke: line.stroke ?? null,
+        colorId: line.colorId ?? null,
       });
     }
 
