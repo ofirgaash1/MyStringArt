@@ -216,11 +216,23 @@ export function createLineCoverageEngine({
       return cachedPixels;
     }
 
-    const pixels = getLineCoverageForIndexes(startIndex, endIndex, context).map((entry) => ({
+    const coverageEntries = getLineCoverageForIndexes(startIndex, endIndex, context);
+    const pixels = coverageEntries.map((entry) => ({
       key: entry.key,
       x: entry.x,
       y: entry.y,
     }));
+    if (pixels.length === 0) {
+      // Preserve a drawable result when the active backend can score a line but the
+      // rasterized centerline would otherwise collapse to nothing at very small widths.
+      const fallbackPixels = coverageEntries.map((entry) => ({
+        key: entry.key,
+        x: entry.x,
+        y: entry.y,
+      }));
+      linePixelsCache.set(cacheKey, fallbackPixels);
+      return fallbackPixels;
+    }
     linePixelsCache.set(cacheKey, pixels);
     return pixels;
   };

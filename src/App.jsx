@@ -2553,13 +2553,13 @@ function App() {
     lineDarknessStep,
     targetLineBoostMap = null,
   ) => {
-    const targetLinePixels = getLinePixelsForIndexes(startIndex, endIndex);
-    if (!imageSize || targetLinePixels.length === 0) {
+    const targetLineCoverage = getLineCoverageForIndexes(startIndex, endIndex);
+    if (!imageSize || targetLineCoverage.length === 0) {
       return false;
     }
 
-    for (const pixel of targetLinePixels) {
-      const pixelIndex = pixel.y * imageSize.width + pixel.x;
+    for (const pixel of targetLineCoverage) {
+      const pixelIndex = pixel.pixelIndex;
       const index = pixelIndex * 4;
       targetImageData[index] = Math.min(255, targetImageData[index] + lineDarknessStep);
       targetImageData[index + 1] = Math.min(255, targetImageData[index + 1] + lineDarknessStep);
@@ -2893,15 +2893,15 @@ function App() {
     const usedLineKeys = options.usedLineKeys ?? usedLineKeysRef.current;
     const lineDarknessStep = options.lineDarknessStep ?? getLineDarknessStep();
     const lineKey = getNormalizedLineKey(startIndex, endIndex);
-    const targetLinePixels = stepProfile
-      ? stepProfile.measure('line pixel lookup', () => getLinePixelsForIndexes(startIndex, endIndex))
-      : getLinePixelsForIndexes(startIndex, endIndex);
+    const targetLineCoverage = stepProfile
+      ? stepProfile.measure('line coverage lookup', () => getLineCoverageForIndexes(startIndex, endIndex))
+      : getLineCoverageForIndexes(startIndex, endIndex);
     if (
       !lineKey ||
       (!skipGlobalUsedLineCheck && usedLineKeys.has(lineKey)) ||
       !imageCanvasRef.current ||
       !imageSize ||
-      targetLinePixels.length === 0
+      targetLineCoverage.length === 0
     ) {
       return false;
     }
@@ -3133,9 +3133,16 @@ function App() {
       usedLineKeys: targetUsedLineKeys,
     });
     if (!didApplyLine) {
+      const targetLineCoverage = getLineCoverageForIndexes(
+        targetStartNailNumber,
+        targetNextNailNumber,
+      );
       return {
         ok: false,
-        reason: 'Selected line could not be applied.',
+        reason:
+          targetLineCoverage.length === 0
+            ? 'Selected line has no drawable pixels at the current line width.'
+            : 'Selected line could not be applied.',
       };
     }
     applyLineToSharedColorFlipMap(
