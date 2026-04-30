@@ -317,6 +317,7 @@ function App() {
   const [multicolorInterleaveEntryIds, setMulticolorInterleaveEntryIds] = useState([]);
   const [sharedStateNextColorLabel, setSharedStateNextColorLabel] = useState(null);
   const [isSharedStateLoopRunning, setIsSharedStateLoopRunning] = useState(false);
+  const [sharedStateLoopStatus, setSharedStateLoopStatus] = useState('');
   const [isWhiteTestOverlayEnabled, setIsWhiteTestOverlayEnabled] = useState(false);
 
   const previewRef = useRef(null);
@@ -362,7 +363,10 @@ function App() {
   const sharedStateLoopStopRequestedRef = useRef(false);
   const sharedStateLoopRunningRef = useRef(false);
   const multicolorExperimentalSteppingModeRef = useRef(multicolorExperimentalSteppingMode);
-  const applyExperimentalStepRef = useRef(() => false);
+  const applyExperimentalStepRef = useRef(() => ({
+    ok: false,
+    reason: 'Step handler is not ready.',
+  }));
   const hasAutoLoadedDefaultImageRef = useRef(false);
   const previewSize = previewRef.current?.clientWidth ?? 0;
   const hasLoadedImage = Boolean(imageCanvasRef.current && imageSize);
@@ -3011,7 +3015,10 @@ function App() {
 
   const handleApplyExperimentalStep = () => {
     if (eligibleMulticolorStepBuckets.length === 0) {
-      return false;
+      return {
+        ok: false,
+        reason: 'No eligible color buckets remain.',
+      };
     }
 
     const stepProfile = createMulticolorStepProfile({
@@ -3030,7 +3037,10 @@ function App() {
         : getCanvasImageData()
       : null;
     if (needsCanvasSnapshot && !canvasImageData) {
-      return false;
+      return {
+        ok: false,
+        reason: 'Canvas snapshot was unavailable.',
+      };
     }
 
     let stepCandidate = null;
@@ -3096,7 +3106,10 @@ function App() {
     }
 
     if (!stepCandidate) {
-      return false;
+      return {
+        ok: false,
+        reason: 'No valid line candidate was found.',
+      };
     }
 
     const {
@@ -3120,7 +3133,10 @@ function App() {
       usedLineKeys: targetUsedLineKeys,
     });
     if (!didApplyLine) {
-      return false;
+      return {
+        ok: false,
+        reason: 'Selected line could not be applied.',
+      };
     }
     applyLineToSharedColorFlipMap(
       targetColorId,
@@ -3201,7 +3217,12 @@ function App() {
     } else {
       scheduleStateUpdates();
     }
-    return true;
+    return {
+      ok: true,
+      colorLabel: targetBucket.label,
+      startNailNumber: targetStartNailNumber,
+      endNailNumber: targetNextNailNumber,
+    };
   };
   applyExperimentalStepRef.current = handleApplyExperimentalStep;
 
@@ -3209,37 +3230,58 @@ function App() {
     if (sharedStateLoopRunningRef.current) {
       sharedStateLoopStopRequestedRef.current = true;
       sharedStateLoopRunningRef.current = false;
+      setSharedStateLoopStatus('Stopped: user requested stop.');
       setIsSharedStateLoopRunning(false);
       return;
     }
 
-    if (
-      multicolorExperimentalSteppingMode !== 'shared-best' ||
-      !canApplyExperimentalMulticolorStep
-    ) {
+    if (multicolorExperimentalSteppingMode !== 'shared-best') {
+      setSharedStateLoopStatus('Not started: stepping mode is not shared best.');
+      return;
+    }
+
+    if (!canApplyExperimentalMulticolorStep) {
+      setSharedStateLoopStatus('Not started: no eligible line can currently be applied.');
       return;
     }
 
     sharedStateLoopStopRequestedRef.current = false;
     sharedStateLoopRunningRef.current = true;
+    setSharedStateLoopStatus('Running.');
     setIsSharedStateLoopRunning(true);
 
+    let stopReason = 'Stopped.';
     try {
       while (
         isMountedRef.current &&
         !sharedStateLoopStopRequestedRef.current &&
         multicolorExperimentalSteppingModeRef.current === 'shared-best'
       ) {
-        const didApplyStep = applyExperimentalStepRef.current?.();
-        if (!didApplyStep) {
+        const stepResult = applyExperimentalStepRef.current?.() ?? {
+          ok: false,
+          reason: 'Step handler returned no result.',
+        };
+        if (!stepResult.ok) {
+          stopReason = `Stopped: ${stepResult.reason}`;
           break;
         }
         await waitForNextWorkSlice();
       }
+
+      if (sharedStateLoopStopRequestedRef.current) {
+        stopReason = 'Stopped: user requested stop.';
+      } else if (!isMountedRef.current) {
+        stopReason = 'Stopped: app was unmounted.';
+      } else if (multicolorExperimentalSteppingModeRef.current !== 'shared-best') {
+        stopReason = 'Stopped: stepping mode changed.';
+      }
+    } catch (error) {
+      stopReason = `Stopped: ${error instanceof Error ? error.message : String(error)}`;
     } finally {
       sharedStateLoopStopRequestedRef.current = true;
       sharedStateLoopRunningRef.current = false;
       if (isMountedRef.current) {
+        setSharedStateLoopStatus(stopReason);
         setIsSharedStateLoopRunning(false);
       }
     }
@@ -3577,6 +3619,7 @@ function App() {
 
     sharedStateLoopStopRequestedRef.current = true;
     sharedStateLoopRunningRef.current = false;
+    setSharedStateLoopStatus('Stopped: stepping mode changed.');
     setIsSharedStateLoopRunning(false);
   }, [multicolorExperimentalSteppingMode]);
 
@@ -4772,6 +4815,7 @@ function App() {
             totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
             totalPaletteCoverageTenths={totalPaletteCoverageTenths}
             isSharedStateLoopRunning={isSharedStateLoopRunning}
+            sharedStateLoopStatus={sharedStateLoopStatus}
             onToggleSharedStateLoop={handleToggleSharedStateLoop}
             onToggleWhiteTestOverlay={() => {
               setIsWhiteTestOverlayEnabled((currentValue) => !currentValue);

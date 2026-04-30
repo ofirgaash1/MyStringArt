@@ -26,6 +26,7 @@ function MulticolorLab({
   blurredActiveMaskImage,
   canApplyExperimentalStep,
   isSharedStateLoopRunning,
+  sharedStateLoopStatus,
   currentActiveTargetImage,
   exactColorAreaStats,
   ditheredComparisonCanvasRef,
@@ -919,6 +920,9 @@ function MulticolorLab({
                         : 'Start shared-state loop'}
                   </button>
                 </div>
+              )}
+              {isExperimentalSharedBestSteppingEnabled && sharedStateLoopStatus && (
+                <p className="multicolor-mini-note">{sharedStateLoopStatus}</p>
               )}
 
               <div className="multicolor-inline-stats">
