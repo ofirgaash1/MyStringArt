@@ -92,6 +92,7 @@ function buildAreaCoverageEntries(
   threadWidthPx,
 ) {
   const entries = [];
+  const entriesByPixelIndex = new Map();
   const radius = Math.max(0.05, threadWidthPx / 2);
   const distanceThresholdSquared = radius * radius;
   const minX = Math.max(0, Math.floor(Math.min(startImageX, endImageX) - radius - 1));
@@ -122,14 +123,41 @@ function buildAreaCoverageEntries(
         continue;
       }
 
-      entries.push({
+      const entry = {
         key: `${x}-${y}`,
         x,
         y,
         pixelIndex: y * width + x,
         coverage: coveredSamples / SUBPIXEL_SAMPLE_OFFSETS.length,
-      });
+      };
+      entries.push(entry);
+      entriesByPixelIndex.set(entry.pixelIndex, entry);
     }
+  }
+
+  const centerlineEntries = buildRasterCoverageEntries(
+    startImageX,
+    startImageY,
+    endImageX,
+    endImageY,
+    width,
+    height,
+  );
+  for (const centerlineEntry of centerlineEntries) {
+    const existingEntry = entriesByPixelIndex.get(centerlineEntry.pixelIndex);
+    if (existingEntry) {
+      existingEntry.coverage = Math.max(
+        existingEntry.coverage,
+        1 / SUBPIXEL_SAMPLE_OFFSETS.length,
+      );
+      continue;
+    }
+    const promotedEntry = {
+      ...centerlineEntry,
+      coverage: 1 / SUBPIXEL_SAMPLE_OFFSETS.length,
+    };
+    entries.push(promotedEntry);
+    entriesByPixelIndex.set(promotedEntry.pixelIndex, promotedEntry);
   }
 
   return entries;
@@ -222,17 +250,6 @@ export function createLineCoverageEngine({
       x: entry.x,
       y: entry.y,
     }));
-    if (pixels.length === 0) {
-      // Preserve a drawable result when the active backend can score a line but the
-      // rasterized centerline would otherwise collapse to nothing at very small widths.
-      const fallbackPixels = coverageEntries.map((entry) => ({
-        key: entry.key,
-        x: entry.x,
-        y: entry.y,
-      }));
-      linePixelsCache.set(cacheKey, fallbackPixels);
-      return fallbackPixels;
-    }
     linePixelsCache.set(cacheKey, pixels);
     return pixels;
   };
