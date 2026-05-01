@@ -1,0 +1,740 @@
+{
+  "ranges": [
+    {
+      "range": "1-20",
+      "applyMs": 67.9,
+      "commitWaitMs": 338.1,
+      "totalBeforeYieldMs": 406
+    },
+    {
+      "range": "21-40",
+      "applyMs": 72.8,
+      "commitWaitMs": 1022.4,
+      "totalBeforeYieldMs": 1095.1
+    },
+    {
+      "range": "41-60",
+      "applyMs": 95,
+      "commitWaitMs": 1984.5,
+      "totalBeforeYieldMs": 2079.5
+    },
+    {
+      "range": "61-80",
+      "applyMs": 108.6,
+      "commitWaitMs": 3118,
+      "totalBeforeYieldMs": 3226.7
+    }
+  ],
+  "last": [
+    {
+      "count": 72,
+      "applyMs": 83.8,
+      "commitWaitMs": 3161.9,
+      "totalBeforeYieldMs": 3245.7
+    },
+    {
+      "count": 73,
+      "applyMs": 85.5,
+      "commitWaitMs": 3292.1,
+      "totalBeforeYieldMs": 3377.6
+    },
+    {
+      "count": 74,
+      "applyMs": 102.5,
+      "commitWaitMs": 3299.6,
+      "totalBeforeYieldMs": 3402.1
+    },
+    {
+      "count": 75,
+      "applyMs": 118.9,
+      "commitWaitMs": 3373.9,
+      "totalBeforeYieldMs": 3492.8
+    },
+    {
+      "count": 76,
+      "applyMs": 115.9,
+      "commitWaitMs": 3479,
+      "totalBeforeYieldMs": 3594.9
+    },
+    {
+      "count": 77,
+      "applyMs": 116.4,
+      "commitWaitMs": 3535.5,
+      "totalBeforeYieldMs": 3651.9
+    },
+    {
+      "count": 78,
+      "applyMs": 116.1,
+      "commitWaitMs": 3605.8,
+      "totalBeforeYieldMs": 3721.9
+    },
+    {
+      "count": 79,
+      "applyMs": 148.2,
+      "commitWaitMs": 3671.7,
+      "totalBeforeYieldMs": 3819.9
+    },
+    {
+      "count": 80,
+      "applyMs": 121.1,
+      "commitWaitMs": 3677.7,
+      "totalBeforeYieldMs": 3798.8
+    },
+    {
+      "count": 81,
+      "applyMs": 132.5,
+      "commitWaitMs": 3779.9,
+      "totalBeforeYieldMs": 3912.4
+    }
+  ],
+  "events": [
+    {
+      "count": 1,
+      "applyMs": 112.89999985694885,
+      "commitWaitMs": 61.90000009536743,
+      "totalBeforeYieldMs": 174.79999995231628,
+      "timestamp": 1777647571626,
+      "performanceNow": 1680.5999999046326
+    },
+    {
+      "count": 2,
+      "applyMs": 67.29999995231628,
+      "commitWaitMs": 77,
+      "totalBeforeYieldMs": 144.29999995231628,
+      "timestamp": 1777647571773,
+      "performanceNow": 1827.5999999046326
+    },
+    {
+      "count": 3,
+      "applyMs": 81.40000009536743,
+      "commitWaitMs": 105.40000009536743,
+      "totalBeforeYieldMs": 186.80000019073486,
+      "timestamp": 1777647571962,
+      "performanceNow": 2016.5
+    },
+    {
+      "count": 4,
+      "applyMs": 67.09999990463257,
+      "commitWaitMs": 133.79999995231628,
+      "totalBeforeYieldMs": 200.89999985694885,
+      "timestamp": 1777647572165,
+      "performanceNow": 2219.199999809265
+    },
+    {
+      "count": 5,
+      "applyMs": 62.299999952316284,
+      "commitWaitMs": 165.90000009536743,
+      "totalBeforeYieldMs": 228.20000004768372,
+      "timestamp": 1777647572396,
+      "performanceNow": 2450.5
+    },
+    {
+      "count": 6,
+      "applyMs": 63.39999985694885,
+      "commitWaitMs": 189.5,
+      "totalBeforeYieldMs": 252.89999985694885,
+      "timestamp": 1777647572651,
+      "performanceNow": 2705.399999856949
+    },
+    {
+      "count": 7,
+      "applyMs": 57.40000009536743,
+      "commitWaitMs": 229.89999985694885,
+      "totalBeforeYieldMs": 287.2999999523163,
+      "timestamp": 1777647572942,
+      "performanceNow": 2996.399999856949
+    },
+    {
+      "count": 8,
+      "applyMs": 63.799999952316284,
+      "commitWaitMs": 254.59999990463257,
+      "totalBeforeYieldMs": 318.39999985694885,
+      "timestamp": 1777647573262,
+      "performanceNow": 3316.699999809265
+    },
+    {
+      "count": 9,
+      "applyMs": 62.60000014305115,
+      "commitWaitMs": 280,
+      "totalBeforeYieldMs": 342.60000014305115,
+      "timestamp": 1777647573607,
+      "performanceNow": 3661.2999999523163
+    },
+    {
+      "count": 10,
+      "applyMs": 62.40000009536743,
+      "commitWaitMs": 319.39999985694885,
+      "totalBeforeYieldMs": 381.7999999523163,
+      "timestamp": 1777647573991,
+      "performanceNow": 4044.899999856949
+    },
+    {
+      "count": 11,
+      "applyMs": 63.200000047683716,
+      "commitWaitMs": 346.7999999523163,
+      "totalBeforeYieldMs": 410,
+      "timestamp": 1777647574403,
+      "performanceNow": 4456.799999952316
+    },
+    {
+      "count": 12,
+      "applyMs": 57.5,
+      "commitWaitMs": 385.10000014305115,
+      "totalBeforeYieldMs": 442.60000014305115,
+      "timestamp": 1777647574849,
+      "performanceNow": 4903.299999952316
+    },
+    {
+      "count": 13,
+      "applyMs": 73.5,
+      "commitWaitMs": 415.40000009536743,
+      "totalBeforeYieldMs": 488.90000009536743,
+      "timestamp": 1777647575340,
+      "performanceNow": 5394.299999952316
+    },
+    {
+      "count": 14,
+      "applyMs": 71.70000004768372,
+      "commitWaitMs": 441.10000014305115,
+      "totalBeforeYieldMs": 512.8000001907349,
+      "timestamp": 1777647575855,
+      "performanceNow": 5909.5
+    },
+    {
+      "count": 15,
+      "applyMs": 66.5,
+      "commitWaitMs": 475.2999999523163,
+      "totalBeforeYieldMs": 541.7999999523163,
+      "timestamp": 1777647576401,
+      "performanceNow": 6455.299999952316
+    },
+    {
+      "count": 16,
+      "applyMs": 66.10000014305115,
+      "commitWaitMs": 514.2000000476837,
+      "totalBeforeYieldMs": 580.3000001907349,
+      "timestamp": 1777647576983,
+      "performanceNow": 7037.5
+    },
+    {
+      "count": 17,
+      "applyMs": 64.5,
+      "commitWaitMs": 537.4000000953674,
+      "totalBeforeYieldMs": 601.9000000953674,
+      "timestamp": 1777647577587,
+      "performanceNow": 7641
+    },
+    {
+      "count": 18,
+      "applyMs": 67.80000019073486,
+      "commitWaitMs": 584,
+      "totalBeforeYieldMs": 651.8000001907349,
+      "timestamp": 1777647578244,
+      "performanceNow": 8298.5
+    },
+    {
+      "count": 19,
+      "applyMs": 62.700000047683716,
+      "commitWaitMs": 604.3999998569489,
+      "totalBeforeYieldMs": 667.0999999046326,
+      "timestamp": 1777647578914,
+      "performanceNow": 8968.699999809265
+    },
+    {
+      "count": 20,
+      "applyMs": 64.5,
+      "commitWaitMs": 640.5,
+      "totalBeforeYieldMs": 705,
+      "timestamp": 1777647579621,
+      "performanceNow": 9675.699999809265
+    },
+    {
+      "count": 21,
+      "applyMs": 65.59999990463257,
+      "commitWaitMs": 666.1000001430511,
+      "totalBeforeYieldMs": 731.7000000476837,
+      "timestamp": 1777647580355,
+      "performanceNow": 10409.299999952316
+    },
+    {
+      "count": 22,
+      "applyMs": 76.69999980926514,
+      "commitWaitMs": 707.5,
+      "totalBeforeYieldMs": 784.1999998092651,
+      "timestamp": 1777647581141,
+      "performanceNow": 11195.199999809265
+    },
+    {
+      "count": 23,
+      "applyMs": 67.29999995231628,
+      "commitWaitMs": 774.7000000476837,
+      "totalBeforeYieldMs": 842,
+      "timestamp": 1777647581987,
+      "performanceNow": 12040.899999856949
+    },
+    {
+      "count": 24,
+      "applyMs": 71.90000009536743,
+      "commitWaitMs": 807.5999999046326,
+      "totalBeforeYieldMs": 879.5,
+      "timestamp": 1777647582868,
+      "performanceNow": 12922.199999809265
+    },
+    {
+      "count": 25,
+      "applyMs": 69.59999990463257,
+      "commitWaitMs": 801.5999999046326,
+      "totalBeforeYieldMs": 871.1999998092651,
+      "timestamp": 1777647583743,
+      "performanceNow": 13797.199999809265
+    },
+    {
+      "count": 26,
+      "applyMs": 67.59999990463257,
+      "commitWaitMs": 844.2000000476837,
+      "totalBeforeYieldMs": 911.7999999523163,
+      "timestamp": 1777647584657,
+      "performanceNow": 14711.299999952316
+    },
+    {
+      "count": 27,
+      "applyMs": 65.70000004768372,
+      "commitWaitMs": 900.2999999523163,
+      "totalBeforeYieldMs": 966,
+      "timestamp": 1777647585625,
+      "performanceNow": 15679.099999904633
+    },
+    {
+      "count": 28,
+      "applyMs": 73,
+      "commitWaitMs": 924.4000000953674,
+      "totalBeforeYieldMs": 997.4000000953674,
+      "timestamp": 1777647586624,
+      "performanceNow": 16678.099999904633
+    },
+    {
+      "count": 29,
+      "applyMs": 67.59999990463257,
+      "commitWaitMs": 987.1000001430511,
+      "totalBeforeYieldMs": 1054.7000000476837,
+      "timestamp": 1777647587680,
+      "performanceNow": 17734.5
+    },
+    {
+      "count": 30,
+      "applyMs": 72.39999985694885,
+      "commitWaitMs": 974.7000000476837,
+      "totalBeforeYieldMs": 1047.0999999046326,
+      "timestamp": 1777647588733,
+      "performanceNow": 18787.099999904633
+    },
+    {
+      "count": 31,
+      "applyMs": 68.09999990463257,
+      "commitWaitMs": 1011.2999999523163,
+      "totalBeforeYieldMs": 1079.3999998569489,
+      "timestamp": 1777647589816,
+      "performanceNow": 19870.199999809265
+    },
+    {
+      "count": 32,
+      "applyMs": 60,
+      "commitWaitMs": 1068.5,
+      "totalBeforeYieldMs": 1128.5,
+      "timestamp": 1777647590950,
+      "performanceNow": 21003.89999985695
+    },
+    {
+      "count": 33,
+      "applyMs": 78.79999995231628,
+      "commitWaitMs": 1088.7999999523163,
+      "totalBeforeYieldMs": 1167.5999999046326,
+      "timestamp": 1777647592120,
+      "performanceNow": 22174.699999809265
+    },
+    {
+      "count": 34,
+      "applyMs": 75.59999990463257,
+      "commitWaitMs": 1111.2000000476837,
+      "totalBeforeYieldMs": 1186.7999999523163,
+      "timestamp": 1777647593311,
+      "performanceNow": 23364.799999952316
+    },
+    {
+      "count": 35,
+      "applyMs": 69.59999990463257,
+      "commitWaitMs": 1195.5,
+      "totalBeforeYieldMs": 1265.0999999046326,
+      "timestamp": 1777647594578,
+      "performanceNow": 24631.89999985695
+    },
+    {
+      "count": 36,
+      "applyMs": 70.30000019073486,
+      "commitWaitMs": 1213.6999998092651,
+      "totalBeforeYieldMs": 1284,
+      "timestamp": 1777647595864,
+      "performanceNow": 25918.199999809265
+    },
+    {
+      "count": 37,
+      "applyMs": 75.5,
+      "commitWaitMs": 1240,
+      "totalBeforeYieldMs": 1315.5,
+      "timestamp": 1777647597187,
+      "performanceNow": 27241.5
+    },
+    {
+      "count": 38,
+      "applyMs": 78.60000014305115,
+      "commitWaitMs": 1278.2000000476837,
+      "totalBeforeYieldMs": 1356.8000001907349,
+      "timestamp": 1777647598547,
+      "performanceNow": 28601
+    },
+    {
+      "count": 39,
+      "applyMs": 89,
+      "commitWaitMs": 1350.5999999046326,
+      "totalBeforeYieldMs": 1439.5999999046326,
+      "timestamp": 1777647599989,
+      "performanceNow": 30043.699999809265
+    },
+    {
+      "count": 40,
+      "applyMs": 92.29999995231628,
+      "commitWaitMs": 1501.8000001907349,
+      "totalBeforeYieldMs": 1594.1000001430511,
+      "timestamp": 1777647601585,
+      "performanceNow": 31639.5
+    },
+    {
+      "count": 41,
+      "applyMs": 85.40000009536743,
+      "commitWaitMs": 1477.1999998092651,
+      "totalBeforeYieldMs": 1562.5999999046326,
+      "timestamp": 1777647603150,
+      "performanceNow": 33204.199999809265
+    },
+    {
+      "count": 42,
+      "applyMs": 89.89999985694885,
+      "commitWaitMs": 1482.8000001907349,
+      "totalBeforeYieldMs": 1572.7000000476837,
+      "timestamp": 1777647604725,
+      "performanceNow": 34779
+    },
+    {
+      "count": 43,
+      "applyMs": 83.09999990463257,
+      "commitWaitMs": 1585.6000001430511,
+      "totalBeforeYieldMs": 1668.7000000476837,
+      "timestamp": 1777647606395,
+      "performanceNow": 36449.299999952316
+    },
+    {
+      "count": 44,
+      "applyMs": 84.19999980926514,
+      "commitWaitMs": 1649.8000001907349,
+      "totalBeforeYieldMs": 1734,
+      "timestamp": 1777647608131,
+      "performanceNow": 38185
+    },
+    {
+      "count": 45,
+      "applyMs": 96.60000014305115,
+      "commitWaitMs": 1671.8999998569489,
+      "totalBeforeYieldMs": 1768.5,
+      "timestamp": 1777647609901,
+      "performanceNow": 39955.199999809265
+    },
+    {
+      "count": 46,
+      "applyMs": 90.79999995231628,
+      "commitWaitMs": 1742.7000000476837,
+      "totalBeforeYieldMs": 1833.5,
+      "timestamp": 1777647611736,
+      "performanceNow": 41790.5
+    },
+    {
+      "count": 47,
+      "applyMs": 98,
+      "commitWaitMs": 1826.2000000476837,
+      "totalBeforeYieldMs": 1924.2000000476837,
+      "timestamp": 1777647613662,
+      "performanceNow": 43716.299999952316
+    },
+    {
+      "count": 48,
+      "applyMs": 85.10000014305115,
+      "commitWaitMs": 1993,
+      "totalBeforeYieldMs": 2078.100000143051,
+      "timestamp": 1777647615746,
+      "performanceNow": 45800.5
+    },
+    {
+      "count": 49,
+      "applyMs": 167.69999980926514,
+      "commitWaitMs": 2409.100000143051,
+      "totalBeforeYieldMs": 2576.7999999523163,
+      "timestamp": 1777647618326,
+      "performanceNow": 48380.799999952316
+    },
+    {
+      "count": 50,
+      "applyMs": 123.5,
+      "commitWaitMs": 2012.7999999523163,
+      "totalBeforeYieldMs": 2136.2999999523163,
+      "timestamp": 1777647620466,
+      "performanceNow": 50520.09999990463
+    },
+    {
+      "count": 51,
+      "applyMs": 92.09999990463257,
+      "commitWaitMs": 1843.2000000476837,
+      "totalBeforeYieldMs": 1935.2999999523163,
+      "timestamp": 1777647622404,
+      "performanceNow": 52458.299999952316
+    },
+    {
+      "count": 52,
+      "applyMs": 86.39999985694885,
+      "commitWaitMs": 1935.4000000953674,
+      "totalBeforeYieldMs": 2021.7999999523163,
+      "timestamp": 1777647624427,
+      "performanceNow": 54481.799999952316
+    },
+    {
+      "count": 53,
+      "applyMs": 95.70000004768372,
+      "commitWaitMs": 2021.8999998569489,
+      "totalBeforeYieldMs": 2117.5999999046326,
+      "timestamp": 1777647626547,
+      "performanceNow": 56601.199999809265
+    },
+    {
+      "count": 54,
+      "applyMs": 98.20000004768372,
+      "commitWaitMs": 2058.100000143051,
+      "totalBeforeYieldMs": 2156.300000190735,
+      "timestamp": 1777647628705,
+      "performanceNow": 58759.5
+    },
+    {
+      "count": 55,
+      "applyMs": 95.59999990463257,
+      "commitWaitMs": 2318.7000000476837,
+      "totalBeforeYieldMs": 2414.2999999523163,
+      "timestamp": 1777647631123,
+      "performanceNow": 61176.89999985695
+    },
+    {
+      "count": 56,
+      "applyMs": 90.59999990463257,
+      "commitWaitMs": 2065.5999999046326,
+      "totalBeforeYieldMs": 2156.199999809265,
+      "timestamp": 1777647633281,
+      "performanceNow": 63335.699999809265
+    },
+    {
+      "count": 57,
+      "applyMs": 97.90000009536743,
+      "commitWaitMs": 2703,
+      "totalBeforeYieldMs": 2800.9000000953674,
+      "timestamp": 1777647636085,
+      "performanceNow": 66139.5
+    },
+    {
+      "count": 58,
+      "applyMs": 82.20000004768372,
+      "commitWaitMs": 2177.199999809265,
+      "totalBeforeYieldMs": 2259.399999856949,
+      "timestamp": 1777647638347,
+      "performanceNow": 68401.19999980927
+    },
+    {
+      "count": 59,
+      "applyMs": 81.10000014305115,
+      "commitWaitMs": 2291.2999999523163,
+      "totalBeforeYieldMs": 2372.4000000953674,
+      "timestamp": 1777647640722,
+      "performanceNow": 70776.29999995232
+    },
+    {
+      "count": 60,
+      "applyMs": 75.70000004768372,
+      "commitWaitMs": 2424.4000000953674,
+      "totalBeforeYieldMs": 2500.100000143051,
+      "timestamp": 1777647643224,
+      "performanceNow": 73278
+    },
+    {
+      "count": 61,
+      "applyMs": 75.20000004768372,
+      "commitWaitMs": 2485,
+      "totalBeforeYieldMs": 2560.2000000476837,
+      "timestamp": 1777647645786,
+      "performanceNow": 75839.89999985695
+    },
+    {
+      "count": 62,
+      "applyMs": 81.59999990463257,
+      "commitWaitMs": 2620.4000000953674,
+      "totalBeforeYieldMs": 2702,
+      "timestamp": 1777647648489,
+      "performanceNow": 78543.59999990463
+    },
+    {
+      "count": 63,
+      "applyMs": 106.39999985694885,
+      "commitWaitMs": 2642.600000143051,
+      "totalBeforeYieldMs": 2749,
+      "timestamp": 1777647651240,
+      "performanceNow": 81294.29999995232
+    },
+    {
+      "count": 64,
+      "applyMs": 99.59999990463257,
+      "commitWaitMs": 2806.4000000953674,
+      "totalBeforeYieldMs": 2906,
+      "timestamp": 1777647654148,
+      "performanceNow": 84202.29999995232
+    },
+    {
+      "count": 65,
+      "applyMs": 132.40000009536743,
+      "commitWaitMs": 2967,
+      "totalBeforeYieldMs": 3099.4000000953674,
+      "timestamp": 1777647657258,
+      "performanceNow": 87312.29999995232
+    },
+    {
+      "count": 66,
+      "applyMs": 116.70000004768372,
+      "commitWaitMs": 2459.0999999046326,
+      "totalBeforeYieldMs": 2575.7999999523163,
+      "timestamp": 1777647659837,
+      "performanceNow": 89890.89999985695
+    },
+    {
+      "count": 67,
+      "applyMs": 96.90000009536743,
+      "commitWaitMs": 2583,
+      "totalBeforeYieldMs": 2679.9000000953674,
+      "timestamp": 1777647662518,
+      "performanceNow": 92572.59999990463
+    },
+    {
+      "count": 68,
+      "applyMs": 145.5,
+      "commitWaitMs": 2936.100000143051,
+      "totalBeforeYieldMs": 3081.600000143051,
+      "timestamp": 1777647665603,
+      "performanceNow": 95657.5
+    },
+    {
+      "count": 69,
+      "applyMs": 88.70000004768372,
+      "commitWaitMs": 3431.5999999046326,
+      "totalBeforeYieldMs": 3520.2999999523163,
+      "timestamp": 1777647669125,
+      "performanceNow": 99179.59999990463
+    },
+    {
+      "count": 70,
+      "applyMs": 137.20000004768372,
+      "commitWaitMs": 3176.5,
+      "totalBeforeYieldMs": 3313.7000000476837,
+      "timestamp": 1777647672441,
+      "performanceNow": 102495.29999995232
+    },
+    {
+      "count": 71,
+      "applyMs": 84.39999985694885,
+      "commitWaitMs": 3155.2000000476837,
+      "totalBeforeYieldMs": 3239.5999999046326,
+      "timestamp": 1777647675682,
+      "performanceNow": 105736.59999990463
+    },
+    {
+      "count": 72,
+      "applyMs": 83.79999995231628,
+      "commitWaitMs": 3161.899999856949,
+      "totalBeforeYieldMs": 3245.699999809265,
+      "timestamp": 1777647678930,
+      "performanceNow": 108984.19999980927
+    },
+    {
+      "count": 73,
+      "applyMs": 85.5,
+      "commitWaitMs": 3292.0999999046326,
+      "totalBeforeYieldMs": 3377.5999999046326,
+      "timestamp": 1777647682309,
+      "performanceNow": 112363.69999980927
+    },
+    {
+      "count": 74,
+      "applyMs": 102.5,
+      "commitWaitMs": 3299.5999999046326,
+      "totalBeforeYieldMs": 3402.0999999046326,
+      "timestamp": 1777647685717,
+      "performanceNow": 115771.59999990463
+    },
+    {
+      "count": 75,
+      "applyMs": 118.89999985694885,
+      "commitWaitMs": 3373.9000000953674,
+      "totalBeforeYieldMs": 3492.7999999523163,
+      "timestamp": 1777647689213,
+      "performanceNow": 119266.79999995232
+    },
+    {
+      "count": 76,
+      "applyMs": 115.90000009536743,
+      "commitWaitMs": 3479,
+      "totalBeforeYieldMs": 3594.9000000953674,
+      "timestamp": 1777647692809,
+      "performanceNow": 122863.5
+    },
+    {
+      "count": 77,
+      "applyMs": 116.39999985694885,
+      "commitWaitMs": 3535.5,
+      "totalBeforeYieldMs": 3651.899999856949,
+      "timestamp": 1777647696463,
+      "performanceNow": 126517.69999980927
+    },
+    {
+      "count": 78,
+      "applyMs": 116.09999990463257,
+      "commitWaitMs": 3605.7999999523163,
+      "totalBeforeYieldMs": 3721.899999856949,
+      "timestamp": 1777647700189,
+      "performanceNow": 130243.19999980927
+    },
+    {
+      "count": 79,
+      "applyMs": 148.20000004768372,
+      "commitWaitMs": 3671.7000000476837,
+      "totalBeforeYieldMs": 3819.9000000953674,
+      "timestamp": 1777647704011,
+      "performanceNow": 134065.5
+    },
+    {
+      "count": 80,
+      "applyMs": 121.09999990463257,
+      "commitWaitMs": 3677.7000000476837,
+      "totalBeforeYieldMs": 3798.7999999523163,
+      "timestamp": 1777647707819,
+      "performanceNow": 137873.39999985695
+    },
+    {
+      "count": 81,
+      "applyMs": 132.5,
+      "commitWaitMs": 3779.9000000953674,
+      "totalBeforeYieldMs": 3912.4000000953674,
+      "timestamp": 1777647711736,
+      "performanceNow": 141790.5
+    }
+  ]
+}

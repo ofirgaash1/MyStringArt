@@ -1,0 +1,29 @@
+{
+  "elapsedMs": 10016,
+  "errors": [],
+  "linesMatch": true,
+  "colorLinesMatch": true,
+  "goldenLineCount": 100,
+  "candidateLineCount": 100,
+  "goldenByColor": [
+    {
+      "label": "found 1",
+      "lineCount": 54
+    },
+    {
+      "label": "found 2",
+      "lineCount": 46
+    }
+  ],
+  "candidateByColor": [
+    {
+      "label": "found 1",
+      "lineCount": 54
+    },
+    {
+      "label": "found 2",
+      "lineCount": 46
+    }
+  ],
+  "diff": null
+}

@@ -1,0 +1,21 @@
+{
+  "beforeHidden": {
+    "eventCount": 81,
+    "lastLineCount": 81,
+    "hidden": false
+  },
+  "afterHidden": {
+    "eventCount": 170,
+    "lastLineCount": 170,
+    "hiddenSteps": 0,
+    "hidden": false
+  },
+  "hiddenLinesIn30s": 89,
+  "afterForeground": {
+    "eventCount": 231,
+    "lastLineCount": 231,
+    "hiddenSteps": 0,
+    "hidden": false
+  },
+  "foregroundMsFor60Lines": 15925
+}

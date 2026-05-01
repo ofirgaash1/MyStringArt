@@ -1,0 +1,36 @@
+{
+  "elapsedMs": 10629,
+  "errors": [],
+  "initEvents": [
+    {
+      "precomputeSummary": null,
+      "timestamp": 1777658224042,
+      "performanceNow": 2662.2999999523163
+    }
+  ],
+  "linesMatch": true,
+  "colorLinesMatch": true,
+  "goldenLineCount": 100,
+  "candidateLineCount": 100,
+  "goldenByColor": [
+    {
+      "label": "found 1",
+      "lineCount": 54
+    },
+    {
+      "label": "found 2",
+      "lineCount": 46
+    }
+  ],
+  "candidateByColor": [
+    {
+      "label": "found 1",
+      "lineCount": 54
+    },
+    {
+      "label": "found 2",
+      "lineCount": 46
+    }
+  ],
+  "diff": null
+}

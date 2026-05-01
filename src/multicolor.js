@@ -446,6 +446,20 @@ function createPaletteMaskImageDataFromQuantizedImageData(
   return new ImageData(nextData, quantizedImageData.width, quantizedImageData.height);
 }
 
+function buildRectanglePolygon(x1, y1, x2, y2) {
+  return [[
+    [x1, y1],
+    [x2, y1],
+    [x2, y2],
+    [x1, y2],
+    [x1, y1],
+  ]];
+}
+
+function buildRectangleKey(x1, x2) {
+  return `${x1}:${x2}`;
+}
+
 export function createPaletteMaskImageData(
   sourceImageData,
   paletteColors,
@@ -497,6 +511,124 @@ export function createPaletteMaskImageCollection(
       paletteColors,
       color.id,
     ),
+  }));
+}
+
+export function createPaletteRegionGeometries(
+  sourceImageData,
+  paletteColors,
+  useFloydSteinbergDithering = false,
+) {
+  if (!sourceImageData || paletteColors.length === 0) {
+    return [];
+  }
+
+  const quantizedImageData = createPalettePreviewImageData(
+    sourceImageData,
+    paletteColors,
+    useFloydSteinbergDithering,
+    null,
+    false,
+  );
+  if (!quantizedImageData) {
+    return [];
+  }
+
+  const paletteRgbEntries = paletteColors
+    .map((color) => ({
+      color,
+      rgb: color.rgb ?? hexToRgb(color.hex),
+    }))
+    .filter((entry) => entry.rgb);
+  const rgbToColorId = new Map(
+    paletteRgbEntries.map((entry) => [
+      `${entry.rgb.r}-${entry.rgb.g}-${entry.rgb.b}`,
+      entry.color.id,
+    ]),
+  );
+  const regionGeometriesByColorId = new Map(
+    paletteColors.map((color) => [color.id, []]),
+  );
+  const activeRectanglesByColorId = new Map(
+    paletteColors.map((color) => [color.id, new Map()]),
+  );
+  const { width, height, data } = quantizedImageData;
+
+  for (let y = 0; y < height; y += 1) {
+    const rowRunsByColorId = new Map();
+    let runColorId = null;
+    let runStartX = 0;
+
+    for (let x = 0; x <= width; x += 1) {
+      const isRowEnd = x === width;
+      let currentColorId = null;
+      if (!isRowEnd) {
+        const offset = (y * width + x) * 4;
+        currentColorId = rgbToColorId.get(
+          `${data[offset]}-${data[offset + 1]}-${data[offset + 2]}`,
+        ) ?? null;
+      }
+
+      if (currentColorId !== runColorId) {
+        if (runColorId !== null) {
+          const rowRuns = rowRunsByColorId.get(runColorId) ?? [];
+          rowRuns.push({ x1: runStartX, x2: x });
+          rowRunsByColorId.set(runColorId, rowRuns);
+        }
+        runColorId = currentColorId;
+        runStartX = x;
+      }
+    }
+
+    for (const color of paletteColors) {
+      const colorId = color.id;
+      const activeRectangles = activeRectanglesByColorId.get(colorId);
+      const nextActiveRectangles = new Map();
+      const rowRuns = rowRunsByColorId.get(colorId) ?? [];
+
+      for (const rowRun of rowRuns) {
+        const key = buildRectangleKey(rowRun.x1, rowRun.x2);
+        const existingRectangle = activeRectangles.get(key);
+        if (existingRectangle && existingRectangle.y2 === y) {
+          nextActiveRectangles.set(key, {
+            ...existingRectangle,
+            y2: y + 1,
+          });
+        } else {
+          nextActiveRectangles.set(key, {
+            x1: rowRun.x1,
+            x2: rowRun.x2,
+            y1: y,
+            y2: y + 1,
+          });
+        }
+      }
+
+      for (const [key, rectangle] of activeRectangles.entries()) {
+        if (nextActiveRectangles.has(key)) {
+          continue;
+        }
+        regionGeometriesByColorId.get(colorId).push(
+          buildRectanglePolygon(rectangle.x1, rectangle.y1, rectangle.x2, rectangle.y2),
+        );
+      }
+
+      activeRectanglesByColorId.set(colorId, nextActiveRectangles);
+    }
+  }
+
+  for (const color of paletteColors) {
+    const activeRectangles = activeRectanglesByColorId.get(color.id) ?? new Map();
+    for (const rectangle of activeRectangles.values()) {
+      regionGeometriesByColorId.get(color.id).push(
+        buildRectanglePolygon(rectangle.x1, rectangle.y1, rectangle.x2, rectangle.y2),
+      );
+    }
+  }
+
+  return paletteColors.map((color) => ({
+    ...color,
+    geometry: regionGeometriesByColorId.get(color.id) ?? [],
   }));
 }
 

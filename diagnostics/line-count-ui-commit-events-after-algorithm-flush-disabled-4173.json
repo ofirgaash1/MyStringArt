@@ -1,0 +1,1163 @@
+{
+  "appUrl": "http://127.0.0.1:4173/MyStringArt/",
+  "flow": [
+    "loaded mona_lisa.PNG",
+    "algorithm mode",
+    "nails 180",
+    "find colors 2",
+    "find best palette",
+    "source nearest",
+    "shared-state loop"
+  ],
+  "totalLineText": "Total 91 lines",
+  "ranges": [
+    {
+      "range": "1-20",
+      "uiDeltaAvgMs": 78.9,
+      "uiDeltaMaxMs": 89,
+      "applyAvgMs": 81
+    },
+    {
+      "range": "21-40",
+      "uiDeltaAvgMs": 94.1,
+      "uiDeltaMaxMs": 103,
+      "applyAvgMs": 90.2
+    },
+    {
+      "range": "41-60",
+      "uiDeltaAvgMs": 106.1,
+      "uiDeltaMaxMs": 128,
+      "applyAvgMs": 101.7
+    },
+    {
+      "range": "61-80",
+      "uiDeltaAvgMs": 114.8,
+      "uiDeltaMaxMs": 139,
+      "applyAvgMs": 110.6
+    }
+  ],
+  "countDeltas": [
+    {
+      "count": 1,
+      "timestamp": 1777648339064,
+      "performanceNow": 2846.9,
+      "source": "shared-loop-counter",
+      "deltaMs": 0
+    },
+    {
+      "count": 2,
+      "timestamp": 1777648339148,
+      "performanceNow": 2930.3,
+      "source": "shared-loop-counter",
+      "deltaMs": 84
+    },
+    {
+      "count": 3,
+      "timestamp": 1777648339235,
+      "performanceNow": 3017.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 87
+    },
+    {
+      "count": 4,
+      "timestamp": 1777648339319,
+      "performanceNow": 3101.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 84
+    },
+    {
+      "count": 5,
+      "timestamp": 1777648339403,
+      "performanceNow": 3185.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 84
+    },
+    {
+      "count": 6,
+      "timestamp": 1777648339482,
+      "performanceNow": 3264.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 79
+    },
+    {
+      "count": 7,
+      "timestamp": 1777648339564,
+      "performanceNow": 3346.9,
+      "source": "shared-loop-counter",
+      "deltaMs": 82
+    },
+    {
+      "count": 8,
+      "timestamp": 1777648339643,
+      "performanceNow": 3425.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 79
+    },
+    {
+      "count": 9,
+      "timestamp": 1777648339719,
+      "performanceNow": 3502,
+      "source": "shared-loop-counter",
+      "deltaMs": 76
+    },
+    {
+      "count": 10,
+      "timestamp": 1777648339802,
+      "performanceNow": 3584.3,
+      "source": "shared-loop-counter",
+      "deltaMs": 83
+    },
+    {
+      "count": 11,
+      "timestamp": 1777648339878,
+      "performanceNow": 3660.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 76
+    },
+    {
+      "count": 12,
+      "timestamp": 1777648339966,
+      "performanceNow": 3748.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 88
+    },
+    {
+      "count": 13,
+      "timestamp": 1777648340053,
+      "performanceNow": 3835.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 87
+    },
+    {
+      "count": 14,
+      "timestamp": 1777648340142,
+      "performanceNow": 3924.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 89
+    },
+    {
+      "count": 15,
+      "timestamp": 1777648340223,
+      "performanceNow": 4006,
+      "source": "shared-loop-counter",
+      "deltaMs": 81
+    },
+    {
+      "count": 16,
+      "timestamp": 1777648340308,
+      "performanceNow": 4090.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 85
+    },
+    {
+      "count": 17,
+      "timestamp": 1777648340393,
+      "performanceNow": 4176,
+      "source": "shared-loop-counter",
+      "deltaMs": 85
+    },
+    {
+      "count": 18,
+      "timestamp": 1777648340475,
+      "performanceNow": 4257.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 82
+    },
+    {
+      "count": 19,
+      "timestamp": 1777648340555,
+      "performanceNow": 4337.3,
+      "source": "shared-loop-counter",
+      "deltaMs": 80
+    },
+    {
+      "count": 20,
+      "timestamp": 1777648340642,
+      "performanceNow": 4424.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 87
+    },
+    {
+      "count": 21,
+      "timestamp": 1777648340731,
+      "performanceNow": 4513.3,
+      "source": "shared-loop-counter",
+      "deltaMs": 89
+    },
+    {
+      "count": 22,
+      "timestamp": 1777648340817,
+      "performanceNow": 4599.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 86
+    },
+    {
+      "count": 23,
+      "timestamp": 1777648340916,
+      "performanceNow": 4698.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 99
+    },
+    {
+      "count": 24,
+      "timestamp": 1777648341007,
+      "performanceNow": 4790.1,
+      "source": "shared-loop-counter",
+      "deltaMs": 91
+    },
+    {
+      "count": 25,
+      "timestamp": 1777648341099,
+      "performanceNow": 4881.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 92
+    },
+    {
+      "count": 26,
+      "timestamp": 1777648341197,
+      "performanceNow": 4979.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 98
+    },
+    {
+      "count": 27,
+      "timestamp": 1777648341287,
+      "performanceNow": 5069.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 90
+    },
+    {
+      "count": 28,
+      "timestamp": 1777648341390,
+      "performanceNow": 5172.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 103
+    },
+    {
+      "count": 29,
+      "timestamp": 1777648341488,
+      "performanceNow": 5270.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 98
+    },
+    {
+      "count": 30,
+      "timestamp": 1777648341585,
+      "performanceNow": 5367.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 97
+    },
+    {
+      "count": 31,
+      "timestamp": 1777648341679,
+      "performanceNow": 5461.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 94
+    },
+    {
+      "count": 32,
+      "timestamp": 1777648341768,
+      "performanceNow": 5550.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 89
+    },
+    {
+      "count": 33,
+      "timestamp": 1777648341858,
+      "performanceNow": 5640.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 90
+    },
+    {
+      "count": 34,
+      "timestamp": 1777648341952,
+      "performanceNow": 5734.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 94
+    },
+    {
+      "count": 35,
+      "timestamp": 1777648342054,
+      "performanceNow": 5836.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 102
+    },
+    {
+      "count": 36,
+      "timestamp": 1777648342150,
+      "performanceNow": 5932.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 96
+    },
+    {
+      "count": 37,
+      "timestamp": 1777648342244,
+      "performanceNow": 6026.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 94
+    },
+    {
+      "count": 38,
+      "timestamp": 1777648342335,
+      "performanceNow": 6117.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 91
+    },
+    {
+      "count": 39,
+      "timestamp": 1777648342428,
+      "performanceNow": 6210.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 93
+    },
+    {
+      "count": 40,
+      "timestamp": 1777648342524,
+      "performanceNow": 6306.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 96
+    },
+    {
+      "count": 41,
+      "timestamp": 1777648342616,
+      "performanceNow": 6398.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 92
+    },
+    {
+      "count": 42,
+      "timestamp": 1777648342721,
+      "performanceNow": 6503.9,
+      "source": "shared-loop-counter",
+      "deltaMs": 105
+    },
+    {
+      "count": 43,
+      "timestamp": 1777648342813,
+      "performanceNow": 6595.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 92
+    },
+    {
+      "count": 44,
+      "timestamp": 1777648342908,
+      "performanceNow": 6691,
+      "source": "shared-loop-counter",
+      "deltaMs": 95
+    },
+    {
+      "count": 45,
+      "timestamp": 1777648343001,
+      "performanceNow": 6783.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 93
+    },
+    {
+      "count": 46,
+      "timestamp": 1777648343112,
+      "performanceNow": 6894.2,
+      "source": "shared-loop-counter",
+      "deltaMs": 111
+    },
+    {
+      "count": 47,
+      "timestamp": 1777648343214,
+      "performanceNow": 6996.2,
+      "source": "shared-loop-counter",
+      "deltaMs": 102
+    },
+    {
+      "count": 48,
+      "timestamp": 1777648343315,
+      "performanceNow": 7097.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 101
+    },
+    {
+      "count": 49,
+      "timestamp": 1777648343425,
+      "performanceNow": 7207.7,
+      "source": "shared-loop-counter",
+      "deltaMs": 110
+    },
+    {
+      "count": 50,
+      "timestamp": 1777648343529,
+      "performanceNow": 7311.3,
+      "source": "shared-loop-counter",
+      "deltaMs": 104
+    },
+    {
+      "count": 51,
+      "timestamp": 1777648343636,
+      "performanceNow": 7418.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 107
+    },
+    {
+      "count": 52,
+      "timestamp": 1777648343743,
+      "performanceNow": 7525.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 107
+    },
+    {
+      "count": 53,
+      "timestamp": 1777648343848,
+      "performanceNow": 7630.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 105
+    },
+    {
+      "count": 54,
+      "timestamp": 1777648343953,
+      "performanceNow": 7735.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 105
+    },
+    {
+      "count": 55,
+      "timestamp": 1777648344060,
+      "performanceNow": 7843.1,
+      "source": "shared-loop-counter",
+      "deltaMs": 107
+    },
+    {
+      "count": 56,
+      "timestamp": 1777648344188,
+      "performanceNow": 7971.2,
+      "source": "shared-loop-counter",
+      "deltaMs": 128
+    },
+    {
+      "count": 57,
+      "timestamp": 1777648344299,
+      "performanceNow": 8081.9,
+      "source": "shared-loop-counter",
+      "deltaMs": 111
+    },
+    {
+      "count": 58,
+      "timestamp": 1777648344419,
+      "performanceNow": 8202,
+      "source": "shared-loop-counter",
+      "deltaMs": 120
+    },
+    {
+      "count": 59,
+      "timestamp": 1777648344527,
+      "performanceNow": 8310.1,
+      "source": "shared-loop-counter",
+      "deltaMs": 108
+    },
+    {
+      "count": 60,
+      "timestamp": 1777648344646,
+      "performanceNow": 8428.3,
+      "source": "shared-loop-counter",
+      "deltaMs": 119
+    },
+    {
+      "count": 61,
+      "timestamp": 1777648344759,
+      "performanceNow": 8541.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 113
+    },
+    {
+      "count": 62,
+      "timestamp": 1777648344856,
+      "performanceNow": 8638.6,
+      "source": "shared-loop-counter",
+      "deltaMs": 97
+    },
+    {
+      "count": 63,
+      "timestamp": 1777648344955,
+      "performanceNow": 8737.2,
+      "source": "shared-loop-counter",
+      "deltaMs": 99
+    },
+    {
+      "count": 64,
+      "timestamp": 1777648345053,
+      "performanceNow": 8835.3,
+      "source": "shared-loop-counter",
+      "deltaMs": 98
+    },
+    {
+      "count": 65,
+      "timestamp": 1777648345157,
+      "performanceNow": 8939.8,
+      "source": "shared-loop-counter",
+      "deltaMs": 104
+    },
+    {
+      "count": 66,
+      "timestamp": 1777648345255,
+      "performanceNow": 9037.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 98
+    },
+    {
+      "count": 67,
+      "timestamp": 1777648345354,
+      "performanceNow": 9137.1,
+      "source": "shared-loop-counter",
+      "deltaMs": 99
+    },
+    {
+      "count": 68,
+      "timestamp": 1777648345455,
+      "performanceNow": 9238.1,
+      "source": "shared-loop-counter",
+      "deltaMs": 101
+    },
+    {
+      "count": 69,
+      "timestamp": 1777648345563,
+      "performanceNow": 9345.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 108
+    },
+    {
+      "count": 70,
+      "timestamp": 1777648345666,
+      "performanceNow": 9449.2,
+      "source": "shared-loop-counter",
+      "deltaMs": 103
+    },
+    {
+      "count": 71,
+      "timestamp": 1777648345768,
+      "performanceNow": 9550.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 102
+    },
+    {
+      "count": 72,
+      "timestamp": 1777648345880,
+      "performanceNow": 9663,
+      "source": "shared-loop-counter",
+      "deltaMs": 112
+    },
+    {
+      "count": 73,
+      "timestamp": 1777648346005,
+      "performanceNow": 9787.2,
+      "source": "shared-loop-counter",
+      "deltaMs": 125
+    },
+    {
+      "count": 74,
+      "timestamp": 1777648346134,
+      "performanceNow": 9916.4,
+      "source": "shared-loop-counter",
+      "deltaMs": 129
+    },
+    {
+      "count": 75,
+      "timestamp": 1777648346273,
+      "performanceNow": 10055.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 139
+    },
+    {
+      "count": 76,
+      "timestamp": 1777648346395,
+      "performanceNow": 10177.9,
+      "source": "shared-loop-counter",
+      "deltaMs": 122
+    },
+    {
+      "count": 77,
+      "timestamp": 1777648346532,
+      "performanceNow": 10314.2,
+      "source": "shared-loop-counter",
+      "deltaMs": 137
+    },
+    {
+      "count": 78,
+      "timestamp": 1777648346667,
+      "performanceNow": 10450.1,
+      "source": "shared-loop-counter",
+      "deltaMs": 135
+    },
+    {
+      "count": 79,
+      "timestamp": 1777648346803,
+      "performanceNow": 10585.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 136
+    },
+    {
+      "count": 80,
+      "timestamp": 1777648346941,
+      "performanceNow": 10723.5,
+      "source": "shared-loop-counter",
+      "deltaMs": 138
+    }
+  ],
+  "wallSteps": [
+    {
+      "count": 1,
+      "totalLineCount": 1,
+      "applyMs": 101,
+      "totalBeforeYieldMs": 101,
+      "timestamp": 1777648338964
+    },
+    {
+      "count": 2,
+      "totalLineCount": 2,
+      "applyMs": 92.3,
+      "totalBeforeYieldMs": 92.3,
+      "timestamp": 1777648339058
+    },
+    {
+      "count": 3,
+      "totalLineCount": 3,
+      "applyMs": 80.3,
+      "totalBeforeYieldMs": 80.3,
+      "timestamp": 1777648339146
+    },
+    {
+      "count": 4,
+      "totalLineCount": 4,
+      "applyMs": 83.8,
+      "totalBeforeYieldMs": 83.8,
+      "timestamp": 1777648339233
+    },
+    {
+      "count": 5,
+      "totalLineCount": 5,
+      "applyMs": 79.8,
+      "totalBeforeYieldMs": 79.8,
+      "timestamp": 1777648339318
+    },
+    {
+      "count": 6,
+      "totalLineCount": 6,
+      "applyMs": 80.2,
+      "totalBeforeYieldMs": 80.2,
+      "timestamp": 1777648339401
+    },
+    {
+      "count": 7,
+      "totalLineCount": 7,
+      "applyMs": 75.8,
+      "totalBeforeYieldMs": 75.8,
+      "timestamp": 1777648339481
+    },
+    {
+      "count": 8,
+      "totalLineCount": 8,
+      "applyMs": 78.9,
+      "totalBeforeYieldMs": 78.9,
+      "timestamp": 1777648339563
+    },
+    {
+      "count": 9,
+      "totalLineCount": 9,
+      "applyMs": 75.1,
+      "totalBeforeYieldMs": 75.1,
+      "timestamp": 1777648339641
+    },
+    {
+      "count": 10,
+      "totalLineCount": 10,
+      "applyMs": 73.4,
+      "totalBeforeYieldMs": 73.4,
+      "timestamp": 1777648339718
+    },
+    {
+      "count": 11,
+      "totalLineCount": 11,
+      "applyMs": 79,
+      "totalBeforeYieldMs": 79,
+      "timestamp": 1777648339800
+    },
+    {
+      "count": 12,
+      "totalLineCount": 12,
+      "applyMs": 72.7,
+      "totalBeforeYieldMs": 72.7,
+      "timestamp": 1777648339877
+    },
+    {
+      "count": 13,
+      "totalLineCount": 13,
+      "applyMs": 84.9,
+      "totalBeforeYieldMs": 84.9,
+      "timestamp": 1777648339965
+    },
+    {
+      "count": 14,
+      "totalLineCount": 14,
+      "applyMs": 83.9,
+      "totalBeforeYieldMs": 83.9,
+      "timestamp": 1777648340052
+    },
+    {
+      "count": 15,
+      "totalLineCount": 15,
+      "applyMs": 82.7,
+      "totalBeforeYieldMs": 82.7,
+      "timestamp": 1777648340141
+    },
+    {
+      "count": 16,
+      "totalLineCount": 16,
+      "applyMs": 78.1,
+      "totalBeforeYieldMs": 78.1,
+      "timestamp": 1777648340222
+    },
+    {
+      "count": 17,
+      "totalLineCount": 17,
+      "applyMs": 81,
+      "totalBeforeYieldMs": 81,
+      "timestamp": 1777648340307
+    },
+    {
+      "count": 18,
+      "totalLineCount": 18,
+      "applyMs": 82.1,
+      "totalBeforeYieldMs": 82.1,
+      "timestamp": 1777648340392
+    },
+    {
+      "count": 19,
+      "totalLineCount": 19,
+      "applyMs": 78.3,
+      "totalBeforeYieldMs": 78.3,
+      "timestamp": 1777648340474
+    },
+    {
+      "count": 20,
+      "totalLineCount": 20,
+      "applyMs": 76.7,
+      "totalBeforeYieldMs": 76.7,
+      "timestamp": 1777648340553
+    },
+    {
+      "count": 21,
+      "totalLineCount": 21,
+      "applyMs": 84.1,
+      "totalBeforeYieldMs": 84.1,
+      "timestamp": 1777648340641
+    },
+    {
+      "count": 22,
+      "totalLineCount": 22,
+      "applyMs": 85.6,
+      "totalBeforeYieldMs": 85.6,
+      "timestamp": 1777648340729
+    },
+    {
+      "count": 23,
+      "totalLineCount": 23,
+      "applyMs": 83.2,
+      "totalBeforeYieldMs": 83.2,
+      "timestamp": 1777648340816
+    },
+    {
+      "count": 24,
+      "totalLineCount": 24,
+      "applyMs": 93.9,
+      "totalBeforeYieldMs": 93.9,
+      "timestamp": 1777648340913
+    },
+    {
+      "count": 25,
+      "totalLineCount": 25,
+      "applyMs": 87.5,
+      "totalBeforeYieldMs": 87.5,
+      "timestamp": 1777648341006
+    },
+    {
+      "count": 26,
+      "totalLineCount": 26,
+      "applyMs": 88.1,
+      "totalBeforeYieldMs": 88.1,
+      "timestamp": 1777648341097
+    },
+    {
+      "count": 27,
+      "totalLineCount": 27,
+      "applyMs": 94.5,
+      "totalBeforeYieldMs": 94.5,
+      "timestamp": 1777648341195
+    },
+    {
+      "count": 28,
+      "totalLineCount": 28,
+      "applyMs": 87.1,
+      "totalBeforeYieldMs": 87.1,
+      "timestamp": 1777648341286
+    },
+    {
+      "count": 29,
+      "totalLineCount": 29,
+      "applyMs": 100.1,
+      "totalBeforeYieldMs": 100.1,
+      "timestamp": 1777648341389
+    },
+    {
+      "count": 30,
+      "totalLineCount": 30,
+      "applyMs": 94.3,
+      "totalBeforeYieldMs": 94.3,
+      "timestamp": 1777648341486
+    },
+    {
+      "count": 31,
+      "totalLineCount": 31,
+      "applyMs": 93,
+      "totalBeforeYieldMs": 93,
+      "timestamp": 1777648341584
+    },
+    {
+      "count": 32,
+      "totalLineCount": 32,
+      "applyMs": 90.6,
+      "totalBeforeYieldMs": 90.6,
+      "timestamp": 1777648341678
+    },
+    {
+      "count": 33,
+      "totalLineCount": 33,
+      "applyMs": 85.6,
+      "totalBeforeYieldMs": 85.6,
+      "timestamp": 1777648341767
+    },
+    {
+      "count": 34,
+      "totalLineCount": 34,
+      "applyMs": 86.7,
+      "totalBeforeYieldMs": 86.7,
+      "timestamp": 1777648341857
+    },
+    {
+      "count": 35,
+      "totalLineCount": 35,
+      "applyMs": 90.8,
+      "totalBeforeYieldMs": 90.8,
+      "timestamp": 1777648341951
+    },
+    {
+      "count": 36,
+      "totalLineCount": 36,
+      "applyMs": 98.6,
+      "totalBeforeYieldMs": 98.6,
+      "timestamp": 1777648342053
+    },
+    {
+      "count": 37,
+      "totalLineCount": 37,
+      "applyMs": 92.5,
+      "totalBeforeYieldMs": 92.5,
+      "timestamp": 1777648342148
+    },
+    {
+      "count": 38,
+      "totalLineCount": 38,
+      "applyMs": 90.2,
+      "totalBeforeYieldMs": 90.2,
+      "timestamp": 1777648342242
+    },
+    {
+      "count": 39,
+      "totalLineCount": 39,
+      "applyMs": 88,
+      "totalBeforeYieldMs": 88,
+      "timestamp": 1777648342334
+    },
+    {
+      "count": 40,
+      "totalLineCount": 40,
+      "applyMs": 90.1,
+      "totalBeforeYieldMs": 90.1,
+      "timestamp": 1777648342427
+    },
+    {
+      "count": 41,
+      "totalLineCount": 41,
+      "applyMs": 93.4,
+      "totalBeforeYieldMs": 93.4,
+      "timestamp": 1777648342523
+    },
+    {
+      "count": 42,
+      "totalLineCount": 42,
+      "applyMs": 88.6,
+      "totalBeforeYieldMs": 88.6,
+      "timestamp": 1777648342615
+    },
+    {
+      "count": 43,
+      "totalLineCount": 43,
+      "applyMs": 102.2,
+      "totalBeforeYieldMs": 102.2,
+      "timestamp": 1777648342720
+    },
+    {
+      "count": 44,
+      "totalLineCount": 44,
+      "applyMs": 88.3,
+      "totalBeforeYieldMs": 88.3,
+      "timestamp": 1777648342812
+    },
+    {
+      "count": 45,
+      "totalLineCount": 45,
+      "applyMs": 91.9,
+      "totalBeforeYieldMs": 91.9,
+      "timestamp": 1777648342907
+    },
+    {
+      "count": 46,
+      "totalLineCount": 46,
+      "applyMs": 89.1,
+      "totalBeforeYieldMs": 89.1,
+      "timestamp": 1777648343000
+    },
+    {
+      "count": 47,
+      "totalLineCount": 47,
+      "applyMs": 107,
+      "totalBeforeYieldMs": 107,
+      "timestamp": 1777648343110
+    },
+    {
+      "count": 48,
+      "totalLineCount": 48,
+      "applyMs": 99.2,
+      "totalBeforeYieldMs": 99.2,
+      "timestamp": 1777648343212
+    },
+    {
+      "count": 49,
+      "totalLineCount": 49,
+      "applyMs": 98.6,
+      "totalBeforeYieldMs": 98.6,
+      "timestamp": 1777648343314
+    },
+    {
+      "count": 50,
+      "totalLineCount": 50,
+      "applyMs": 106.8,
+      "totalBeforeYieldMs": 106.8,
+      "timestamp": 1777648343424
+    },
+    {
+      "count": 51,
+      "totalLineCount": 51,
+      "applyMs": 100.3,
+      "totalBeforeYieldMs": 100.3,
+      "timestamp": 1777648343527
+    },
+    {
+      "count": 52,
+      "totalLineCount": 52,
+      "applyMs": 103.4,
+      "totalBeforeYieldMs": 103.4,
+      "timestamp": 1777648343635
+    },
+    {
+      "count": 53,
+      "totalLineCount": 53,
+      "applyMs": 104.2,
+      "totalBeforeYieldMs": 104.2,
+      "timestamp": 1777648343742
+    },
+    {
+      "count": 54,
+      "totalLineCount": 54,
+      "applyMs": 101.9,
+      "totalBeforeYieldMs": 101.9,
+      "timestamp": 1777648343847
+    },
+    {
+      "count": 55,
+      "totalLineCount": 55,
+      "applyMs": 101.9,
+      "totalBeforeYieldMs": 101.9,
+      "timestamp": 1777648343952
+    },
+    {
+      "count": 56,
+      "totalLineCount": 56,
+      "applyMs": 104.1,
+      "totalBeforeYieldMs": 104.1,
+      "timestamp": 1777648344059
+    },
+    {
+      "count": 57,
+      "totalLineCount": 57,
+      "applyMs": 124.6,
+      "totalBeforeYieldMs": 124.6,
+      "timestamp": 1777648344187
+    },
+    {
+      "count": 58,
+      "totalLineCount": 58,
+      "applyMs": 107.3,
+      "totalBeforeYieldMs": 107.3,
+      "timestamp": 1777648344298
+    },
+    {
+      "count": 59,
+      "totalLineCount": 59,
+      "applyMs": 116.4,
+      "totalBeforeYieldMs": 116.4,
+      "timestamp": 1777648344418
+    },
+    {
+      "count": 60,
+      "totalLineCount": 60,
+      "applyMs": 105,
+      "totalBeforeYieldMs": 105,
+      "timestamp": 1777648344526
+    },
+    {
+      "count": 61,
+      "totalLineCount": 61,
+      "applyMs": 115,
+      "totalBeforeYieldMs": 115,
+      "timestamp": 1777648344644
+    },
+    {
+      "count": 62,
+      "totalLineCount": 62,
+      "applyMs": 110.2,
+      "totalBeforeYieldMs": 110.2,
+      "timestamp": 1777648344758
+    },
+    {
+      "count": 63,
+      "totalLineCount": 63,
+      "applyMs": 94.2,
+      "totalBeforeYieldMs": 94.2,
+      "timestamp": 1777648344855
+    },
+    {
+      "count": 64,
+      "totalLineCount": 64,
+      "applyMs": 95.6,
+      "totalBeforeYieldMs": 95.6,
+      "timestamp": 1777648344953
+    },
+    {
+      "count": 65,
+      "totalLineCount": 65,
+      "applyMs": 94.8,
+      "totalBeforeYieldMs": 94.8,
+      "timestamp": 1777648345051
+    },
+    {
+      "count": 66,
+      "totalLineCount": 66,
+      "applyMs": 101.4,
+      "totalBeforeYieldMs": 101.4,
+      "timestamp": 1777648345156
+    },
+    {
+      "count": 67,
+      "totalLineCount": 67,
+      "applyMs": 94.8,
+      "totalBeforeYieldMs": 94.8,
+      "timestamp": 1777648345254
+    },
+    {
+      "count": 68,
+      "totalLineCount": 68,
+      "applyMs": 96.9,
+      "totalBeforeYieldMs": 96.9,
+      "timestamp": 1777648345353
+    },
+    {
+      "count": 69,
+      "totalLineCount": 69,
+      "applyMs": 97.7,
+      "totalBeforeYieldMs": 97.7,
+      "timestamp": 1777648345454
+    },
+    {
+      "count": 70,
+      "totalLineCount": 70,
+      "applyMs": 104.5,
+      "totalBeforeYieldMs": 104.5,
+      "timestamp": 1777648345562
+    },
+    {
+      "count": 71,
+      "totalLineCount": 71,
+      "applyMs": 100.3,
+      "totalBeforeYieldMs": 100.3,
+      "timestamp": 1777648345665
+    },
+    {
+      "count": 72,
+      "totalLineCount": 72,
+      "applyMs": 97.9,
+      "totalBeforeYieldMs": 97.9,
+      "timestamp": 1777648345767
+    },
+    {
+      "count": 73,
+      "totalLineCount": 73,
+      "applyMs": 109,
+      "totalBeforeYieldMs": 109,
+      "timestamp": 1777648345879
+    },
+    {
+      "count": 74,
+      "totalLineCount": 74,
+      "applyMs": 120.9,
+      "totalBeforeYieldMs": 120.9,
+      "timestamp": 1777648346003
+    },
+    {
+      "count": 75,
+      "totalLineCount": 75,
+      "applyMs": 125.9,
+      "totalBeforeYieldMs": 125.9,
+      "timestamp": 1777648346133
+    },
+    {
+      "count": 76,
+      "totalLineCount": 76,
+      "applyMs": 136.1,
+      "totalBeforeYieldMs": 136.1,
+      "timestamp": 1777648346272
+    },
+    {
+      "count": 77,
+      "totalLineCount": 77,
+      "applyMs": 119.4,
+      "totalBeforeYieldMs": 119.4,
+      "timestamp": 1777648346394
+    },
+    {
+      "count": 78,
+      "totalLineCount": 78,
+      "applyMs": 132.4,
+      "totalBeforeYieldMs": 132.4,
+      "timestamp": 1777648346530
+    },
+    {
+      "count": 79,
+      "totalLineCount": 79,
+      "applyMs": 132.6,
+      "totalBeforeYieldMs": 132.6,
+      "timestamp": 1777648346666
+    },
+    {
+      "count": 80,
+      "totalLineCount": 80,
+      "applyMs": 132.3,
+      "totalBeforeYieldMs": 132.3,
+      "timestamp": 1777648346802
+    }
+  ]
+}

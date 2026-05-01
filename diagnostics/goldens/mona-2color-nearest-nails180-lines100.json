@@ -1,0 +1,2634 @@
+{
+  "flow": {
+    "image": "mona_lisa.PNG",
+    "nailsCount": 180,
+    "finderColorCount": 2,
+    "sourceMode": "nearest",
+    "lineCount": 100
+  },
+  "capturedAt": "2026-05-01T18:33:46.333Z",
+  "elapsedMs": 12623,
+  "errors": [],
+  "orderedLines": [
+    {
+      "startNailNumber": 1,
+      "endNailNumber": 36,
+      "stepOrder": 1,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 36,
+      "endNailNumber": 64,
+      "stepOrder": 2,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 6,
+      "stepOrder": 3,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 6,
+      "endNailNumber": 264,
+      "stepOrder": 4,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 264,
+      "endNailNumber": 233,
+      "stepOrder": 5,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 233,
+      "endNailNumber": 291,
+      "stepOrder": 6,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 291,
+      "endNailNumber": 265,
+      "stepOrder": 7,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 265,
+      "endNailNumber": 5,
+      "stepOrder": 8,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 5,
+      "endNailNumber": 35,
+      "stepOrder": 9,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 35,
+      "endNailNumber": 19,
+      "stepOrder": 10,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 19,
+      "endNailNumber": 64,
+      "stepOrder": 11,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 48,
+      "stepOrder": 12,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 48,
+      "endNailNumber": 299,
+      "stepOrder": 13,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 1,
+      "endNailNumber": 121,
+      "stepOrder": 14,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 121,
+      "endNailNumber": 79,
+      "stepOrder": 15,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 79,
+      "endNailNumber": 188,
+      "stepOrder": 16,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 188,
+      "endNailNumber": 172,
+      "stepOrder": 17,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 172,
+      "endNailNumber": 229,
+      "stepOrder": 18,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 229,
+      "endNailNumber": 201,
+      "stepOrder": 19,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 201,
+      "endNailNumber": 217,
+      "stepOrder": 20,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 217,
+      "endNailNumber": 119,
+      "stepOrder": 21,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 119,
+      "endNailNumber": 85,
+      "stepOrder": 22,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 85,
+      "endNailNumber": 187,
+      "stepOrder": 23,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 187,
+      "endNailNumber": 80,
+      "stepOrder": 24,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 80,
+      "endNailNumber": 120,
+      "stepOrder": 25,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 299,
+      "endNailNumber": 276,
+      "stepOrder": 26,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 276,
+      "endNailNumber": 233,
+      "stepOrder": 27,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 233,
+      "endNailNumber": 249,
+      "stepOrder": 28,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 120,
+      "endNailNumber": 2,
+      "stepOrder": 29,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 2,
+      "endNailNumber": 117,
+      "stepOrder": 30,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 117,
+      "endNailNumber": 86,
+      "stepOrder": 31,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 86,
+      "endNailNumber": 102,
+      "stepOrder": 32,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 102,
+      "endNailNumber": 205,
+      "stepOrder": 33,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 205,
+      "endNailNumber": 228,
+      "stepOrder": 34,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 228,
+      "endNailNumber": 173,
+      "stepOrder": 35,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 249,
+      "endNailNumber": 295,
+      "stepOrder": 36,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 295,
+      "endNailNumber": 37,
+      "stepOrder": 37,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 37,
+      "endNailNumber": 60,
+      "stepOrder": 38,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 60,
+      "endNailNumber": 7,
+      "stepOrder": 39,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 7,
+      "endNailNumber": 29,
+      "stepOrder": 40,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 29,
+      "endNailNumber": 64,
+      "stepOrder": 41,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 13,
+      "stepOrder": 42,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 173,
+      "endNailNumber": 233,
+      "stepOrder": 43,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 233,
+      "endNailNumber": 200,
+      "stepOrder": 44,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 200,
+      "endNailNumber": 94,
+      "stepOrder": 45,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 94,
+      "endNailNumber": 116,
+      "stepOrder": 46,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 116,
+      "endNailNumber": 3,
+      "stepOrder": 47,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 3,
+      "endNailNumber": 113,
+      "stepOrder": 48,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 113,
+      "endNailNumber": 95,
+      "stepOrder": 49,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 95,
+      "endNailNumber": 193,
+      "stepOrder": 50,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 193,
+      "endNailNumber": 84,
+      "stepOrder": 51,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 84,
+      "endNailNumber": 134,
+      "stepOrder": 52,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 134,
+      "endNailNumber": 78,
+      "stepOrder": 53,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 78,
+      "endNailNumber": 189,
+      "stepOrder": 54,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 189,
+      "endNailNumber": 96,
+      "stepOrder": 55,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 96,
+      "endNailNumber": 112,
+      "stepOrder": 56,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 112,
+      "endNailNumber": 4,
+      "stepOrder": 57,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 4,
+      "endNailNumber": 109,
+      "stepOrder": 58,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 109,
+      "endNailNumber": 205,
+      "stepOrder": 59,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 205,
+      "endNailNumber": 113,
+      "stepOrder": 60,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 113,
+      "endNailNumber": 212,
+      "stepOrder": 61,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 212,
+      "endNailNumber": 228,
+      "stepOrder": 62,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 13,
+      "endNailNumber": 273,
+      "stepOrder": 63,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 273,
+      "endNailNumber": 250,
+      "stepOrder": 64,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 250,
+      "endNailNumber": 292,
+      "stepOrder": 65,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 292,
+      "endNailNumber": 232,
+      "stepOrder": 66,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 232,
+      "endNailNumber": 277,
+      "stepOrder": 67,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 277,
+      "endNailNumber": 298,
+      "stepOrder": 68,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 298,
+      "endNailNumber": 248,
+      "stepOrder": 69,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 248,
+      "endNailNumber": 275,
+      "stepOrder": 70,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 275,
+      "endNailNumber": 234,
+      "stepOrder": 71,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 234,
+      "endNailNumber": 263,
+      "stepOrder": 72,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 228,
+      "endNailNumber": 202,
+      "stepOrder": 73,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 202,
+      "endNailNumber": 286,
+      "stepOrder": 74,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 286,
+      "endNailNumber": 93,
+      "stepOrder": 75,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 93,
+      "endNailNumber": 3,
+      "stepOrder": 76,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 3,
+      "endNailNumber": 114,
+      "stepOrder": 77,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 114,
+      "endNailNumber": 133,
+      "stepOrder": 78,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 133,
+      "endNailNumber": 85,
+      "stepOrder": 79,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 85,
+      "endNailNumber": 184,
+      "stepOrder": 80,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 184,
+      "endNailNumber": 65,
+      "stepOrder": 81,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 65,
+      "endNailNumber": 135,
+      "stepOrder": 82,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 135,
+      "endNailNumber": 77,
+      "stepOrder": 83,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 77,
+      "endNailNumber": 190,
+      "stepOrder": 84,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 190,
+      "endNailNumber": 171,
+      "stepOrder": 85,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 171,
+      "endNailNumber": 234,
+      "stepOrder": 86,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 234,
+      "endNailNumber": 199,
+      "stepOrder": 87,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 263,
+      "endNailNumber": 242,
+      "stepOrder": 88,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 242,
+      "endNailNumber": 295,
+      "stepOrder": 89,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 295,
+      "endNailNumber": 278,
+      "stepOrder": 90,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 278,
+      "endNailNumber": 231,
+      "stepOrder": 91,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 231,
+      "endNailNumber": 281,
+      "stepOrder": 92,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 281,
+      "endNailNumber": 226,
+      "stepOrder": 93,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 226,
+      "endNailNumber": 285,
+      "stepOrder": 94,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 285,
+      "endNailNumber": 24,
+      "stepOrder": 95,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 24,
+      "endNailNumber": 64,
+      "stepOrder": 96,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 16,
+      "stepOrder": 97,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 16,
+      "endNailNumber": 46,
+      "stepOrder": 98,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 46,
+      "endNailNumber": 300,
+      "stepOrder": 99,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 300,
+      "endNailNumber": 37,
+      "stepOrder": 100,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    }
+  ],
+  "linesByColor": [
+    {
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b",
+      "lineCount": 54,
+      "lines": [
+        {
+          "startNailNumber": 1,
+          "endNailNumber": 121,
+          "stepOrder": 14
+        },
+        {
+          "startNailNumber": 121,
+          "endNailNumber": 79,
+          "stepOrder": 15
+        },
+        {
+          "startNailNumber": 79,
+          "endNailNumber": 188,
+          "stepOrder": 16
+        },
+        {
+          "startNailNumber": 188,
+          "endNailNumber": 172,
+          "stepOrder": 17
+        },
+        {
+          "startNailNumber": 172,
+          "endNailNumber": 229,
+          "stepOrder": 18
+        },
+        {
+          "startNailNumber": 229,
+          "endNailNumber": 201,
+          "stepOrder": 19
+        },
+        {
+          "startNailNumber": 201,
+          "endNailNumber": 217,
+          "stepOrder": 20
+        },
+        {
+          "startNailNumber": 217,
+          "endNailNumber": 119,
+          "stepOrder": 21
+        },
+        {
+          "startNailNumber": 119,
+          "endNailNumber": 85,
+          "stepOrder": 22
+        },
+        {
+          "startNailNumber": 85,
+          "endNailNumber": 187,
+          "stepOrder": 23
+        },
+        {
+          "startNailNumber": 187,
+          "endNailNumber": 80,
+          "stepOrder": 24
+        },
+        {
+          "startNailNumber": 80,
+          "endNailNumber": 120,
+          "stepOrder": 25
+        },
+        {
+          "startNailNumber": 120,
+          "endNailNumber": 2,
+          "stepOrder": 29
+        },
+        {
+          "startNailNumber": 2,
+          "endNailNumber": 117,
+          "stepOrder": 30
+        },
+        {
+          "startNailNumber": 117,
+          "endNailNumber": 86,
+          "stepOrder": 31
+        },
+        {
+          "startNailNumber": 86,
+          "endNailNumber": 102,
+          "stepOrder": 32
+        },
+        {
+          "startNailNumber": 102,
+          "endNailNumber": 205,
+          "stepOrder": 33
+        },
+        {
+          "startNailNumber": 205,
+          "endNailNumber": 228,
+          "stepOrder": 34
+        },
+        {
+          "startNailNumber": 228,
+          "endNailNumber": 173,
+          "stepOrder": 35
+        },
+        {
+          "startNailNumber": 173,
+          "endNailNumber": 233,
+          "stepOrder": 43
+        },
+        {
+          "startNailNumber": 233,
+          "endNailNumber": 200,
+          "stepOrder": 44
+        },
+        {
+          "startNailNumber": 200,
+          "endNailNumber": 94,
+          "stepOrder": 45
+        },
+        {
+          "startNailNumber": 94,
+          "endNailNumber": 116,
+          "stepOrder": 46
+        },
+        {
+          "startNailNumber": 116,
+          "endNailNumber": 3,
+          "stepOrder": 47
+        },
+        {
+          "startNailNumber": 3,
+          "endNailNumber": 113,
+          "stepOrder": 48
+        },
+        {
+          "startNailNumber": 113,
+          "endNailNumber": 95,
+          "stepOrder": 49
+        },
+        {
+          "startNailNumber": 95,
+          "endNailNumber": 193,
+          "stepOrder": 50
+        },
+        {
+          "startNailNumber": 193,
+          "endNailNumber": 84,
+          "stepOrder": 51
+        },
+        {
+          "startNailNumber": 84,
+          "endNailNumber": 134,
+          "stepOrder": 52
+        },
+        {
+          "startNailNumber": 134,
+          "endNailNumber": 78,
+          "stepOrder": 53
+        },
+        {
+          "startNailNumber": 78,
+          "endNailNumber": 189,
+          "stepOrder": 54
+        },
+        {
+          "startNailNumber": 189,
+          "endNailNumber": 96,
+          "stepOrder": 55
+        },
+        {
+          "startNailNumber": 96,
+          "endNailNumber": 112,
+          "stepOrder": 56
+        },
+        {
+          "startNailNumber": 112,
+          "endNailNumber": 4,
+          "stepOrder": 57
+        },
+        {
+          "startNailNumber": 4,
+          "endNailNumber": 109,
+          "stepOrder": 58
+        },
+        {
+          "startNailNumber": 109,
+          "endNailNumber": 205,
+          "stepOrder": 59
+        },
+        {
+          "startNailNumber": 205,
+          "endNailNumber": 113,
+          "stepOrder": 60
+        },
+        {
+          "startNailNumber": 113,
+          "endNailNumber": 212,
+          "stepOrder": 61
+        },
+        {
+          "startNailNumber": 212,
+          "endNailNumber": 228,
+          "stepOrder": 62
+        },
+        {
+          "startNailNumber": 228,
+          "endNailNumber": 202,
+          "stepOrder": 73
+        },
+        {
+          "startNailNumber": 202,
+          "endNailNumber": 286,
+          "stepOrder": 74
+        },
+        {
+          "startNailNumber": 286,
+          "endNailNumber": 93,
+          "stepOrder": 75
+        },
+        {
+          "startNailNumber": 93,
+          "endNailNumber": 3,
+          "stepOrder": 76
+        },
+        {
+          "startNailNumber": 3,
+          "endNailNumber": 114,
+          "stepOrder": 77
+        },
+        {
+          "startNailNumber": 114,
+          "endNailNumber": 133,
+          "stepOrder": 78
+        },
+        {
+          "startNailNumber": 133,
+          "endNailNumber": 85,
+          "stepOrder": 79
+        },
+        {
+          "startNailNumber": 85,
+          "endNailNumber": 184,
+          "stepOrder": 80
+        },
+        {
+          "startNailNumber": 184,
+          "endNailNumber": 65,
+          "stepOrder": 81
+        },
+        {
+          "startNailNumber": 65,
+          "endNailNumber": 135,
+          "stepOrder": 82
+        },
+        {
+          "startNailNumber": 135,
+          "endNailNumber": 77,
+          "stepOrder": 83
+        },
+        {
+          "startNailNumber": 77,
+          "endNailNumber": 190,
+          "stepOrder": 84
+        },
+        {
+          "startNailNumber": 190,
+          "endNailNumber": 171,
+          "stepOrder": 85
+        },
+        {
+          "startNailNumber": 171,
+          "endNailNumber": 234,
+          "stepOrder": 86
+        },
+        {
+          "startNailNumber": 234,
+          "endNailNumber": 199,
+          "stepOrder": 87
+        }
+      ]
+    },
+    {
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b",
+      "lineCount": 46,
+      "lines": [
+        {
+          "startNailNumber": 1,
+          "endNailNumber": 36,
+          "stepOrder": 1
+        },
+        {
+          "startNailNumber": 36,
+          "endNailNumber": 64,
+          "stepOrder": 2
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 6,
+          "stepOrder": 3
+        },
+        {
+          "startNailNumber": 6,
+          "endNailNumber": 264,
+          "stepOrder": 4
+        },
+        {
+          "startNailNumber": 264,
+          "endNailNumber": 233,
+          "stepOrder": 5
+        },
+        {
+          "startNailNumber": 233,
+          "endNailNumber": 291,
+          "stepOrder": 6
+        },
+        {
+          "startNailNumber": 291,
+          "endNailNumber": 265,
+          "stepOrder": 7
+        },
+        {
+          "startNailNumber": 265,
+          "endNailNumber": 5,
+          "stepOrder": 8
+        },
+        {
+          "startNailNumber": 5,
+          "endNailNumber": 35,
+          "stepOrder": 9
+        },
+        {
+          "startNailNumber": 35,
+          "endNailNumber": 19,
+          "stepOrder": 10
+        },
+        {
+          "startNailNumber": 19,
+          "endNailNumber": 64,
+          "stepOrder": 11
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 48,
+          "stepOrder": 12
+        },
+        {
+          "startNailNumber": 48,
+          "endNailNumber": 299,
+          "stepOrder": 13
+        },
+        {
+          "startNailNumber": 299,
+          "endNailNumber": 276,
+          "stepOrder": 26
+        },
+        {
+          "startNailNumber": 276,
+          "endNailNumber": 233,
+          "stepOrder": 27
+        },
+        {
+          "startNailNumber": 233,
+          "endNailNumber": 249,
+          "stepOrder": 28
+        },
+        {
+          "startNailNumber": 249,
+          "endNailNumber": 295,
+          "stepOrder": 36
+        },
+        {
+          "startNailNumber": 295,
+          "endNailNumber": 37,
+          "stepOrder": 37
+        },
+        {
+          "startNailNumber": 37,
+          "endNailNumber": 60,
+          "stepOrder": 38
+        },
+        {
+          "startNailNumber": 60,
+          "endNailNumber": 7,
+          "stepOrder": 39
+        },
+        {
+          "startNailNumber": 7,
+          "endNailNumber": 29,
+          "stepOrder": 40
+        },
+        {
+          "startNailNumber": 29,
+          "endNailNumber": 64,
+          "stepOrder": 41
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 13,
+          "stepOrder": 42
+        },
+        {
+          "startNailNumber": 13,
+          "endNailNumber": 273,
+          "stepOrder": 63
+        },
+        {
+          "startNailNumber": 273,
+          "endNailNumber": 250,
+          "stepOrder": 64
+        },
+        {
+          "startNailNumber": 250,
+          "endNailNumber": 292,
+          "stepOrder": 65
+        },
+        {
+          "startNailNumber": 292,
+          "endNailNumber": 232,
+          "stepOrder": 66
+        },
+        {
+          "startNailNumber": 232,
+          "endNailNumber": 277,
+          "stepOrder": 67
+        },
+        {
+          "startNailNumber": 277,
+          "endNailNumber": 298,
+          "stepOrder": 68
+        },
+        {
+          "startNailNumber": 298,
+          "endNailNumber": 248,
+          "stepOrder": 69
+        },
+        {
+          "startNailNumber": 248,
+          "endNailNumber": 275,
+          "stepOrder": 70
+        },
+        {
+          "startNailNumber": 275,
+          "endNailNumber": 234,
+          "stepOrder": 71
+        },
+        {
+          "startNailNumber": 234,
+          "endNailNumber": 263,
+          "stepOrder": 72
+        },
+        {
+          "startNailNumber": 263,
+          "endNailNumber": 242,
+          "stepOrder": 88
+        },
+        {
+          "startNailNumber": 242,
+          "endNailNumber": 295,
+          "stepOrder": 89
+        },
+        {
+          "startNailNumber": 295,
+          "endNailNumber": 278,
+          "stepOrder": 90
+        },
+        {
+          "startNailNumber": 278,
+          "endNailNumber": 231,
+          "stepOrder": 91
+        },
+        {
+          "startNailNumber": 231,
+          "endNailNumber": 281,
+          "stepOrder": 92
+        },
+        {
+          "startNailNumber": 281,
+          "endNailNumber": 226,
+          "stepOrder": 93
+        },
+        {
+          "startNailNumber": 226,
+          "endNailNumber": 285,
+          "stepOrder": 94
+        },
+        {
+          "startNailNumber": 285,
+          "endNailNumber": 24,
+          "stepOrder": 95
+        },
+        {
+          "startNailNumber": 24,
+          "endNailNumber": 64,
+          "stepOrder": 96
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 16,
+          "stepOrder": 97
+        },
+        {
+          "startNailNumber": 16,
+          "endNailNumber": 46,
+          "stepOrder": 98
+        },
+        {
+          "startNailNumber": 46,
+          "endNailNumber": 300,
+          "stepOrder": 99
+        },
+        {
+          "startNailNumber": 300,
+          "endNailNumber": 37,
+          "stepOrder": 100
+        }
+      ]
+    }
+  ],
+  "stepEvents": [
+    {
+      "count": 1,
+      "applyMs": 9.799999952316284,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 9.799999952316284,
+      "totalLineCount": 1,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660407350,
+      "workerPerformanceNow": 203.10000014305115,
+      "timestamp": 1777660407360,
+      "performanceNow": 3041.5999999046326
+    },
+    {
+      "count": 2,
+      "applyMs": 5.199999809265137,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 5.199999809265137,
+      "totalLineCount": 2,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660407471,
+      "workerPerformanceNow": 324.2000000476837,
+      "timestamp": 1777660407476,
+      "performanceNow": 3157.899999856949
+    },
+    {
+      "count": 3,
+      "applyMs": 2.5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.5,
+      "totalLineCount": 3,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660407584,
+      "workerPerformanceNow": 437.7000000476837,
+      "timestamp": 1777660407587,
+      "performanceNow": 3268.7000000476837
+    },
+    {
+      "count": 4,
+      "applyMs": 2.1000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.1000001430511475,
+      "totalLineCount": 4,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660407701,
+      "workerPerformanceNow": 555,
+      "timestamp": 1777660407704,
+      "performanceNow": 3385.7000000476837
+    },
+    {
+      "count": 5,
+      "applyMs": 1.1000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.1000001430511475,
+      "totalLineCount": 5,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660407801,
+      "workerPerformanceNow": 654.9000000953674,
+      "timestamp": 1777660407803,
+      "performanceNow": 3484.5
+    },
+    {
+      "count": 6,
+      "applyMs": 4.799999952316284,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4.799999952316284,
+      "totalLineCount": 6,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660407908,
+      "workerPerformanceNow": 761.5,
+      "timestamp": 1777660407913,
+      "performanceNow": 3595
+    },
+    {
+      "count": 7,
+      "applyMs": 1,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1,
+      "totalLineCount": 7,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408002,
+      "workerPerformanceNow": 855.5,
+      "timestamp": 1777660408003,
+      "performanceNow": 3685.0999999046326
+    },
+    {
+      "count": 8,
+      "applyMs": 1.7999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.7999999523162842,
+      "totalLineCount": 8,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408083,
+      "workerPerformanceNow": 936.1000001430511,
+      "timestamp": 1777660408085,
+      "performanceNow": 3766.5
+    },
+    {
+      "count": 9,
+      "applyMs": 0.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.9000000953674316,
+      "totalLineCount": 9,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408180,
+      "workerPerformanceNow": 1033.8000001907349,
+      "timestamp": 1777660408181,
+      "performanceNow": 3863.2999999523163
+    },
+    {
+      "count": 10,
+      "applyMs": 0.8000001907348633,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.8000001907348633,
+      "totalLineCount": 10,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408281,
+      "workerPerformanceNow": 1134.8000001907349,
+      "timestamp": 1777660408282,
+      "performanceNow": 3964.2000000476837
+    },
+    {
+      "count": 11,
+      "applyMs": 2.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.9000000953674316,
+      "totalLineCount": 11,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408368,
+      "workerPerformanceNow": 1222,
+      "timestamp": 1777660408372,
+      "performanceNow": 4053.5
+    },
+    {
+      "count": 12,
+      "applyMs": 2.700000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.700000047683716,
+      "totalLineCount": 12,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408439,
+      "workerPerformanceNow": 1292.7000000476837,
+      "timestamp": 1777660408442,
+      "performanceNow": 4124.099999904633
+    },
+    {
+      "count": 13,
+      "applyMs": 1.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.6000001430511475,
+      "totalLineCount": 13,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408553,
+      "workerPerformanceNow": 1406.3000001907349,
+      "timestamp": 1777660408554,
+      "performanceNow": 4236.5
+    },
+    {
+      "count": 14,
+      "applyMs": 5.200000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 5.200000047683716,
+      "totalLineCount": 14,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408634,
+      "workerPerformanceNow": 1487.8000001907349,
+      "timestamp": 1777660408640,
+      "performanceNow": 4321.5
+    },
+    {
+      "count": 15,
+      "applyMs": 5.700000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 5.700000047683716,
+      "totalLineCount": 15,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408722,
+      "workerPerformanceNow": 1575.9000000953674,
+      "timestamp": 1777660408728,
+      "performanceNow": 4410.099999904633
+    },
+    {
+      "count": 16,
+      "applyMs": 3.700000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.700000047683716,
+      "totalLineCount": 16,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408830,
+      "workerPerformanceNow": 1683.3000001907349,
+      "timestamp": 1777660408834,
+      "performanceNow": 4515.599999904633
+    },
+    {
+      "count": 17,
+      "applyMs": 0.7000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.7000000476837158,
+      "totalLineCount": 17,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660408933,
+      "workerPerformanceNow": 1786.5,
+      "timestamp": 1777660408934,
+      "performanceNow": 4615.799999952316
+    },
+    {
+      "count": 18,
+      "applyMs": 3.700000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.700000047683716,
+      "totalLineCount": 18,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409039,
+      "workerPerformanceNow": 1892.9000000953674,
+      "timestamp": 1777660409043,
+      "performanceNow": 4725.200000047684
+    },
+    {
+      "count": 19,
+      "applyMs": 1.2999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.2999999523162842,
+      "totalLineCount": 19,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409139,
+      "workerPerformanceNow": 1992.3000001907349,
+      "timestamp": 1777660409140,
+      "performanceNow": 4822.099999904633
+    },
+    {
+      "count": 20,
+      "applyMs": 0.7000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.7000000476837158,
+      "totalLineCount": 20,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409271,
+      "workerPerformanceNow": 2124.800000190735,
+      "timestamp": 1777660409272,
+      "performanceNow": 4954.099999904633
+    },
+    {
+      "count": 21,
+      "applyMs": 3.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.6000001430511475,
+      "totalLineCount": 21,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409384,
+      "workerPerformanceNow": 2237.300000190735,
+      "timestamp": 1777660409388,
+      "performanceNow": 5069.5
+    },
+    {
+      "count": 22,
+      "applyMs": 1.0999999046325684,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.0999999046325684,
+      "totalLineCount": 22,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409516,
+      "workerPerformanceNow": 2369.300000190735,
+      "timestamp": 1777660409517,
+      "performanceNow": 5199.099999904633
+    },
+    {
+      "count": 23,
+      "applyMs": 4.099999904632568,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4.099999904632568,
+      "totalLineCount": 23,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409620,
+      "workerPerformanceNow": 2473.2000000476837,
+      "timestamp": 1777660409624,
+      "performanceNow": 5305.899999856949
+    },
+    {
+      "count": 24,
+      "applyMs": 2.4000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.4000000953674316,
+      "totalLineCount": 24,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409718,
+      "workerPerformanceNow": 2571.5,
+      "timestamp": 1777660409721,
+      "performanceNow": 5402.5
+    },
+    {
+      "count": 25,
+      "applyMs": 1.2999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.2999999523162842,
+      "totalLineCount": 25,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409817,
+      "workerPerformanceNow": 2670.9000000953674,
+      "timestamp": 1777660409819,
+      "performanceNow": 5500.799999952316
+    },
+    {
+      "count": 26,
+      "applyMs": 1.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.9000000953674316,
+      "totalLineCount": 26,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660409924,
+      "workerPerformanceNow": 2777.5,
+      "timestamp": 1777660409926,
+      "performanceNow": 5608
+    },
+    {
+      "count": 27,
+      "applyMs": 2.3000001907348633,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.3000001907348633,
+      "totalLineCount": 27,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410035,
+      "workerPerformanceNow": 2888.800000190735,
+      "timestamp": 1777660410038,
+      "performanceNow": 5719.700000047684
+    },
+    {
+      "count": 28,
+      "applyMs": 1.2000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.2000000476837158,
+      "totalLineCount": 28,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410115,
+      "workerPerformanceNow": 2968.9000000953674,
+      "timestamp": 1777660410117,
+      "performanceNow": 5798.700000047684
+    },
+    {
+      "count": 29,
+      "applyMs": 4.1000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4.1000001430511475,
+      "totalLineCount": 29,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410290,
+      "workerPerformanceNow": 3144.100000143051,
+      "timestamp": 1777660410295,
+      "performanceNow": 5976.700000047684
+    },
+    {
+      "count": 30,
+      "applyMs": 2.5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.5,
+      "totalLineCount": 30,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410396,
+      "workerPerformanceNow": 3249.7000000476837,
+      "timestamp": 1777660410399,
+      "performanceNow": 6080.700000047684
+    },
+    {
+      "count": 31,
+      "applyMs": 3.4000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.4000000953674316,
+      "totalLineCount": 31,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410511,
+      "workerPerformanceNow": 3364.800000190735,
+      "timestamp": 1777660410515,
+      "performanceNow": 6196.799999952316
+    },
+    {
+      "count": 32,
+      "applyMs": 0.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.9000000953674316,
+      "totalLineCount": 32,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410646,
+      "workerPerformanceNow": 3499.9000000953674,
+      "timestamp": 1777660410647,
+      "performanceNow": 6329.299999952316
+    },
+    {
+      "count": 33,
+      "applyMs": 0.7999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.7999999523162842,
+      "totalLineCount": 33,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410757,
+      "workerPerformanceNow": 3610.4000000953674,
+      "timestamp": 1777660410758,
+      "performanceNow": 6439.599999904633
+    },
+    {
+      "count": 34,
+      "applyMs": 1,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1,
+      "totalLineCount": 34,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660410864,
+      "workerPerformanceNow": 3717.2000000476837,
+      "timestamp": 1777660410866,
+      "performanceNow": 6546.700000047684
+    },
+    {
+      "count": 35,
+      "applyMs": 1.4000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.4000000953674316,
+      "totalLineCount": 35,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411020,
+      "workerPerformanceNow": 3873.300000190735,
+      "timestamp": 1777660411021,
+      "performanceNow": 6703.299999952316
+    },
+    {
+      "count": 36,
+      "applyMs": 2.0999999046325684,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.0999999046325684,
+      "totalLineCount": 36,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411136,
+      "workerPerformanceNow": 3990.100000143051,
+      "timestamp": 1777660411139,
+      "performanceNow": 6820.599999904633
+    },
+    {
+      "count": 37,
+      "applyMs": 1.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.6000001430511475,
+      "totalLineCount": 37,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411240,
+      "workerPerformanceNow": 4093.300000190735,
+      "timestamp": 1777660411242,
+      "performanceNow": 6923.5
+    },
+    {
+      "count": 38,
+      "applyMs": 0.7999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.7999999523162842,
+      "totalLineCount": 38,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411366,
+      "workerPerformanceNow": 4219.700000047684,
+      "timestamp": 1777660411367,
+      "performanceNow": 7049
+    },
+    {
+      "count": 39,
+      "applyMs": 3.700000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.700000047683716,
+      "totalLineCount": 39,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411463,
+      "workerPerformanceNow": 4316.800000190735,
+      "timestamp": 1777660411467,
+      "performanceNow": 7149.099999904633
+    },
+    {
+      "count": 40,
+      "applyMs": 0.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.6000001430511475,
+      "totalLineCount": 40,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411556,
+      "workerPerformanceNow": 4409.900000095367,
+      "timestamp": 1777660411557,
+      "performanceNow": 7239
+    },
+    {
+      "count": 41,
+      "applyMs": 0.8999998569488525,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.8999998569488525,
+      "totalLineCount": 41,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411656,
+      "workerPerformanceNow": 4509.100000143051,
+      "timestamp": 1777660411657,
+      "performanceNow": 7338.599999904633
+    },
+    {
+      "count": 42,
+      "applyMs": 1.7000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.7000000476837158,
+      "totalLineCount": 42,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411724,
+      "workerPerformanceNow": 4577.600000143051,
+      "timestamp": 1777660411726,
+      "performanceNow": 7408
+    },
+    {
+      "count": 43,
+      "applyMs": 1.7000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.7000000476837158,
+      "totalLineCount": 43,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411833,
+      "workerPerformanceNow": 4686.900000095367,
+      "timestamp": 1777660411835,
+      "performanceNow": 7517
+    },
+    {
+      "count": 44,
+      "applyMs": 1,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1,
+      "totalLineCount": 44,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660411959,
+      "workerPerformanceNow": 4812.200000047684,
+      "timestamp": 1777660411960,
+      "performanceNow": 7641.799999952316
+    },
+    {
+      "count": 45,
+      "applyMs": 0.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.9000000953674316,
+      "totalLineCount": 45,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412069,
+      "workerPerformanceNow": 4922.800000190735,
+      "timestamp": 1777660412070,
+      "performanceNow": 7752.200000047684
+    },
+    {
+      "count": 46,
+      "applyMs": 0.7999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.7999999523162842,
+      "totalLineCount": 46,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412183,
+      "workerPerformanceNow": 5037,
+      "timestamp": 1777660412184,
+      "performanceNow": 7866.299999952316
+    },
+    {
+      "count": 47,
+      "applyMs": 5.700000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 5.700000047683716,
+      "totalLineCount": 47,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412325,
+      "workerPerformanceNow": 5179,
+      "timestamp": 1777660412331,
+      "performanceNow": 8013.200000047684
+    },
+    {
+      "count": 48,
+      "applyMs": 2.5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.5,
+      "totalLineCount": 48,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412439,
+      "workerPerformanceNow": 5292.400000095367,
+      "timestamp": 1777660412442,
+      "performanceNow": 8123.399999856949
+    },
+    {
+      "count": 49,
+      "applyMs": 0.5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.5,
+      "totalLineCount": 49,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412583,
+      "workerPerformanceNow": 5436.5,
+      "timestamp": 1777660412584,
+      "performanceNow": 8265.599999904633
+    },
+    {
+      "count": 50,
+      "applyMs": 1.7000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.7000000476837158,
+      "totalLineCount": 50,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412701,
+      "workerPerformanceNow": 5554.900000095367,
+      "timestamp": 1777660412703,
+      "performanceNow": 8385.200000047684
+    },
+    {
+      "count": 51,
+      "applyMs": 5.300000190734863,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 5.300000190734863,
+      "totalLineCount": 51,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412825,
+      "workerPerformanceNow": 5678.5,
+      "timestamp": 1777660412830,
+      "performanceNow": 8512.200000047684
+    },
+    {
+      "count": 52,
+      "applyMs": 1.4000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.4000000953674316,
+      "totalLineCount": 52,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660412953,
+      "workerPerformanceNow": 5806.5,
+      "timestamp": 1777660412954,
+      "performanceNow": 8636.5
+    },
+    {
+      "count": 53,
+      "applyMs": 1.3999998569488525,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.3999998569488525,
+      "totalLineCount": 53,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413085,
+      "workerPerformanceNow": 5939,
+      "timestamp": 1777660413087,
+      "performanceNow": 8768.899999856949
+    },
+    {
+      "count": 54,
+      "applyMs": 3.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.6000001430511475,
+      "totalLineCount": 54,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413207,
+      "workerPerformanceNow": 6060.400000095367,
+      "timestamp": 1777660413211,
+      "performanceNow": 8892.5
+    },
+    {
+      "count": 55,
+      "applyMs": 1.5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.5,
+      "totalLineCount": 55,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413334,
+      "workerPerformanceNow": 6187.200000047684,
+      "timestamp": 1777660413335,
+      "performanceNow": 9017.200000047684
+    },
+    {
+      "count": 56,
+      "applyMs": 0.5999999046325684,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.5999999046325684,
+      "totalLineCount": 56,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413487,
+      "workerPerformanceNow": 6340.5,
+      "timestamp": 1777660413488,
+      "performanceNow": 9169.599999904633
+    },
+    {
+      "count": 57,
+      "applyMs": 7.200000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 7.200000047683716,
+      "totalLineCount": 57,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413623,
+      "workerPerformanceNow": 6476.400000095367,
+      "timestamp": 1777660413630,
+      "performanceNow": 9312.200000047684
+    },
+    {
+      "count": 58,
+      "applyMs": 5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 5,
+      "totalLineCount": 58,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413753,
+      "workerPerformanceNow": 6606.200000047684,
+      "timestamp": 1777660413758,
+      "performanceNow": 9439.700000047684
+    },
+    {
+      "count": 59,
+      "applyMs": 2,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2,
+      "totalLineCount": 59,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413903,
+      "workerPerformanceNow": 6756.200000047684,
+      "timestamp": 1777660413905,
+      "performanceNow": 9586.799999952316
+    },
+    {
+      "count": 60,
+      "applyMs": 3.1000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.1000001430511475,
+      "totalLineCount": 60,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660413995,
+      "workerPerformanceNow": 6848.400000095367,
+      "timestamp": 1777660413998,
+      "performanceNow": 9680
+    },
+    {
+      "count": 61,
+      "applyMs": 1.7999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.7999999523162842,
+      "totalLineCount": 61,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414106,
+      "workerPerformanceNow": 6960,
+      "timestamp": 1777660414108,
+      "performanceNow": 9790.299999952316
+    },
+    {
+      "count": 62,
+      "applyMs": 1,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1,
+      "totalLineCount": 62,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414246,
+      "workerPerformanceNow": 7099.200000047684,
+      "timestamp": 1777660414247,
+      "performanceNow": 9928.799999952316
+    },
+    {
+      "count": 63,
+      "applyMs": 1.4000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.4000000953674316,
+      "totalLineCount": 63,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414344,
+      "workerPerformanceNow": 7197.400000095367,
+      "timestamp": 1777660414346,
+      "performanceNow": 10027.5
+    },
+    {
+      "count": 64,
+      "applyMs": 1.5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.5,
+      "totalLineCount": 64,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414477,
+      "workerPerformanceNow": 7330.200000047684,
+      "timestamp": 1777660414478,
+      "performanceNow": 10160.200000047684
+    },
+    {
+      "count": 65,
+      "applyMs": 2.299999952316284,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.299999952316284,
+      "totalLineCount": 65,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414595,
+      "workerPerformanceNow": 7448.300000190735,
+      "timestamp": 1777660414597,
+      "performanceNow": 10279.099999904633
+    },
+    {
+      "count": 66,
+      "applyMs": 3.1999998092651367,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.1999998092651367,
+      "totalLineCount": 66,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414728,
+      "workerPerformanceNow": 7581.700000047684,
+      "timestamp": 1777660414731,
+      "performanceNow": 10413.399999856949
+    },
+    {
+      "count": 67,
+      "applyMs": 1.3999998569488525,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.3999998569488525,
+      "totalLineCount": 67,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414853,
+      "workerPerformanceNow": 7706.600000143051,
+      "timestamp": 1777660414855,
+      "performanceNow": 10536.599999904633
+    },
+    {
+      "count": 68,
+      "applyMs": 1.1999998092651367,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.1999998092651367,
+      "totalLineCount": 68,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660414989,
+      "workerPerformanceNow": 7842.100000143051,
+      "timestamp": 1777660414990,
+      "performanceNow": 10671.899999856949
+    },
+    {
+      "count": 69,
+      "applyMs": 1.2000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.2000000476837158,
+      "totalLineCount": 69,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660415142,
+      "workerPerformanceNow": 7996,
+      "timestamp": 1777660415144,
+      "performanceNow": 10825.799999952316
+    },
+    {
+      "count": 70,
+      "applyMs": 1,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1,
+      "totalLineCount": 70,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660415271,
+      "workerPerformanceNow": 8124.400000095367,
+      "timestamp": 1777660415272,
+      "performanceNow": 10953.899999856949
+    },
+    {
+      "count": 71,
+      "applyMs": 2.4000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.4000000953674316,
+      "totalLineCount": 71,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660415407,
+      "workerPerformanceNow": 8260.5,
+      "timestamp": 1777660415410,
+      "performanceNow": 11091.5
+    },
+    {
+      "count": 72,
+      "applyMs": 0.6999998092651367,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.6999998092651367,
+      "totalLineCount": 72,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660415544,
+      "workerPerformanceNow": 8397.300000190735,
+      "timestamp": 1777660415544,
+      "performanceNow": 11226.399999856949
+    },
+    {
+      "count": 73,
+      "applyMs": 0.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.6000001430511475,
+      "totalLineCount": 73,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660415679,
+      "workerPerformanceNow": 8532.5,
+      "timestamp": 1777660415680,
+      "performanceNow": 11361.5
+    },
+    {
+      "count": 74,
+      "applyMs": 4.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4.6000001430511475,
+      "totalLineCount": 74,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660415832,
+      "workerPerformanceNow": 8685.200000047684,
+      "timestamp": 1777660415837,
+      "performanceNow": 11518.5
+    },
+    {
+      "count": 75,
+      "applyMs": 4.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4.6000001430511475,
+      "totalLineCount": 75,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660415970,
+      "workerPerformanceNow": 8823.5,
+      "timestamp": 1777660415975,
+      "performanceNow": 11656.700000047684
+    },
+    {
+      "count": 76,
+      "applyMs": 3.799999952316284,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.799999952316284,
+      "totalLineCount": 76,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660416141,
+      "workerPerformanceNow": 8994.700000047684,
+      "timestamp": 1777660416145,
+      "performanceNow": 11826.899999856949
+    },
+    {
+      "count": 77,
+      "applyMs": 4,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4,
+      "totalLineCount": 77,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660416256,
+      "workerPerformanceNow": 9109.200000047684,
+      "timestamp": 1777660416260,
+      "performanceNow": 11941.799999952316
+    },
+    {
+      "count": 78,
+      "applyMs": 0.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.9000000953674316,
+      "totalLineCount": 78,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660416409,
+      "workerPerformanceNow": 9262.600000143051,
+      "timestamp": 1777660416410,
+      "performanceNow": 12092
+    },
+    {
+      "count": 79,
+      "applyMs": 1.8999998569488525,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.8999998569488525,
+      "totalLineCount": 79,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660416575,
+      "workerPerformanceNow": 9428.5,
+      "timestamp": 1777660416577,
+      "performanceNow": 12258.899999856949
+    },
+    {
+      "count": 80,
+      "applyMs": 2.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.9000000953674316,
+      "totalLineCount": 80,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660416714,
+      "workerPerformanceNow": 9567.700000047684,
+      "timestamp": 1777660416717,
+      "performanceNow": 12399.200000047684
+    },
+    {
+      "count": 81,
+      "applyMs": 4.099999904632568,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4.099999904632568,
+      "totalLineCount": 81,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660416878,
+      "workerPerformanceNow": 9731.300000190735,
+      "timestamp": 1777660416882,
+      "performanceNow": 12563.799999952316
+    },
+    {
+      "count": 82,
+      "applyMs": 2.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.9000000953674316,
+      "totalLineCount": 82,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660417048,
+      "workerPerformanceNow": 9901.200000047684,
+      "timestamp": 1777660417051,
+      "performanceNow": 12732.700000047684
+    },
+    {
+      "count": 83,
+      "applyMs": 1.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.6000001430511475,
+      "totalLineCount": 83,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660417209,
+      "workerPerformanceNow": 10062.600000143051,
+      "timestamp": 1777660417211,
+      "performanceNow": 12892.700000047684
+    },
+    {
+      "count": 84,
+      "applyMs": 2.5999999046325684,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.5999999046325684,
+      "totalLineCount": 84,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660417377,
+      "workerPerformanceNow": 10230.300000190735,
+      "timestamp": 1777660417379,
+      "performanceNow": 13061.399999856949
+    },
+    {
+      "count": 85,
+      "applyMs": 1.0999999046325684,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.0999999046325684,
+      "totalLineCount": 85,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660417534,
+      "workerPerformanceNow": 10388,
+      "timestamp": 1777660417536,
+      "performanceNow": 13217.599999904633
+    },
+    {
+      "count": 86,
+      "applyMs": 2.5999999046325684,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.5999999046325684,
+      "totalLineCount": 86,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660417715,
+      "workerPerformanceNow": 10568.5,
+      "timestamp": 1777660417718,
+      "performanceNow": 13399.799999952316
+    },
+    {
+      "count": 87,
+      "applyMs": 3.1000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.1000001430511475,
+      "totalLineCount": 87,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660417864,
+      "workerPerformanceNow": 10717.600000143051,
+      "timestamp": 1777660417867,
+      "performanceNow": 13549.200000047684
+    },
+    {
+      "count": 88,
+      "applyMs": 0.7000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.7000000476837158,
+      "totalLineCount": 88,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660418003,
+      "workerPerformanceNow": 10857,
+      "timestamp": 1777660418004,
+      "performanceNow": 13686.299999952316
+    },
+    {
+      "count": 89,
+      "applyMs": 3.200000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 3.200000047683716,
+      "totalLineCount": 89,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660418156,
+      "workerPerformanceNow": 11009.800000190735,
+      "timestamp": 1777660418160,
+      "performanceNow": 13841.599999904633
+    },
+    {
+      "count": 90,
+      "applyMs": 0.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.6000001430511475,
+      "totalLineCount": 90,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660418258,
+      "workerPerformanceNow": 11111.700000047684,
+      "timestamp": 1777660418259,
+      "performanceNow": 13940.700000047684
+    },
+    {
+      "count": 91,
+      "applyMs": 1.5999999046325684,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.5999999046325684,
+      "totalLineCount": 91,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660418402,
+      "workerPerformanceNow": 11255.900000095367,
+      "timestamp": 1777660418404,
+      "performanceNow": 14086.099999904633
+    },
+    {
+      "count": 92,
+      "applyMs": 2.700000047683716,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 2.700000047683716,
+      "totalLineCount": 92,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660418544,
+      "workerPerformanceNow": 11397.900000095367,
+      "timestamp": 1777660418547,
+      "performanceNow": 14229.200000047684
+    },
+    {
+      "count": 93,
+      "applyMs": 1.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.6000001430511475,
+      "totalLineCount": 93,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660418708,
+      "workerPerformanceNow": 11562.100000143051,
+      "timestamp": 1777660418710,
+      "performanceNow": 14392.200000047684
+    },
+    {
+      "count": 94,
+      "applyMs": 1.6000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.6000001430511475,
+      "totalLineCount": 94,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660418857,
+      "workerPerformanceNow": 11710.400000095367,
+      "timestamp": 1777660418859,
+      "performanceNow": 14540.5
+    },
+    {
+      "count": 95,
+      "applyMs": 0.5,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.5,
+      "totalLineCount": 95,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660419011,
+      "workerPerformanceNow": 11864.400000095367,
+      "timestamp": 1777660419012,
+      "performanceNow": 14693.399999856949
+    },
+    {
+      "count": 96,
+      "applyMs": 1.7000000476837158,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.7000000476837158,
+      "totalLineCount": 96,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660419180,
+      "workerPerformanceNow": 12033.600000143051,
+      "timestamp": 1777660419182,
+      "performanceNow": 14864
+    },
+    {
+      "count": 97,
+      "applyMs": 4,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 4,
+      "totalLineCount": 97,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660419283,
+      "workerPerformanceNow": 12136.400000095367,
+      "timestamp": 1777660419287,
+      "performanceNow": 14968.899999856949
+    },
+    {
+      "count": 98,
+      "applyMs": 1.7999999523162842,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.7999999523162842,
+      "totalLineCount": 98,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660419432,
+      "workerPerformanceNow": 12285.700000047684,
+      "timestamp": 1777660419434,
+      "performanceNow": 15116.099999904633
+    },
+    {
+      "count": 99,
+      "applyMs": 1.1000001430511475,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 1.1000001430511475,
+      "totalLineCount": 99,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660419561,
+      "workerPerformanceNow": 12415.100000143051,
+      "timestamp": 1777660419563,
+      "performanceNow": 15244.700000047684
+    },
+    {
+      "count": 100,
+      "applyMs": 0.9000000953674316,
+      "commitWaitMs": 0,
+      "totalBeforeYieldMs": 0.9000000953674316,
+      "totalLineCount": 100,
+      "wasHidden": false,
+      "workerBacked": true,
+      "workerTimestamp": 1777660419691,
+      "workerPerformanceNow": 12544.400000095367,
+      "timestamp": 1777660419692,
+      "performanceNow": 15373.799999952316
+    }
+  ]
+}

@@ -37,6 +37,7 @@ import {
   countPixelsByNearestPaletteColor,
   createPaletteMaskImageCollection,
   createPalettePreviewImageData,
+  createPaletteRegionGeometries,
   drawImageDataToCanvas,
   findBestFitPaletteColors,
   hexToRgb,
@@ -47,6 +48,8 @@ import {
 } from './multicolor';
 import {
   computeExactColorRegions,
+  geometryIntersection,
+  geometryUnion,
   multiPolygonToSvgPathData,
   VECTOR_BLACK_REGION_ID,
   VECTOR_WHITE_REGION_ID,
@@ -69,6 +72,292 @@ const MIN_THREAD_WIDTH_PX = 0.15;
 const MAX_THREAD_WIDTH_PX = 3;
 const MIN_CONTRAST = 0;
 const MAX_CONTRAST = 100;
+const SHARED_LOOP_ART_BUCKET_FLUSH_INTERVAL_MS = 1000;
+
+function getMulticolorBucketLineCount(bucket) {
+  return bucket?.lineCount ?? getPackedLineCount(bucket?.linesPacked);
+}
+
+function getMulticolorBucketTotalLineCount(buckets) {
+  return buckets.reduce(
+    (sum, bucket) => sum + getMulticolorBucketLineCount(bucket),
+    0,
+  );
+}
+
+function buildLineGeometryForIndexes(startNail, endNail, previewSize, imageCenter, imageScale, lineWidthPx) {
+  if (!startNail || !endNail || !imageCenter || !Number.isFinite(previewSize) || previewSize <= 0) {
+    return [];
+  }
+
+  const startPreviewX = (startNail.cx / 100) * previewSize;
+  const startPreviewY = (startNail.cy / 100) * previewSize;
+  const endPreviewX = (endNail.cx / 100) * previewSize;
+  const endPreviewY = (endNail.cy / 100) * previewSize;
+  const startImageX = imageCenter.x + (startPreviewX - previewSize / 2) / imageScale;
+  const startImageY = imageCenter.y + (startPreviewY - previewSize / 2) / imageScale;
+  const endImageX = imageCenter.x + (endPreviewX - previewSize / 2) / imageScale;
+  const endImageY = imageCenter.y + (endPreviewY - previewSize / 2) / imageScale;
+  const safeWidth = Math.max(0.001, Number.isFinite(lineWidthPx) ? lineWidthPx : 0.5);
+  const dx = endImageX - startImageX;
+  const dy = endImageY - startImageY;
+  const length = Math.hypot(dx, dy);
+  const half = safeWidth / 2;
+  if (length <= 1e-9) {
+    return [[[
+      [startImageX - half, startImageY - half],
+      [startImageX + half, startImageY - half],
+      [startImageX + half, startImageY + half],
+      [startImageX - half, startImageY + half],
+      [startImageX - half, startImageY - half],
+    ]]];
+  }
+
+  const ux = dx / length;
+  const uy = dy / length;
+  const nx = -uy;
+  const ny = ux;
+  return [[[
+    [startImageX + nx * half, startImageY + ny * half],
+    [endImageX + nx * half, endImageY + ny * half],
+    [endImageX - nx * half, endImageY - ny * half],
+    [startImageX - nx * half, startImageY - ny * half],
+    [startImageX + nx * half, startImageY + ny * half],
+  ]]];
+}
+
+const GEOMETRY_AREA_EPSILON = 1e-9;
+
+function isFiniteGeometryPoint(point) {
+  return (
+    Array.isArray(point) &&
+    point.length >= 2 &&
+    Number.isFinite(point[0]) &&
+    Number.isFinite(point[1])
+  );
+}
+
+function getOpenRingPoints(ring) {
+  if (!Array.isArray(ring)) {
+    return [];
+  }
+
+  const points = ring
+    .filter(isFiniteGeometryPoint)
+    .map((point) => [point[0], point[1]]);
+  if (points.length > 1) {
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    if (firstPoint[0] === lastPoint[0] && firstPoint[1] === lastPoint[1]) {
+      points.pop();
+    }
+  }
+  return points.length >= 3 ? points : [];
+}
+
+function getSignedPolygonArea(points) {
+  if (!Array.isArray(points) || points.length < 3) {
+    return 0;
+  }
+
+  let doubleArea = 0;
+  for (let pointIndex = 0; pointIndex < points.length; pointIndex += 1) {
+    const nextPointIndex = (pointIndex + 1) % points.length;
+    const [x1, y1] = points[pointIndex];
+    const [x2, y2] = points[nextPointIndex];
+    doubleArea += (x1 * y2) - (x2 * y1);
+  }
+  return doubleArea / 2;
+}
+
+function getPolygonArea(points) {
+  return Math.abs(getSignedPolygonArea(points));
+}
+
+function getBoundsForPoints(points) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return null;
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of points) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function doBoundsOverlap(firstBounds, secondBounds) {
+  return (
+    firstBounds &&
+    secondBounds &&
+    firstBounds.minX <= secondBounds.maxX &&
+    firstBounds.maxX >= secondBounds.minX &&
+    firstBounds.minY <= secondBounds.maxY &&
+    firstBounds.maxY >= secondBounds.minY
+  );
+}
+
+function getLineClipPolygonFromGeometry(lineGeometry) {
+  const ring = lineGeometry?.[0]?.[0];
+  return getOpenRingPoints(ring);
+}
+
+function getClipLineIntersection(segmentStart, segmentEnd, clipStart, clipEnd) {
+  const segmentX = segmentEnd[0] - segmentStart[0];
+  const segmentY = segmentEnd[1] - segmentStart[1];
+  const clipX = clipEnd[0] - clipStart[0];
+  const clipY = clipEnd[1] - clipStart[1];
+  const denominator = (segmentX * clipY) - (segmentY * clipX);
+  if (Math.abs(denominator) <= GEOMETRY_AREA_EPSILON) {
+    return [segmentEnd[0], segmentEnd[1]];
+  }
+
+  const startToClipX = clipStart[0] - segmentStart[0];
+  const startToClipY = clipStart[1] - segmentStart[1];
+  const t = ((startToClipX * clipY) - (startToClipY * clipX)) / denominator;
+  return [
+    segmentStart[0] + (t * segmentX),
+    segmentStart[1] + (t * segmentY),
+  ];
+}
+
+function clipPolygonToConvexPolygon(subjectPolygon, clipPolygon) {
+  if (
+    !Array.isArray(subjectPolygon) ||
+    subjectPolygon.length < 3 ||
+    !Array.isArray(clipPolygon) ||
+    clipPolygon.length < 3
+  ) {
+    return [];
+  }
+
+  const clipOrientation = getSignedPolygonArea(clipPolygon) >= 0 ? 1 : -1;
+  let outputPolygon = subjectPolygon;
+  for (let clipIndex = 0; clipIndex < clipPolygon.length; clipIndex += 1) {
+    const clipStart = clipPolygon[clipIndex];
+    const clipEnd = clipPolygon[(clipIndex + 1) % clipPolygon.length];
+    const inputPolygon = outputPolygon;
+    outputPolygon = [];
+    if (inputPolygon.length === 0) {
+      break;
+    }
+
+    const isInside = (point) => {
+      const cross =
+        ((clipEnd[0] - clipStart[0]) * (point[1] - clipStart[1])) -
+        ((clipEnd[1] - clipStart[1]) * (point[0] - clipStart[0]));
+      return clipOrientation * cross >= -GEOMETRY_AREA_EPSILON;
+    };
+
+    let previousPoint = inputPolygon[inputPolygon.length - 1];
+    let previousInside = isInside(previousPoint);
+    for (const currentPoint of inputPolygon) {
+      const currentInside = isInside(currentPoint);
+      if (currentInside) {
+        if (!previousInside) {
+          outputPolygon.push(
+            getClipLineIntersection(previousPoint, currentPoint, clipStart, clipEnd),
+          );
+        }
+        outputPolygon.push(currentPoint);
+      } else if (previousInside) {
+        outputPolygon.push(
+          getClipLineIntersection(previousPoint, currentPoint, clipStart, clipEnd),
+        );
+      }
+      previousPoint = currentPoint;
+      previousInside = currentInside;
+    }
+  }
+
+  return outputPolygon.length >= 3 ? outputPolygon : [];
+}
+
+function getConvexClippedArea(subjectPolygon, clipPolygon) {
+  const clippedPolygon = clipPolygonToConvexPolygon(subjectPolygon, clipPolygon);
+  return clippedPolygon.length >= 3 ? getPolygonArea(clippedPolygon) : 0;
+}
+
+function buildGeometryAreaIndex(geometry) {
+  if (!Array.isArray(geometry) || geometry.length === 0) {
+    return [];
+  }
+
+  const indexedPolygons = [];
+  for (const polygon of geometry) {
+    if (!Array.isArray(polygon) || polygon.length === 0) {
+      continue;
+    }
+
+    const outerRing = getOpenRingPoints(polygon[0]);
+    const bounds = getBoundsForPoints(outerRing);
+    if (!bounds || outerRing.length < 3) {
+      continue;
+    }
+
+    const holeRings = [];
+    for (let holeIndex = 1; holeIndex < polygon.length; holeIndex += 1) {
+      const holeRing = getOpenRingPoints(polygon[holeIndex]);
+      const holeBounds = getBoundsForPoints(holeRing);
+      if (holeRing.length >= 3 && holeBounds) {
+        holeRings.push({ ring: holeRing, bounds: holeBounds });
+      }
+    }
+
+    indexedPolygons.push({ outerRing, holeRings, bounds });
+  }
+  return indexedPolygons;
+}
+
+function getLineOverlapAreaWithGeometryIndex(lineClipPolygon, lineBounds, geometryIndex, metrics = null) {
+  if (
+    !Array.isArray(lineClipPolygon) ||
+    lineClipPolygon.length < 3 ||
+    !lineBounds ||
+    !Array.isArray(geometryIndex) ||
+    geometryIndex.length === 0
+  ) {
+    return 0;
+  }
+
+  let totalArea = 0;
+  for (const indexedPolygon of geometryIndex) {
+    if (metrics) {
+      metrics.scannedPolygons += 1;
+    }
+    if (!doBoundsOverlap(lineBounds, indexedPolygon.bounds)) {
+      continue;
+    }
+
+    if (metrics) {
+      metrics.boundsHits += 1;
+      metrics.clippedRings += 1;
+    }
+    let polygonArea = getConvexClippedArea(indexedPolygon.outerRing, lineClipPolygon);
+    if (polygonArea <= GEOMETRY_AREA_EPSILON) {
+      continue;
+    }
+
+    for (const hole of indexedPolygon.holeRings) {
+      if (!doBoundsOverlap(lineBounds, hole.bounds)) {
+        continue;
+      }
+      if (metrics) {
+        metrics.clippedRings += 1;
+      }
+      polygonArea -= getConvexClippedArea(hole.ring, lineClipPolygon);
+    }
+    totalArea += Math.max(0, polygonArea);
+  }
+
+  return totalArea;
+}
 const DEFAULT_CONTRAST = 100;
 const DEFAULT_MULTICOLOR_TARGET_TOTAL_LINES = 20000;
 const DEFAULT_PALETTE_FINDER_COLOR_COUNT = 4;
@@ -318,6 +607,8 @@ function App() {
   const [sharedStateNextColorLabel, setSharedStateNextColorLabel] = useState(null);
   const [isSharedStateLoopRunning, setIsSharedStateLoopRunning] = useState(false);
   const [sharedStateLoopStatus, setSharedStateLoopStatus] = useState('');
+  const [sharedLoopVisibleLineCount, setSharedLoopVisibleLineCount] = useState(null);
+  const SHOW_BRUSH_PANEL = false;
   const [isWhiteTestOverlayEnabled, setIsWhiteTestOverlayEnabled] = useState(false);
 
   const previewRef = useRef(null);
@@ -331,6 +622,10 @@ function App() {
   const originalComparisonCanvasRef = useRef(null);
   const paletteComparisonCanvasRef = useRef(null);
   const ditheredComparisonCanvasRef = useRef(null);
+  const nailsRef = useRef([]);
+  const multicolorLineBucketsRef = useRef(multicolorLineBuckets);
+  const committedMulticolorLineBucketsRef = useRef(multicolorLineBuckets);
+  const multicolorInterleaveEntryIdsRef = useRef(multicolorInterleaveEntryIds);
   const originalImageDataRef = useRef(null);
   const activeColorMaskScoringImageDataRef = useRef(null);
   const sourceUrlRef = useRef(null);
@@ -360,8 +655,18 @@ function App() {
   const sharedCurrentColorIndexMapRef = useRef(null);
   const sharedColorIdToIndexRef = useRef(new Map());
   const sharedTargetMapCacheKeyRef = useRef('');
+  const sharedTargetRegionGeometriesRef = useRef(new Map());
+  const sharedCurrentRegionGeometriesRef = useRef(new Map());
+  const sharedTargetRegionGeometryIndexesRef = useRef(new Map());
+  const sharedCurrentRegionGeometryIndexesRef = useRef(new Map());
+  const sharedLoopVisibleLineCountRef = useRef(null);
+  const sharedLoopLastBucketFlushAtRef = useRef(0);
+  const sharedLoopBucketStateFlushPendingRef = useRef(false);
   const sharedStateLoopStopRequestedRef = useRef(false);
   const sharedStateLoopRunningRef = useRef(false);
+  const sharedLoopWorkerRef = useRef(null);
+  const sharedLoopWorkerMessageHandlerRef = useRef(null);
+  const isArtModeRef = useRef(false);
   const multicolorExperimentalSteppingModeRef = useRef(multicolorExperimentalSteppingMode);
   const applyExperimentalStepRef = useRef(() => ({
     ok: false,
@@ -385,12 +690,46 @@ function App() {
       }
       sharedStateLoopStopRequestedRef.current = true;
       sharedStateLoopRunningRef.current = false;
+      sharedLoopWorkerRef.current?.postMessage({ type: 'stop' });
+      sharedLoopWorkerRef.current?.terminate();
+      sharedLoopWorkerRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     multicolorExperimentalSteppingModeRef.current = multicolorExperimentalSteppingMode;
   }, [multicolorExperimentalSteppingMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const recordVisibility = (eventType) => {
+      window.__sharedLoopVisibilityEvents = window.__sharedLoopVisibilityEvents ?? [];
+      window.__sharedLoopVisibilityEvents.push({
+        eventType,
+        hidden: document.hidden,
+        timestamp: Date.now(),
+        performanceNow: performance.now(),
+        lineCount: sharedLoopVisibleLineCountRef.current,
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      recordVisibility('visibilitychange');
+      sharedLoopWorkerRef.current?.postMessage({
+        type: 'visibility',
+        isHidden: document.hidden,
+      });
+    };
+
+    recordVisibility('mount');
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     lineCoverageEngineRef.current = createLineCoverageEngine({
@@ -515,10 +854,21 @@ function App() {
     (bucket) => bucket.colorId === activePaletteColorId,
   ) ?? null;
   const enabledMulticolorLineBuckets = multicolorLineBuckets.filter((bucket) => bucket.enabled);
-  const totalExperimentalMulticolorLines = multicolorLineBuckets.reduce(
-    (sum, bucket) => sum + (bucket.lineCount ?? getPackedLineCount(bucket.linesPacked)),
-    0,
-  );
+  const totalExperimentalMulticolorLines = getMulticolorBucketTotalLineCount(multicolorLineBuckets);
+  const displayedTotalExperimentalMulticolorLines =
+    sharedLoopVisibleLineCount ?? totalExperimentalMulticolorLines;
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.__totalLineCountCommitEvents = window.__totalLineCountCommitEvents ?? [];
+    window.__totalLineCountCommitEvents.push({
+      count: displayedTotalExperimentalMulticolorLines,
+      timestamp: Date.now(),
+      performanceNow: performance.now(),
+      source: sharedLoopVisibleLineCount === null ? 'bucket-state' : 'shared-loop-counter',
+    });
+  }, [displayedTotalExperimentalMulticolorLines]);
   const getRemainingPlannedLinesForBucket = (bucket) =>
     Math.max(
       0,
@@ -920,16 +1270,20 @@ function App() {
 
   useEffect(() => {
     const availableEntryIds = defaultMulticolorInterleaveEntries.map((entry) => entry.id);
-    setMulticolorInterleaveEntryIds((currentEntryIds) => {
-      const normalizedEntryIds = getNormalizedInterleaveEntryIds(
-        currentEntryIds,
-        availableEntryIds,
-      );
-      return areStringArraysEqual(normalizedEntryIds, currentEntryIds)
-        ? currentEntryIds
-        : normalizedEntryIds;
-    });
+    const normalizedEntryIds = getNormalizedInterleaveEntryIds(
+      multicolorInterleaveEntryIdsRef.current,
+      availableEntryIds,
+    );
+    if (areStringArraysEqual(normalizedEntryIds, multicolorInterleaveEntryIdsRef.current)) {
+      return;
+    }
+    multicolorInterleaveEntryIdsRef.current = normalizedEntryIds;
+    setMulticolorInterleaveEntryIds(normalizedEntryIds);
   }, [defaultMulticolorInterleaveEntries]);
+
+  useEffect(() => {
+    multicolorInterleaveEntryIdsRef.current = multicolorInterleaveEntryIds;
+  }, [multicolorInterleaveEntryIds]);
 
   useEffect(() => {
     if (eligibleMulticolorStepBuckets.length === 0) {
@@ -1078,6 +1432,7 @@ function App() {
               })),
             }
           : {}),
+        ...(row.details ? { details: row.details } : {}),
       })),
       handlerMs: Number((pendingProfile.handlerEndAt - pendingProfile.startedAt).toFixed(2)),
       reactCommitMs: Number(reactCommitMs.toFixed(2)),
@@ -2223,6 +2578,10 @@ function App() {
       sharedTargetColorIndexMapRef.current = null;
       sharedCurrentColorIndexMapRef.current = null;
       sharedColorIdToIndexRef.current = new Map();
+      sharedTargetRegionGeometriesRef.current = new Map();
+      sharedCurrentRegionGeometriesRef.current = new Map();
+      sharedTargetRegionGeometryIndexesRef.current = new Map();
+      sharedCurrentRegionGeometryIndexesRef.current = new Map();
       return;
     }
 
@@ -2240,12 +2599,13 @@ function App() {
     const colorIdToIndex = new Map(
       enabledPalettePreviewColors.map((color, index) => [color.id, index]),
     );
+    const previousTargetMapCacheKey = sharedTargetMapCacheKeyRef.current;
 
     let targetColorIndexMap = sharedTargetColorIndexMapRef.current;
     const shouldRebuildTargetMap =
       !targetColorIndexMap ||
       targetColorIndexMap.length !== pixelCount ||
-      sharedTargetMapCacheKeyRef.current !== targetMapCacheKey;
+      previousTargetMapCacheKey !== targetMapCacheKey;
     if (shouldRebuildTargetMap) {
       targetColorIndexMap = new Uint8Array(pixelCount);
       targetColorIndexMap.fill(TARGET_NONE_COLOR_INDEX);
@@ -2295,15 +2655,44 @@ function App() {
       sharedTargetMapCacheKeyRef.current = targetMapCacheKey;
     }
 
+    if (shouldRebuildTargetMap || sharedTargetRegionGeometriesRef.current.size === 0) {
+      const targetRegionGeometries = createPaletteRegionGeometries(
+        originalImageDataRef.current,
+        enabledPalettePreviewColors,
+        isPaletteDitheringEnabled,
+      );
+      sharedTargetRegionGeometriesRef.current = new Map(
+        targetRegionGeometries.map((color) => [color.id, color.geometry ?? []]),
+      );
+      sharedTargetRegionGeometryIndexesRef.current = new Map(
+        targetRegionGeometries.map((color) => [
+          color.id,
+          buildGeometryAreaIndex(color.geometry ?? []),
+        ]),
+      );
+    } else if (sharedTargetRegionGeometryIndexesRef.current.size === 0) {
+      sharedTargetRegionGeometryIndexesRef.current = new Map(
+        Array.from(sharedTargetRegionGeometriesRef.current.entries()).map(([colorId, geometry]) => [
+          colorId,
+          buildGeometryAreaIndex(geometry),
+        ]),
+      );
+    }
+
     let currentColorIndexMap = sharedCurrentColorIndexMapRef.current;
     if (!currentColorIndexMap || currentColorIndexMap.length !== pixelCount) {
       currentColorIndexMap = new Uint8Array(pixelCount);
     }
     currentColorIndexMap.fill(CURRENT_WHITE_COLOR_INDEX);
 
+    const currentRegionGeometriesById = new Map(
+      enabledPalettePreviewColors.map((color) => [color.id, []]),
+    );
+    const lineWidthPx = parseThreadWidthPxValue(threadWidth);
+
     const replayLines = [];
     let fallbackOrder = 0;
-    for (const bucket of multicolorLineBuckets) {
+    for (const bucket of multicolorLineBucketsRef.current) {
       const colorIndex = colorIdToIndex.get(bucket.colorId);
       if (!Number.isInteger(colorIndex)) {
         continue;
@@ -2330,22 +2719,45 @@ function App() {
     });
 
     for (const line of replayLines) {
-      const coverageEntries = getSharedStateLineCoverageForIndexes(
-        line.startNailNumber,
-        line.endNailNumber,
+      const startNail = nails[line.startNailNumber - 1];
+      const endNail = nails[line.endNailNumber - 1];
+      const lineGeometry = buildLineGeometryForIndexes(
+        startNail,
+        endNail,
+        previewSize,
+        imageCenter,
+        imageScale,
+        lineWidthPx,
       );
-      for (const entry of coverageEntries) {
-        if (entry.coverage < 0.25) {
-          continue;
-        }
-        const linearIndex = entry.pixelIndex;
-        if (targetColorIndexMap[linearIndex] === TARGET_NONE_COLOR_INDEX) {
-          continue;
-        }
-        currentColorIndexMap[linearIndex] = line.colorIndex;
+      if (lineGeometry.length === 0) {
+        continue;
       }
+
+      const colorId = enabledPalettePreviewColors[line.colorIndex]?.id;
+      if (!colorId) {
+        continue;
+      }
+
+      const targetGeometry = sharedTargetRegionGeometriesRef.current.get(colorId) ?? [];
+      const currentGeometry = currentRegionGeometriesById.get(colorId) ?? [];
+      const paintedGeometry = geometryIntersection(lineGeometry, targetGeometry);
+      if (paintedGeometry.length === 0) {
+        continue;
+      }
+
+      currentRegionGeometriesById.set(
+        colorId,
+        geometryUnion(currentGeometry, paintedGeometry),
+      );
     }
 
+    sharedCurrentRegionGeometriesRef.current = currentRegionGeometriesById;
+    sharedCurrentRegionGeometryIndexesRef.current = new Map(
+      Array.from(currentRegionGeometriesById.entries()).map(([colorId, geometry]) => [
+        colorId,
+        buildGeometryAreaIndex(geometry),
+      ]),
+    );
     sharedTargetColorIndexMapRef.current = targetColorIndexMap;
     sharedCurrentColorIndexMapRef.current = currentColorIndexMap;
     sharedColorIdToIndexRef.current = colorIdToIndex;
@@ -2356,30 +2768,39 @@ function App() {
     startNailNumber,
     endNailNumber,
   ) => {
-    const targetColorIndexMap = sharedTargetColorIndexMapRef.current;
-    const currentColorIndexMap = sharedCurrentColorIndexMapRef.current;
-    const colorIndex = sharedColorIdToIndexRef.current.get(colorId);
-    if (
-      !imageSize ||
-      !targetColorIndexMap ||
-      !currentColorIndexMap ||
-      !Number.isInteger(colorIndex)
-    ) {
+    const targetGeometry = sharedTargetRegionGeometriesRef.current.get(colorId);
+    const currentGeometry = sharedCurrentRegionGeometriesRef.current.get(colorId) ?? [];
+    if (!imageSize || !targetGeometry) {
       return;
     }
 
-    const coverageEntries = getSharedStateLineCoverageForIndexes(startNailNumber, endNailNumber);
-    for (const entry of coverageEntries) {
-      if (entry.coverage < 0.25) {
-        continue;
-      }
-      const linearIndex = entry.pixelIndex;
-      if (targetColorIndexMap[linearIndex] === TARGET_NONE_COLOR_INDEX) {
-        continue;
-      }
-      currentColorIndexMap[linearIndex] = colorIndex;
+    const currentNails = nailsRef.current;
+    const startNail = currentNails[startNailNumber - 1];
+    const endNail = currentNails[endNailNumber - 1];
+    const lineGeometry = buildLineGeometryForIndexes(
+      startNail,
+      endNail,
+      previewSize,
+      imageCenter,
+      imageScale,
+      parseThreadWidthPxValue(threadWidth),
+    );
+    if (lineGeometry.length === 0) {
+      return;
     }
-  }, [getLineCoverageForIndexes, imageSize]);
+
+    const paintedGeometry = geometryIntersection(lineGeometry, targetGeometry);
+    if (paintedGeometry.length === 0) {
+      return;
+    }
+
+    const nextCurrentGeometry = geometryUnion(currentGeometry, paintedGeometry);
+    sharedCurrentRegionGeometriesRef.current.set(colorId, nextCurrentGeometry);
+    sharedCurrentRegionGeometryIndexesRef.current.set(
+      colorId,
+      buildGeometryAreaIndex(nextCurrentGeometry),
+    );
+  }, [imageSize, imageCenter, imageScale, previewSize, threadWidth]);
 
   useEffect(() => {
     rebuildSharedColorFlipMaps();
@@ -2400,6 +2821,7 @@ function App() {
     targetColorId,
     options = {},
   ) {
+    const metrics = options.metrics ?? null;
     if (
       !imageSize ||
       !Number.isInteger(originIndex) ||
@@ -2409,14 +2831,9 @@ function App() {
       return null;
     }
 
-    const targetColorIndexMap = sharedTargetColorIndexMapRef.current;
-    const currentColorIndexMap = sharedCurrentColorIndexMapRef.current;
-    const targetColorIndex = sharedColorIdToIndexRef.current.get(targetColorId);
-    if (
-      !targetColorIndexMap ||
-      !currentColorIndexMap ||
-      !Number.isInteger(targetColorIndex)
-    ) {
+    const targetGeometryIndex = sharedTargetRegionGeometryIndexesRef.current.get(targetColorId);
+    const currentGeometryIndex = sharedCurrentRegionGeometryIndexesRef.current.get(targetColorId);
+    if (!targetGeometryIndex || !currentGeometryIndex) {
       return null;
     }
 
@@ -2425,9 +2842,16 @@ function App() {
       options.minimumAllowedDistance ?? parseMinDistanceValue(highlightRange);
 
     let bestLine = null;
-    for (const targetNail of nails) {
+    const currentNails = nailsRef.current;
+    for (const targetNail of currentNails) {
+      if (metrics) {
+        metrics.candidatesTotal += 1;
+      }
       const lineKey = getNormalizedLineKey(originIndex, targetNail.number);
       if (!lineKey || usedLineKeys.has(lineKey)) {
+        if (metrics) {
+          metrics.rejectedUsedLine += 1;
+        }
         continue;
       }
 
@@ -2435,38 +2859,84 @@ function App() {
         minimumAllowedDistance > 0 &&
         getCircularNailDistance(targetNail.number, originIndex, nailsCount) <= minimumAllowedDistance
       ) {
+        if (metrics) {
+          metrics.rejectedDistance += 1;
+        }
         continue;
       }
 
-      let flippedPixelCount = 0;
-      let flippedCoverage = 0;
-      let totalCoverage = 0;
+      const geometryStartTime = metrics ? performance.now() : 0;
+      const lineGeometry = buildLineGeometryForIndexes(
+        currentNails[originIndex - 1],
+        targetNail,
+        previewSize,
+        imageCenter,
+        imageScale,
+        parseThreadWidthPxValue(threadWidth),
+      );
+      if (metrics) {
+        metrics.lineGeometryMs += performance.now() - geometryStartTime;
+      }
+      if (lineGeometry.length === 0) {
+        if (metrics) {
+          metrics.rejectedEmptyGeometry += 1;
+        }
+        continue;
+      }
+
+      const linePrepStartTime = metrics ? performance.now() : 0;
+      const lineClipPolygon = getLineClipPolygonFromGeometry(lineGeometry);
+      const lineBounds = getBoundsForPoints(lineClipPolygon);
+      const totalCoverage = getPolygonArea(lineClipPolygon);
+      if (metrics) {
+        metrics.linePrepMs += performance.now() - linePrepStartTime;
+      }
+      if (totalCoverage <= GEOMETRY_AREA_EPSILON || !lineBounds) {
+        if (metrics) {
+          metrics.rejectedZeroArea += 1;
+        }
+        continue;
+      }
+
+      const targetOverlapStartTime = metrics ? performance.now() : 0;
+      const targetOverlapCoverage = getLineOverlapAreaWithGeometryIndex(
+        lineClipPolygon,
+        lineBounds,
+        targetGeometryIndex,
+        metrics?.targetOverlap,
+      );
+      if (metrics) {
+        metrics.targetOverlapMs += performance.now() - targetOverlapStartTime;
+      }
+      if (targetOverlapCoverage <= GEOMETRY_AREA_EPSILON) {
+        if (metrics) {
+          metrics.rejectedNoTargetOverlap += 1;
+        }
+        continue;
+      }
+
+      const currentOverlapStartTime = metrics ? performance.now() : 0;
+      const alreadyPaintedCoverage = getLineOverlapAreaWithGeometryIndex(
+        lineClipPolygon,
+        lineBounds,
+        currentGeometryIndex,
+        metrics?.currentOverlap,
+      );
+      if (metrics) {
+        metrics.currentOverlapMs += performance.now() - currentOverlapStartTime;
+      }
+      const flippedCoverage = Math.max(0, targetOverlapCoverage - alreadyPaintedCoverage);
+      const flippedPixelCount = Math.max(0, Math.round(flippedCoverage));
       let score = 0;
-      let coverageEntryCount = 0;
-        const coverageEntries = getSharedStateLineCoverageForIndexes(originIndex, targetNail.number);
-      if (coverageEntries.length === 0) {
+      const coverageEntryCount = Math.max(0, Math.round(totalCoverage));
+      if (flippedCoverage <= GEOMETRY_AREA_EPSILON) {
+        if (metrics) {
+          metrics.rejectedAlreadyPainted += 1;
+        }
         continue;
       }
-
-      coverageEntryCount = coverageEntries.length;
-      for (const entry of coverageEntries) {
-        const linearIndex = entry.pixelIndex;
-        if (targetColorIndexMap[linearIndex] === TARGET_NONE_COLOR_INDEX) {
-          continue;
-        }
-        totalCoverage += entry.coverage;
-        if (targetColorIndexMap[linearIndex] !== targetColorIndex) {
-          continue;
-        }
-        if (currentColorIndexMap[linearIndex] === targetColorIndex) {
-          continue;
-        }
-        flippedCoverage += entry.coverage;
-        flippedPixelCount += 1;
-      }
-
-      if (flippedCoverage <= 0 || totalCoverage <= 0) {
-        continue;
+      if (metrics) {
+        metrics.validCandidates += 1;
       }
       score = flippedCoverage / totalCoverage;
 
@@ -2600,25 +3070,38 @@ function App() {
   const getLineDarknessStep = (lineStrengthValue = lineStrength) =>
     parseLineDarknessStep(lineStrengthValue);
 
-  const getUsedLineKeysForMulticolorBucket = useCallback((bucket) => {
+  const getUsedLineKeysForMulticolorBucket = useCallback((bucket, bucketList = multicolorLineBucketsRef.current) => {
+    const addBucketLineKeys = (targetSet, sourceBucket) => {
+      forEachPackedLine(sourceBucket?.linesPacked, (line) => {
+        const lineKey = getNormalizedLineKey(line.startNailNumber, line.endNailNumber);
+        if (lineKey) {
+          targetSet.add(lineKey);
+        }
+      });
+    };
+
     if (!bucket) {
-      return sharedMulticolorUsedLineKeys;
+      const nextUsedLineKeys = new Set(monochromeUsedLineKeys);
+      for (const currentBucket of bucketList) {
+        addBucketLineKeys(nextUsedLineKeys, currentBucket);
+      }
+      return nextUsedLineKeys;
     }
 
     if (multicolorUsedLineExclusionMode === 'shared') {
-      return sharedMulticolorUsedLineKeys;
+      const nextUsedLineKeys = new Set(monochromeUsedLineKeys);
+      for (const currentBucket of bucketList) {
+        addBucketLineKeys(nextUsedLineKeys, currentBucket);
+      }
+      return nextUsedLineKeys;
     }
 
     const nextUsedLineKeys = new Set(monochromeUsedLineKeys);
-    for (const lineKey of multicolorLineKeysByColorId.get(bucket.colorId) ?? []) {
-      nextUsedLineKeys.add(lineKey);
-    }
+    addBucketLineKeys(nextUsedLineKeys, bucket);
     return nextUsedLineKeys;
   }, [
     monochromeUsedLineKeys,
-    multicolorLineKeysByColorId,
     multicolorUsedLineExclusionMode,
-    sharedMulticolorUsedLineKeys,
   ]);
   const activeExperimentalBucketUsedLineKeys = useMemo(
     () => getUsedLineKeysForMulticolorBucket(activeMulticolorLineBucket),
@@ -2794,6 +3277,33 @@ function App() {
     let bestCandidate = null;
     const evaluateBuckets = () => {
       for (const bucket of eligibleBuckets) {
+        const bucketSearchStartedAt = stepProfile ? performance.now() : 0;
+        const metrics = stepProfile
+          ? {
+              candidatesTotal: 0,
+              validCandidates: 0,
+              rejectedUsedLine: 0,
+              rejectedDistance: 0,
+              rejectedEmptyGeometry: 0,
+              rejectedZeroArea: 0,
+              rejectedNoTargetOverlap: 0,
+              rejectedAlreadyPainted: 0,
+              lineGeometryMs: 0,
+              linePrepMs: 0,
+              targetOverlapMs: 0,
+              currentOverlapMs: 0,
+              targetOverlap: {
+                scannedPolygons: 0,
+                boundsHits: 0,
+                clippedRings: 0,
+              },
+              currentOverlap: {
+                scannedPolygons: 0,
+                boundsHits: 0,
+                clippedRings: 0,
+              },
+            }
+          : null;
         const targetColor = enabledPalettePreviewColors.find(
           (color) => color.id === bucket.colorId,
         );
@@ -2807,9 +3317,17 @@ function App() {
             ? parseMinDistanceValue(highlightRange)
             : parseMinDistanceValue(bucket.minDistance);
         const bestLine = getBestFlipRatioLineForColor(startNailNumber, bucket.colorId, {
-          usedLineKeys: getUsedLineKeysForMulticolorBucket(bucket),
+          usedLineKeys: getUsedLineKeysForMulticolorBucket(bucket, bucketList),
           minimumAllowedDistance,
+          metrics,
         });
+        if (stepProfile && metrics) {
+          stepProfile.rows.push({
+            bucket: `shared color search: ${bucket.label}`,
+            ms: performance.now() - bucketSearchStartedAt,
+            details: metrics,
+          });
+        }
         if (!bestLine) {
           continue;
         }
@@ -2837,7 +3355,7 @@ function App() {
               multicolorLineStrengthMode === 'shared'
                 ? getLineDarknessStep()
                 : getLineDarknessStep(bucket.lineStrength),
-            usedLineKeys: getUsedLineKeysForMulticolorBucket(bucket),
+            usedLineKeys: getUsedLineKeysForMulticolorBucket(bucket, bucketList),
           };
         }
       }
@@ -2854,21 +3372,58 @@ function App() {
 
   const waitForNextWorkSlice = () =>
     new Promise((resolve) => {
-      if (!document.hidden) {
-        animationFrameRef.current = window.requestAnimationFrame((timestamp) => {
-          animationFrameRef.current = null;
+      let timeoutId = null;
+      let frameId = null;
+      let messageChannel = null;
+      let hasResolved = false;
+
+      const finish = (timestamp, shouldYieldAfterFrame = false) => {
+        if (hasResolved) {
+          return;
+        }
+
+        hasResolved = true;
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId);
+          if (animationFrameRef.current === frameId) {
+            animationFrameRef.current = null;
+          }
+        }
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+        if (messageChannel) {
+          messageChannel.port1.onmessage = null;
+          messageChannel.port1.close();
+          messageChannel.port2.close();
+        }
+
+        if (shouldYieldAfterFrame) {
+          window.setTimeout(() => resolve(timestamp), 0);
+        } else {
           resolve(timestamp);
-        });
+        }
+      };
+
+      if (document.hidden) {
+        messageChannel = new MessageChannel();
+        messageChannel.port1.onmessage = () => {
+          finish(performance.now());
+        };
+        messageChannel.port2.postMessage(null);
+        timeoutId = window.setTimeout(() => {
+          finish(performance.now());
+        }, 1000);
         return;
       }
 
-      const channel = new MessageChannel();
-      channel.port1.onmessage = () => {
-        channel.port1.close();
-        channel.port2.close();
-        resolve(performance.now());
-      };
-      channel.port2.postMessage(null);
+      frameId = window.requestAnimationFrame((timestamp) => {
+        finish(timestamp, true);
+      });
+      animationFrameRef.current = frameId;
+      timeoutId = window.setTimeout(() => {
+        finish(performance.now());
+      }, 250);
     });
 
   const handleSetNextNail = () => {
@@ -2889,19 +3444,40 @@ function App() {
     const skipGlobalUsedLineCheck = Boolean(options.skipGlobalUsedLineCheck);
     const skipGlobalUsedLineTracking = Boolean(options.skipGlobalUsedLineTracking);
     const lineColorRgb = options.lineColorRgb ?? null;
+    const colorId = options.colorId ?? null;
     const skipActiveMaskLineApplication = Boolean(options.skipActiveMaskLineApplication);
     const usedLineKeys = options.usedLineKeys ?? usedLineKeysRef.current;
     const lineDarknessStep = options.lineDarknessStep ?? getLineDarknessStep();
     const lineKey = getNormalizedLineKey(startIndex, endIndex);
-    const targetLineCoverage = stepProfile
-      ? stepProfile.measure('line coverage lookup', () => getLineCoverageForIndexes(startIndex, endIndex))
-      : getLineCoverageForIndexes(startIndex, endIndex);
+    const startNail = nails[startIndex - 1];
+    const endNail = nails[endIndex - 1];
+    const lineGeometry = buildLineGeometryForIndexes(
+      startNail,
+      endNail,
+      previewSize,
+      imageCenter,
+      imageScale,
+      parseThreadWidthPxValue(threadWidth),
+    );
+    const lineClipPolygon = getLineClipPolygonFromGeometry(lineGeometry);
+    const lineBounds = getBoundsForPoints(lineClipPolygon);
+    const targetRegionGeometryIndex =
+      colorId ? sharedTargetRegionGeometryIndexesRef.current.get(colorId) ?? [] : null;
+    const lineHasDrawableGeometry =
+      lineGeometry.length > 0 &&
+      (!colorId ||
+        !targetRegionGeometryIndex ||
+        getLineOverlapAreaWithGeometryIndex(
+          lineClipPolygon,
+          lineBounds,
+          targetRegionGeometryIndex,
+        ) > GEOMETRY_AREA_EPSILON);
     if (
       !lineKey ||
       (!skipGlobalUsedLineCheck && usedLineKeys.has(lineKey)) ||
       !imageCanvasRef.current ||
       !imageSize ||
-      targetLineCoverage.length === 0
+      !lineHasDrawableGeometry
     ) {
       return false;
     }
@@ -2934,9 +3510,10 @@ function App() {
             lineDarknessStep,
             lineBoostMapRef.current,
           );
-    const didApplyLine = stepProfile
+    const didApplyRasterLine = stepProfile
       ? stepProfile.measure('line application', applyLineToSharedBoard)
       : applyLineToSharedBoard();
+    const didApplyLine = didApplyRasterLine || Boolean(lineColorRgb && colorId);
     if (!didApplyLine) {
       return false;
     }
@@ -3013,12 +3590,58 @@ function App() {
     setSavedNailSequence((currentSequence) => [...currentSequence, nextNailNumber]);
   };
 
-  const handleApplyExperimentalStep = () => {
-    if (eligibleMulticolorStepBuckets.length === 0) {
+  const flushMulticolorLineBucketsToState = ({ force = false } = {}) => {
+    const nextBuckets = multicolorLineBucketsRef.current;
+    if (!force && sharedLoopBucketStateFlushPendingRef.current) {
+      return false;
+    }
+    if (nextBuckets === committedMulticolorLineBucketsRef.current) {
+      sharedLoopBucketStateFlushPendingRef.current = false;
+      return false;
+    }
+
+    sharedLoopBucketStateFlushPendingRef.current = true;
+    sharedLoopLastBucketFlushAtRef.current = performance.now();
+    setMulticolorLineBuckets(nextBuckets);
+    return true;
+  };
+
+  const maybeFlushSharedLoopBucketsToState = () => {
+    if (!isArtModeRef.current) {
+      return false;
+    }
+    if (
+      performance.now() - sharedLoopLastBucketFlushAtRef.current <
+      SHARED_LOOP_ART_BUCKET_FLUSH_INTERVAL_MS
+    ) {
+      return false;
+    }
+    return flushMulticolorLineBucketsToState();
+  };
+
+  const handleApplyExperimentalStep = (options = {}) => {
+    const shouldCommitBucketState =
+      options.commitBucketState ?? !sharedStateLoopRunningRef.current;
+    const shouldUpdateSharedLoopCounter =
+      options.updateSharedLoopCounter ?? sharedStateLoopRunningRef.current;
+    const shouldFlushSharedLoopBuckets =
+      options.flushSharedLoopBuckets ?? sharedStateLoopRunningRef.current;
+    const currentMulticolorLineBuckets = multicolorLineBucketsRef.current;
+    const currentEligibleMulticolorStepBuckets = getEligibleMulticolorStepBuckets(
+      currentMulticolorLineBuckets,
+    );
+    if (currentEligibleMulticolorStepBuckets.length === 0) {
       return {
         ok: false,
         reason: 'No eligible color buckets remain.',
       };
+    }
+
+    if (
+      sharedTargetRegionGeometriesRef.current.size === 0 ||
+      sharedCurrentRegionGeometriesRef.current.size === 0
+    ) {
+      rebuildSharedColorFlipMaps();
     }
 
     const stepProfile = createMulticolorStepProfile({
@@ -3046,7 +3669,7 @@ function App() {
     let stepCandidate = null;
     if (multicolorExperimentalSteppingMode === 'shared-best') {
       stepCandidate = getSharedBestMulticolorStepCandidate(
-        multicolorLineBuckets,
+        currentMulticolorLineBuckets,
         stepProfile,
       );
     } else {
@@ -3054,17 +3677,20 @@ function App() {
         multicolorExperimentalSteppingMode === 'round-robin'
           ? (
               multicolorRoundRobinNextColorId ??
-              eligibleMulticolorStepBuckets.find((bucket) => bucket.colorId === activePaletteColorId)?.colorId ??
-              eligibleMulticolorStepBuckets[0].colorId
+              currentEligibleMulticolorStepBuckets.find((bucket) => bucket.colorId === activePaletteColorId)?.colorId ??
+              currentEligibleMulticolorStepBuckets[0].colorId
             )
           : activeMulticolorRemainingLineCount > 0
             ? activePaletteColorId
             : null;
-      const targetBucket = multicolorLineBuckets.find((bucket) => bucket.colorId === targetColorId);
+      const targetBucket = currentMulticolorLineBuckets.find((bucket) => bucket.colorId === targetColorId);
       const targetColor = enabledPalettePreviewColors.find((color) => color.id === targetColorId);
       if (targetBucket && targetColor?.rgb) {
         const targetStartNailNumber = getExperimentalStartNailNumberForBucket(targetBucket);
-        const targetUsedLineKeys = getUsedLineKeysForMulticolorBucket(targetBucket);
+        const targetUsedLineKeys = getUsedLineKeysForMulticolorBucket(
+          targetBucket,
+          currentMulticolorLineBuckets,
+        );
         const targetMinimumDistance =
           multicolorMinDistanceMode === 'shared'
             ? parseMinDistanceValue(highlightRange)
@@ -3126,30 +3752,30 @@ function App() {
       profile: stepProfile,
       lineDarknessStep: targetLineDarknessStep,
       lineColorRgb: targetColorRgb,
+      colorId: targetColorId,
       skipActiveMaskLineApplication: true,
-      skipVisibleSync: shouldDeferMulticolorStepVisuals,
+      skipVisibleSync: shouldDeferMulticolorStepVisuals || sharedStateLoopRunningRef.current,
       skipGlobalUsedLineCheck: multicolorUsedLineExclusionMode === 'per-color',
       skipGlobalUsedLineTracking: multicolorUsedLineExclusionMode === 'per-color',
       usedLineKeys: targetUsedLineKeys,
     });
     if (!didApplyLine) {
-      const targetLineCoverage = getLineCoverageForIndexes(
+      return {
+        ok: false,
+        reason: 'Selected line could not be applied.',
+      };
+    }
+    const updateSharedGeometry = () =>
+      applyLineToSharedColorFlipMap(
+        targetColorId,
         targetStartNailNumber,
         targetNextNailNumber,
       );
-      return {
-        ok: false,
-        reason:
-          targetLineCoverage.length === 0
-            ? 'Selected line has no drawable pixels at the current line width.'
-            : 'Selected line could not be applied.',
-      };
+    if (stepProfile) {
+      stepProfile.measure('shared geometry update', updateSharedGeometry);
+    } else {
+      updateSharedGeometry();
     }
-    applyLineToSharedColorFlipMap(
-      targetColorId,
-      targetStartNailNumber,
-      targetNextNailNumber,
-    );
 
     const shouldRefreshTargetPreview =
       !shouldDeferMulticolorStepVisuals &&
@@ -3169,7 +3795,7 @@ function App() {
     }
     const nextStepOrder = multicolorLineStepOrderRef.current;
     multicolorLineStepOrderRef.current += 1;
-    const nextBuckets = multicolorLineBuckets.map((bucket) =>
+    const nextBuckets = currentMulticolorLineBuckets.map((bucket) =>
       bucket.colorId === targetColorId
         ? {
             ...bucket,
@@ -3184,14 +3810,24 @@ function App() {
           }
         : bucket,
     );
+    multicolorLineBucketsRef.current = nextBuckets;
+    const nextTotalLineCount = getMulticolorBucketTotalLineCount(nextBuckets);
+    if (shouldUpdateSharedLoopCounter) {
+      sharedLoopVisibleLineCountRef.current = nextTotalLineCount;
+      setSharedLoopVisibleLineCount(nextTotalLineCount);
+    }
     const scheduleStateUpdates = () => {
       skipNextActiveTargetImageEffectRef.current = true;
       if (shouldRefreshTargetPreview) {
         setActiveMulticolorTargetImage(activeColorMaskScoringImageDataRef.current);
       }
-      setMulticolorLineBuckets(nextBuckets);
+      if (shouldCommitBucketState) {
+        setMulticolorLineBuckets(nextBuckets);
+      } else if (shouldFlushSharedLoopBuckets) {
+        maybeFlushSharedLoopBucketsToState();
+      }
       setSharedStateNextColorLabel(targetBucket.label);
-      if (!shouldDeferMulticolorStepVisuals) {
+      if (!shouldDeferMulticolorStepVisuals && !sharedStateLoopRunningRef.current) {
         setActivePaletteColorId(targetColorId);
         setLineTo(String(targetNextNailNumber));
         setLineFrom(String(targetNextNailNumber));
@@ -3229,13 +3865,238 @@ function App() {
       colorLabel: targetBucket.label,
       startNailNumber: targetStartNailNumber,
       endNailNumber: targetNextNailNumber,
+      totalLineCount: nextTotalLineCount,
     };
   };
   applyExperimentalStepRef.current = handleApplyExperimentalStep;
 
-  const handleToggleSharedStateLoop = async () => {
+  const createSharedLoopWorkerInitPayload = () => ({
+    nails,
+    nailsCount,
+    previewSize,
+    imageCenter,
+    imageScale,
+    lineWidthPx: parseThreadWidthPxValue(threadWidth),
+    fallbackStartNailNumber: hasValidFromIndex ? fromIndex : 1,
+    colors: enabledPalettePreviewColors.map((color) => ({
+      id: color.id,
+      label: color.label,
+      hex: color.hex,
+      rgb: color.rgb,
+    })),
+    targetGeometriesByColorId: Array.from(sharedTargetRegionGeometriesRef.current.entries()),
+    buckets: multicolorLineBucketsRef.current.map((bucket) => {
+      const lines = [];
+      forEachPackedLine(bucket.linesPacked, (line) => {
+        lines.push({
+          startNailNumber: line.startNailNumber,
+          endNailNumber: line.endNailNumber,
+          stepOrder: line.stepOrder,
+        });
+      });
+      return {
+        colorId: bucket.colorId,
+        label: bucket.label,
+        hex: bucket.hex,
+        enabled: bucket.enabled,
+        visible: bucket.visible,
+        lineStrength: parseLineDarknessStep(bucket.lineStrength),
+        minDistance: parseMinDistanceValue(bucket.minDistance),
+        lastNailNumber: bucket.lastNailNumber,
+        lines,
+        lineCount: bucket.lineCount ?? getPackedLineCount(bucket.linesPacked),
+      };
+    }),
+    plannedLinesByColorId: Array.from(plannedMulticolorLinesByColorId.entries()),
+    monochromeUsedLineKeys: Array.from(monochromeUsedLineKeys),
+    usedLineExclusionMode: multicolorUsedLineExclusionMode,
+    lineStrengthMode: multicolorLineStrengthMode,
+    minDistanceMode: multicolorMinDistanceMode,
+    globalLineStrength: getLineDarknessStep(),
+    globalMinDistance: parseMinDistanceValue(highlightRange),
+    currentOverlapMode:
+      typeof window !== 'undefined' &&
+      ['candidate-local', 'fragment-index'].includes(window.__sharedLoopCurrentOverlapMode)
+        ? window.__sharedLoopCurrentOverlapMode
+        : 'global-union',
+    nextStepOrder: multicolorLineStepOrderRef.current,
+  });
+
+  const pushWorkerSharedLineProfile = (line, mainApplyMs, totalLineCount, message) => {
+    if (!isMulticolorStepProfilingEnabled || typeof window === 'undefined') {
+      return;
+    }
+
+    const profileSummary = {
+      mode: 'shared-best-worker',
+      source: isPaletteDitheringEnabled ? 'dithered' : 'nearest',
+      colorId: line.colorId,
+      colorLabel: line.colorLabel,
+      startNail: line.startNailNumber,
+      nextNail: line.endNailNumber,
+      score: Number((line.score ?? 0).toFixed(4)),
+      flippedPixels: line.flippedPixelCount ?? null,
+      flippedCoverage: line.flippedCoverage ?? null,
+      linePixels: line.pixelCount ?? null,
+      totalCoverage: line.coverageTotal ?? null,
+      rows: [
+        { bucket: 'shared best line search', ms: 0 },
+        { bucket: 'worker solve', ms: Number((line.workerSolveMs ?? 0).toFixed(2)) },
+        { bucket: 'line application', ms: Number(mainApplyMs.toFixed(2)) },
+        { bucket: 'worker solver state update', ms: 0 },
+        { bucket: 'react state scheduling', ms: 0 },
+      ],
+      handlerMs: Number(mainApplyMs.toFixed(2)),
+      reactCommitMs: 0,
+      totalUntilCommitMs: Number(mainApplyMs.toFixed(2)),
+      workerBacked: true,
+      wasHidden: Boolean(message.wasHidden),
+      totalLineCount,
+    };
+    window.__multicolorStepProfiles = window.__multicolorStepProfiles ?? [];
+    window.__multicolorStepProfiles.push(profileSummary);
+  };
+
+  const applyWorkerAcceptedSharedLine = (line, message = {}) => {
+    const mainApplyStartedAt = performance.now();
+    const didApplyLine = handleMakeLinePermanent(line.startNailNumber, line.endNailNumber, {
+      lineDarknessStep: line.lineDarknessStep,
+      lineColorRgb: line.colorRgb,
+      colorId: line.colorId,
+      skipActiveMaskLineApplication: true,
+      skipVisibleSync: true,
+      skipGlobalUsedLineCheck: true,
+      skipGlobalUsedLineTracking: multicolorUsedLineExclusionMode === 'per-color',
+    });
+    const mainApplyEndedAt = performance.now();
+    if (!didApplyLine) {
+      return {
+        ok: false,
+        reason: 'Selected worker line could not be applied.',
+      };
+    }
+
+    const currentBuckets = multicolorLineBucketsRef.current;
+    const nextBuckets = currentBuckets.map((bucket) =>
+      bucket.colorId === line.colorId
+        ? {
+            ...bucket,
+            lastNailNumber: line.endNailNumber,
+            linesPacked: appendPackedLine(
+              bucket.linesPacked,
+              line.startNailNumber,
+              line.endNailNumber,
+              line.stepOrder,
+            ),
+            lineCount: (bucket.lineCount ?? getPackedLineCount(bucket.linesPacked)) + 1,
+          }
+        : bucket,
+    );
+    multicolorLineBucketsRef.current = nextBuckets;
+    multicolorLineStepOrderRef.current = Math.max(
+      multicolorLineStepOrderRef.current,
+      (line.stepOrder ?? 0) + 1,
+    );
+    const nextTotalLineCount = getMulticolorBucketTotalLineCount(nextBuckets);
+    sharedLoopVisibleLineCountRef.current = nextTotalLineCount;
+    setSharedLoopVisibleLineCount(nextTotalLineCount);
+    maybeFlushSharedLoopBucketsToState();
+    setSharedStateNextColorLabel(line.colorLabel);
+    pushWorkerSharedLineProfile(line, mainApplyEndedAt - mainApplyStartedAt, nextTotalLineCount, message);
+
+    if (typeof window !== 'undefined') {
+      window.__sharedLoopWallStepEvents = window.__sharedLoopWallStepEvents ?? [];
+      window.__sharedLoopWallStepEvents.push({
+        count: window.__sharedLoopWallStepEvents.length + 1,
+        applyMs: mainApplyEndedAt - mainApplyStartedAt,
+        workerSolveMs: line.workerSolveMs ?? null,
+        workerProfile: line.workerProfile ?? null,
+        workerBatchOffsetMs: line.workerBatchOffsetMs ?? null,
+        workerBatchMs: message.workerBatchMs ?? null,
+        commitWaitMs: 0,
+        totalBeforeYieldMs: mainApplyEndedAt - mainApplyStartedAt,
+        totalLineCount: nextTotalLineCount,
+        wasHidden: Boolean(message.wasHidden),
+        workerBacked: true,
+        workerTimestamp: message.workerTimestamp ?? null,
+        workerPerformanceNow: message.workerPerformanceNow ?? null,
+        timestamp: Date.now(),
+        performanceNow: mainApplyEndedAt,
+      });
+    }
+
+    return { ok: true };
+  };
+
+  const finalizeSharedStateLoop = (stopReason = 'Stopped.') => {
+    sharedStateLoopStopRequestedRef.current = true;
+    sharedLoopWorkerRef.current?.postMessage({ type: 'stop' });
+    flushMulticolorLineBucketsToState({ force: true });
+    sharedStateLoopRunningRef.current = false;
+    if (isMountedRef.current) {
+      setSharedStateLoopStatus(stopReason);
+      setIsSharedStateLoopRunning(false);
+    }
+  };
+
+  sharedLoopWorkerMessageHandlerRef.current = (message) => {
+    if (message?.type === 'accepted-lines') {
+      for (const line of message.lines ?? []) {
+        if (
+          !isMountedRef.current ||
+          sharedStateLoopStopRequestedRef.current ||
+          multicolorExperimentalSteppingModeRef.current !== 'shared-best'
+        ) {
+          break;
+        }
+        const result = applyWorkerAcceptedSharedLine(line, message);
+        if (!result.ok) {
+          finalizeSharedStateLoop(`Stopped: ${result.reason}`);
+          break;
+        }
+      }
+      return;
+    }
+    if (message?.type === 'initialized') {
+      if (typeof window !== 'undefined') {
+        window.__sharedLoopWorkerInitEvents = window.__sharedLoopWorkerInitEvents ?? [];
+        window.__sharedLoopWorkerInitEvents.push({
+          precomputeSummary: message.precomputeSummary ?? null,
+          timestamp: Date.now(),
+          performanceNow: performance.now(),
+        });
+      }
+      return;
+    }
+    if (message?.type === 'stopped') {
+      finalizeSharedStateLoop(message.reason ?? 'Stopped.');
+    }
+  };
+
+  const getSharedLoopWorker = () => {
+    if (sharedLoopWorkerRef.current) {
+      return sharedLoopWorkerRef.current;
+    }
+
+    const worker = new Worker(
+      new URL('./workers/sharedLoopDriver.worker.js', import.meta.url),
+      { type: 'module' },
+    );
+    worker.onmessage = (event) => {
+      sharedLoopWorkerMessageHandlerRef.current?.(event.data);
+    };
+    worker.onerror = (event) => {
+      finalizeSharedStateLoop(`Stopped: worker error${event.message ? `: ${event.message}` : '.'}`);
+    };
+    sharedLoopWorkerRef.current = worker;
+    return worker;
+  };
+
+  const handleToggleSharedStateLoop = () => {
     if (sharedStateLoopRunningRef.current) {
       sharedStateLoopStopRequestedRef.current = true;
+      sharedLoopWorkerRef.current?.postMessage({ type: 'stop' });
+      flushMulticolorLineBucketsToState({ force: true });
       sharedStateLoopRunningRef.current = false;
       setSharedStateLoopStatus('Stopped: user requested stop.');
       setIsSharedStateLoopRunning(false);
@@ -3252,46 +4113,34 @@ function App() {
       return;
     }
 
+    if (sharedTargetRegionGeometriesRef.current.size === 0) {
+      rebuildSharedColorFlipMaps();
+    }
+
     sharedStateLoopStopRequestedRef.current = false;
     sharedStateLoopRunningRef.current = true;
-    setSharedStateLoopStatus('Running.');
-    setIsSharedStateLoopRunning(true);
-
-    let stopReason = 'Stopped.';
-    try {
-      while (
-        isMountedRef.current &&
-        !sharedStateLoopStopRequestedRef.current &&
-        multicolorExperimentalSteppingModeRef.current === 'shared-best'
-      ) {
-        const stepResult = applyExperimentalStepRef.current?.() ?? {
-          ok: false,
-          reason: 'Step handler returned no result.',
-        };
-        if (!stepResult.ok) {
-          stopReason = `Stopped: ${stepResult.reason}`;
-          break;
-        }
-        await waitForNextWorkSlice();
+    sharedLoopBucketStateFlushPendingRef.current = false;
+    sharedLoopLastBucketFlushAtRef.current = performance.now();
+    sharedLoopVisibleLineCountRef.current = getMulticolorBucketTotalLineCount(
+      multicolorLineBucketsRef.current,
+    );
+    setSharedLoopVisibleLineCount(sharedLoopVisibleLineCountRef.current);
+    const worker = getSharedLoopWorker();
+    worker.postMessage({
+      type: 'init',
+      payload: createSharedLoopWorkerInitPayload(),
+    });
+    window.setTimeout(() => {
+      if (!isMountedRef.current || !sharedStateLoopRunningRef.current) {
+        return;
       }
-
-      if (sharedStateLoopStopRequestedRef.current) {
-        stopReason = 'Stopped: user requested stop.';
-      } else if (!isMountedRef.current) {
-        stopReason = 'Stopped: app was unmounted.';
-      } else if (multicolorExperimentalSteppingModeRef.current !== 'shared-best') {
-        stopReason = 'Stopped: stepping mode changed.';
-      }
-    } catch (error) {
-      stopReason = `Stopped: ${error instanceof Error ? error.message : String(error)}`;
-    } finally {
-      sharedStateLoopStopRequestedRef.current = true;
-      sharedStateLoopRunningRef.current = false;
-      if (isMountedRef.current) {
-        setSharedStateLoopStatus(stopReason);
-        setIsSharedStateLoopRunning(false);
-      }
-    }
+      setSharedStateLoopStatus('Running.');
+      setIsSharedStateLoopRunning(true);
+      worker.postMessage({
+        type: 'start',
+        isHidden: document.hidden,
+      });
+    }, 0);
   };
 
   const handlePerform9000Steps = async () => {
@@ -3448,6 +4297,53 @@ function App() {
     () => buildNails(nailsCount, inversePreviewScale),
     [nailsCount, inversePreviewScale],
   );
+  useEffect(() => {
+    nailsRef.current = nails;
+  }, [nails]);
+  useEffect(() => {
+    isArtModeRef.current = isArtMode;
+  }, [isArtMode]);
+  useEffect(() => {
+    committedMulticolorLineBucketsRef.current = multicolorLineBuckets;
+    sharedLoopBucketStateFlushPendingRef.current = false;
+    if (!sharedStateLoopRunningRef.current) {
+      multicolorLineBucketsRef.current = multicolorLineBuckets;
+      const committedLineCount = getMulticolorBucketTotalLineCount(multicolorLineBuckets);
+      if (sharedLoopVisibleLineCountRef.current === committedLineCount) {
+        sharedLoopVisibleLineCountRef.current = null;
+        setSharedLoopVisibleLineCount(null);
+      }
+    }
+  }, [multicolorLineBuckets]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    window.__debugGetMulticolorLineBuckets = () =>
+      multicolorLineBucketsRef.current.map((bucket) => {
+        const lines = [];
+        forEachPackedLine(bucket.linesPacked, (line) => {
+          lines.push({
+            startNailNumber: line.startNailNumber,
+            endNailNumber: line.endNailNumber,
+            stepOrder: line.stepOrder,
+          });
+        });
+        return {
+          colorId: bucket.colorId,
+          label: bucket.label,
+          hex: bucket.hex,
+          lineCount: bucket.lineCount ?? getPackedLineCount(bucket.linesPacked),
+          lines,
+        };
+      });
+
+    return () => {
+      delete window.__debugGetMulticolorLineBuckets;
+    };
+  }, []);
 
   const fromIndex = Number.parseInt(lineFrom, 10);
   const toIndex = Number.parseInt(lineTo, 10);
@@ -3920,6 +4816,7 @@ function App() {
   };
 
   const handleRefreshMulticolorPreviews = () => {
+    rebuildSharedColorFlipMaps();
     syncVisibleCanvas();
     if (!canUseActiveColorMaskForLineScoring) {
       setActiveMulticolorTargetImage(null);
@@ -4087,6 +4984,9 @@ function App() {
   };
 
   const handleExportMulticolorSession = () => {
+    const exportLineBuckets = sharedStateLoopRunningRef.current
+      ? multicolorLineBucketsRef.current
+      : multicolorLineBuckets;
     const fileBaseName = imageName
       ? imageName.replace(/\.[^.]+$/, '')
       : 'string-art';
@@ -4112,7 +5012,7 @@ function App() {
       threadWidthPx: parseThreadWidthPxValue(threadWidth),
       multicolorInterleaveEntryIds,
       isExperimentalColorLinesOnlyPreviewEnabled,
-      lineBuckets: multicolorLineBuckets.map((bucket) => ({
+      lineBuckets: exportLineBuckets.map((bucket) => ({
         ...bucket,
         linesPacked: Array.from(bucket.linesPacked ?? []),
         lineCount: bucket.lineCount ?? getPackedLineCount(bucket.linesPacked),
@@ -4682,39 +5582,41 @@ function App() {
               export nail list
             </button>
           </div>
-          <Profiler id="BrushPanel" onRender={handleReactProfile}>
-            <BrushPanel
-              activeGroup={activeGroup}
-              activeGroupId={activeGroupId}
-              brushRadius={brushRadius}
-              groupValueStep={GROUP_VALUE_STEP}
-              hasLoadedImage={hasLoadedImage}
-              isArtMode={isArtMode}
-              isBrushMode={isBrushMode}
-              maxBrushRadius={MAX_BRUSH_RADIUS}
-              maxGroupValue={MAX_GROUP_VALUE}
-              minBrushRadius={MIN_BRUSH_RADIUS}
-              minGroupValue={MIN_GROUP_VALUE}
-              onActiveGroupChange={setActiveGroupId}
-              onAddPixelGroup={handleAddPixelGroup}
-              onBrushModeChange={setIsBrushMode}
-              onBrushRadiusChange={(nextValue) => {
-                setBrushRadius(
-                  clamp(Number(nextValue), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
-                );
-              }}
-              onDiagnosticRender={handleDiagnosticRender}
-              onGroupValueChange={(groupId, nextValue) => {
-                const parsedValue = Number.parseFloat(nextValue);
-                handleGroupValueChange(
-                  groupId,
-                  Number.isFinite(parsedValue) ? parsedValue : 0,
-                );
-              }}
-              onRemovePixelGroup={handleRemovePixelGroup}
-              pixelGroups={pixelGroups}
-            />
-          </Profiler>
+          {SHOW_BRUSH_PANEL && (
+            <Profiler id="BrushPanel" onRender={handleReactProfile}>
+              <BrushPanel
+                activeGroup={activeGroup}
+                activeGroupId={activeGroupId}
+                brushRadius={brushRadius}
+                groupValueStep={GROUP_VALUE_STEP}
+                hasLoadedImage={hasLoadedImage}
+                isArtMode={isArtMode}
+                isBrushMode={isBrushMode}
+                maxBrushRadius={MAX_BRUSH_RADIUS}
+                maxGroupValue={MAX_GROUP_VALUE}
+                minBrushRadius={MIN_BRUSH_RADIUS}
+                minGroupValue={MIN_GROUP_VALUE}
+                onActiveGroupChange={setActiveGroupId}
+                onAddPixelGroup={handleAddPixelGroup}
+                onBrushModeChange={setIsBrushMode}
+                onBrushRadiusChange={(nextValue) => {
+                  setBrushRadius(
+                    clamp(Number(nextValue), MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS),
+                  );
+                }}
+                onDiagnosticRender={handleDiagnosticRender}
+                onGroupValueChange={(groupId, nextValue) => {
+                  const parsedValue = Number.parseFloat(nextValue);
+                  handleGroupValueChange(
+                    groupId,
+                    Number.isFinite(parsedValue) ? parsedValue : 0,
+                  );
+                }}
+                onRemovePixelGroup={handleRemovePixelGroup}
+                pixelGroups={pixelGroups}
+              />
+            </Profiler>
+          )}
           <Profiler id="MulticolorLab" onRender={handleReactProfile}>
             <MulticolorLab
             activePaletteColor={activePaletteColor}
@@ -4818,7 +5720,7 @@ function App() {
             shouldShowPaletteComparison={shouldShowPaletteComparison}
             multicolorTargetTotalLines={multicolorTargetTotalLines}
             sharedStateNextColorLabel={sharedStateNextColorLabel}
-            totalExperimentalMulticolorLines={totalExperimentalMulticolorLines}
+            totalExperimentalMulticolorLines={displayedTotalExperimentalMulticolorLines}
             totalAllocatedSuggestedLines={totalAllocatedSuggestedLines}
             totalPaletteCoverageTenths={totalPaletteCoverageTenths}
             isSharedStateLoopRunning={isSharedStateLoopRunning}

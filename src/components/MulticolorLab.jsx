@@ -115,6 +115,9 @@ function MulticolorLab({
   onToggleSharedStateLoop,
   onToggleWhiteTestOverlay,
 }) {
+  const SHOW_MULTICOLOR_INSPECT_BLOCKS = false;
+  const SHOW_BUCKETS_PANEL = false;
+  const SHOW_INTERLEAVE_PANEL = false;
   const rawMaskCanvasRef = useRef(null);
   const blurredMaskCanvasRef = useRef(null);
   const currentTargetCanvasRef = useRef(null);
@@ -507,7 +510,7 @@ function MulticolorLab({
             </div>
             <div className="multicolor-lab-section-card">
               {shouldShowPaletteComparison && (
-                <div className="multicolor-inspect-block">
+                <div className="multicolor-inspect-block" style={{ display: 'none' }}>
                   <span className="multicolor-lab-label">Preview comparison</span>
                   <div className="multicolor-comparison-grid">
                     <figure className="multicolor-comparison-card">
@@ -538,7 +541,7 @@ function MulticolorLab({
               )}
 
               {isPaletteMaskVisible && (
-                <div className="multicolor-inspect-block">
+                <div className="multicolor-inspect-block" style={{ display: 'none' }}>
                   <span className="multicolor-lab-label">
                     Isolate view
                     {activePaletteColor ? `: ${activePaletteColor.label}` : ''}
@@ -644,7 +647,7 @@ function MulticolorLab({
                 </div>
               )}
 
-              <div className="multicolor-inspect-block">
+              <div className="multicolor-inspect-block" style={{ display: 'none' }}>
                 <span className="multicolor-lab-label">Coverage</span>
                 <div className="multicolor-inline-controls">
                   <label className="multicolor-histogram-input">
@@ -947,7 +950,7 @@ function MulticolorLab({
             </div>
           </section>
 
-          <section className="multicolor-lab-section">
+          <section className="multicolor-lab-section" style={{ display: 'none' }}>
             <div className="multicolor-lab-section-head">
               <h3>Buckets</h3>
               <p>Use one row per color for visibility, plan, and quick stats.</p>
@@ -1136,7 +1139,7 @@ function MulticolorLab({
             </div>
           </section>
 
-          <section className="multicolor-lab-section">
+          <section className="multicolor-lab-section" style={{ display: 'none' }}>
             <div className="multicolor-lab-section-head">
               <h3>Interleave</h3>
               <p>Reorder the final multicolor art layering without recomputing any lines.</p>

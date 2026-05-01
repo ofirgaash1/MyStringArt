@@ -1,0 +1,1324 @@
+{
+  "elapsedMs": 10016,
+  "errors": [],
+  "orderedLines": [
+    {
+      "startNailNumber": 1,
+      "endNailNumber": 36,
+      "stepOrder": 1,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 36,
+      "endNailNumber": 64,
+      "stepOrder": 2,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 6,
+      "stepOrder": 3,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 6,
+      "endNailNumber": 264,
+      "stepOrder": 4,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 264,
+      "endNailNumber": 233,
+      "stepOrder": 5,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 233,
+      "endNailNumber": 291,
+      "stepOrder": 6,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 291,
+      "endNailNumber": 265,
+      "stepOrder": 7,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 265,
+      "endNailNumber": 5,
+      "stepOrder": 8,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 5,
+      "endNailNumber": 35,
+      "stepOrder": 9,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 35,
+      "endNailNumber": 19,
+      "stepOrder": 10,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 19,
+      "endNailNumber": 64,
+      "stepOrder": 11,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 48,
+      "stepOrder": 12,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 48,
+      "endNailNumber": 299,
+      "stepOrder": 13,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 1,
+      "endNailNumber": 121,
+      "stepOrder": 14,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 121,
+      "endNailNumber": 79,
+      "stepOrder": 15,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 79,
+      "endNailNumber": 188,
+      "stepOrder": 16,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 188,
+      "endNailNumber": 172,
+      "stepOrder": 17,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 172,
+      "endNailNumber": 229,
+      "stepOrder": 18,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 229,
+      "endNailNumber": 201,
+      "stepOrder": 19,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 201,
+      "endNailNumber": 217,
+      "stepOrder": 20,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 217,
+      "endNailNumber": 119,
+      "stepOrder": 21,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 119,
+      "endNailNumber": 85,
+      "stepOrder": 22,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 85,
+      "endNailNumber": 187,
+      "stepOrder": 23,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 187,
+      "endNailNumber": 80,
+      "stepOrder": 24,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 80,
+      "endNailNumber": 120,
+      "stepOrder": 25,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 299,
+      "endNailNumber": 276,
+      "stepOrder": 26,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 276,
+      "endNailNumber": 233,
+      "stepOrder": 27,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 233,
+      "endNailNumber": 249,
+      "stepOrder": 28,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 120,
+      "endNailNumber": 2,
+      "stepOrder": 29,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 2,
+      "endNailNumber": 117,
+      "stepOrder": 30,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 117,
+      "endNailNumber": 86,
+      "stepOrder": 31,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 86,
+      "endNailNumber": 102,
+      "stepOrder": 32,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 102,
+      "endNailNumber": 205,
+      "stepOrder": 33,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 205,
+      "endNailNumber": 228,
+      "stepOrder": 34,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 228,
+      "endNailNumber": 173,
+      "stepOrder": 35,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 249,
+      "endNailNumber": 295,
+      "stepOrder": 36,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 295,
+      "endNailNumber": 37,
+      "stepOrder": 37,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 37,
+      "endNailNumber": 60,
+      "stepOrder": 38,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 60,
+      "endNailNumber": 7,
+      "stepOrder": 39,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 7,
+      "endNailNumber": 29,
+      "stepOrder": 40,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 29,
+      "endNailNumber": 64,
+      "stepOrder": 41,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 13,
+      "stepOrder": 42,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 173,
+      "endNailNumber": 233,
+      "stepOrder": 43,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 233,
+      "endNailNumber": 200,
+      "stepOrder": 44,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 200,
+      "endNailNumber": 94,
+      "stepOrder": 45,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 94,
+      "endNailNumber": 116,
+      "stepOrder": 46,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 116,
+      "endNailNumber": 3,
+      "stepOrder": 47,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 3,
+      "endNailNumber": 113,
+      "stepOrder": 48,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 113,
+      "endNailNumber": 95,
+      "stepOrder": 49,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 95,
+      "endNailNumber": 193,
+      "stepOrder": 50,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 193,
+      "endNailNumber": 84,
+      "stepOrder": 51,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 84,
+      "endNailNumber": 134,
+      "stepOrder": 52,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 134,
+      "endNailNumber": 78,
+      "stepOrder": 53,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 78,
+      "endNailNumber": 189,
+      "stepOrder": 54,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 189,
+      "endNailNumber": 96,
+      "stepOrder": 55,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 96,
+      "endNailNumber": 112,
+      "stepOrder": 56,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 112,
+      "endNailNumber": 4,
+      "stepOrder": 57,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 4,
+      "endNailNumber": 109,
+      "stepOrder": 58,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 109,
+      "endNailNumber": 205,
+      "stepOrder": 59,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 205,
+      "endNailNumber": 113,
+      "stepOrder": 60,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 113,
+      "endNailNumber": 212,
+      "stepOrder": 61,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 212,
+      "endNailNumber": 228,
+      "stepOrder": 62,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 13,
+      "endNailNumber": 273,
+      "stepOrder": 63,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 273,
+      "endNailNumber": 250,
+      "stepOrder": 64,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 250,
+      "endNailNumber": 292,
+      "stepOrder": 65,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 292,
+      "endNailNumber": 232,
+      "stepOrder": 66,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 232,
+      "endNailNumber": 277,
+      "stepOrder": 67,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 277,
+      "endNailNumber": 298,
+      "stepOrder": 68,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 298,
+      "endNailNumber": 248,
+      "stepOrder": 69,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 248,
+      "endNailNumber": 275,
+      "stepOrder": 70,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 275,
+      "endNailNumber": 234,
+      "stepOrder": 71,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 234,
+      "endNailNumber": 263,
+      "stepOrder": 72,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 228,
+      "endNailNumber": 202,
+      "stepOrder": 73,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 202,
+      "endNailNumber": 286,
+      "stepOrder": 74,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 286,
+      "endNailNumber": 93,
+      "stepOrder": 75,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 93,
+      "endNailNumber": 3,
+      "stepOrder": 76,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 3,
+      "endNailNumber": 114,
+      "stepOrder": 77,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 114,
+      "endNailNumber": 133,
+      "stepOrder": 78,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 133,
+      "endNailNumber": 85,
+      "stepOrder": 79,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 85,
+      "endNailNumber": 184,
+      "stepOrder": 80,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 184,
+      "endNailNumber": 65,
+      "stepOrder": 81,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 65,
+      "endNailNumber": 135,
+      "stepOrder": 82,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 135,
+      "endNailNumber": 77,
+      "stepOrder": 83,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 77,
+      "endNailNumber": 190,
+      "stepOrder": 84,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 190,
+      "endNailNumber": 171,
+      "stepOrder": 85,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 171,
+      "endNailNumber": 234,
+      "stepOrder": 86,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 234,
+      "endNailNumber": 199,
+      "stepOrder": 87,
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b"
+    },
+    {
+      "startNailNumber": 263,
+      "endNailNumber": 242,
+      "stepOrder": 88,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 242,
+      "endNailNumber": 295,
+      "stepOrder": 89,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 295,
+      "endNailNumber": 278,
+      "stepOrder": 90,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 278,
+      "endNailNumber": 231,
+      "stepOrder": 91,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 231,
+      "endNailNumber": 281,
+      "stepOrder": 92,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 281,
+      "endNailNumber": 226,
+      "stepOrder": 93,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 226,
+      "endNailNumber": 285,
+      "stepOrder": 94,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 285,
+      "endNailNumber": 24,
+      "stepOrder": 95,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 24,
+      "endNailNumber": 64,
+      "stepOrder": 96,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 64,
+      "endNailNumber": 16,
+      "stepOrder": 97,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 16,
+      "endNailNumber": 46,
+      "stepOrder": 98,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 46,
+      "endNailNumber": 300,
+      "stepOrder": 99,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    },
+    {
+      "startNailNumber": 300,
+      "endNailNumber": 37,
+      "stepOrder": 100,
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b"
+    }
+  ],
+  "linesByColor": [
+    {
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b",
+      "lineCount": 54,
+      "lines": [
+        {
+          "startNailNumber": 1,
+          "endNailNumber": 121,
+          "stepOrder": 14
+        },
+        {
+          "startNailNumber": 121,
+          "endNailNumber": 79,
+          "stepOrder": 15
+        },
+        {
+          "startNailNumber": 79,
+          "endNailNumber": 188,
+          "stepOrder": 16
+        },
+        {
+          "startNailNumber": 188,
+          "endNailNumber": 172,
+          "stepOrder": 17
+        },
+        {
+          "startNailNumber": 172,
+          "endNailNumber": 229,
+          "stepOrder": 18
+        },
+        {
+          "startNailNumber": 229,
+          "endNailNumber": 201,
+          "stepOrder": 19
+        },
+        {
+          "startNailNumber": 201,
+          "endNailNumber": 217,
+          "stepOrder": 20
+        },
+        {
+          "startNailNumber": 217,
+          "endNailNumber": 119,
+          "stepOrder": 21
+        },
+        {
+          "startNailNumber": 119,
+          "endNailNumber": 85,
+          "stepOrder": 22
+        },
+        {
+          "startNailNumber": 85,
+          "endNailNumber": 187,
+          "stepOrder": 23
+        },
+        {
+          "startNailNumber": 187,
+          "endNailNumber": 80,
+          "stepOrder": 24
+        },
+        {
+          "startNailNumber": 80,
+          "endNailNumber": 120,
+          "stepOrder": 25
+        },
+        {
+          "startNailNumber": 120,
+          "endNailNumber": 2,
+          "stepOrder": 29
+        },
+        {
+          "startNailNumber": 2,
+          "endNailNumber": 117,
+          "stepOrder": 30
+        },
+        {
+          "startNailNumber": 117,
+          "endNailNumber": 86,
+          "stepOrder": 31
+        },
+        {
+          "startNailNumber": 86,
+          "endNailNumber": 102,
+          "stepOrder": 32
+        },
+        {
+          "startNailNumber": 102,
+          "endNailNumber": 205,
+          "stepOrder": 33
+        },
+        {
+          "startNailNumber": 205,
+          "endNailNumber": 228,
+          "stepOrder": 34
+        },
+        {
+          "startNailNumber": 228,
+          "endNailNumber": 173,
+          "stepOrder": 35
+        },
+        {
+          "startNailNumber": 173,
+          "endNailNumber": 233,
+          "stepOrder": 43
+        },
+        {
+          "startNailNumber": 233,
+          "endNailNumber": 200,
+          "stepOrder": 44
+        },
+        {
+          "startNailNumber": 200,
+          "endNailNumber": 94,
+          "stepOrder": 45
+        },
+        {
+          "startNailNumber": 94,
+          "endNailNumber": 116,
+          "stepOrder": 46
+        },
+        {
+          "startNailNumber": 116,
+          "endNailNumber": 3,
+          "stepOrder": 47
+        },
+        {
+          "startNailNumber": 3,
+          "endNailNumber": 113,
+          "stepOrder": 48
+        },
+        {
+          "startNailNumber": 113,
+          "endNailNumber": 95,
+          "stepOrder": 49
+        },
+        {
+          "startNailNumber": 95,
+          "endNailNumber": 193,
+          "stepOrder": 50
+        },
+        {
+          "startNailNumber": 193,
+          "endNailNumber": 84,
+          "stepOrder": 51
+        },
+        {
+          "startNailNumber": 84,
+          "endNailNumber": 134,
+          "stepOrder": 52
+        },
+        {
+          "startNailNumber": 134,
+          "endNailNumber": 78,
+          "stepOrder": 53
+        },
+        {
+          "startNailNumber": 78,
+          "endNailNumber": 189,
+          "stepOrder": 54
+        },
+        {
+          "startNailNumber": 189,
+          "endNailNumber": 96,
+          "stepOrder": 55
+        },
+        {
+          "startNailNumber": 96,
+          "endNailNumber": 112,
+          "stepOrder": 56
+        },
+        {
+          "startNailNumber": 112,
+          "endNailNumber": 4,
+          "stepOrder": 57
+        },
+        {
+          "startNailNumber": 4,
+          "endNailNumber": 109,
+          "stepOrder": 58
+        },
+        {
+          "startNailNumber": 109,
+          "endNailNumber": 205,
+          "stepOrder": 59
+        },
+        {
+          "startNailNumber": 205,
+          "endNailNumber": 113,
+          "stepOrder": 60
+        },
+        {
+          "startNailNumber": 113,
+          "endNailNumber": 212,
+          "stepOrder": 61
+        },
+        {
+          "startNailNumber": 212,
+          "endNailNumber": 228,
+          "stepOrder": 62
+        },
+        {
+          "startNailNumber": 228,
+          "endNailNumber": 202,
+          "stepOrder": 73
+        },
+        {
+          "startNailNumber": 202,
+          "endNailNumber": 286,
+          "stepOrder": 74
+        },
+        {
+          "startNailNumber": 286,
+          "endNailNumber": 93,
+          "stepOrder": 75
+        },
+        {
+          "startNailNumber": 93,
+          "endNailNumber": 3,
+          "stepOrder": 76
+        },
+        {
+          "startNailNumber": 3,
+          "endNailNumber": 114,
+          "stepOrder": 77
+        },
+        {
+          "startNailNumber": 114,
+          "endNailNumber": 133,
+          "stepOrder": 78
+        },
+        {
+          "startNailNumber": 133,
+          "endNailNumber": 85,
+          "stepOrder": 79
+        },
+        {
+          "startNailNumber": 85,
+          "endNailNumber": 184,
+          "stepOrder": 80
+        },
+        {
+          "startNailNumber": 184,
+          "endNailNumber": 65,
+          "stepOrder": 81
+        },
+        {
+          "startNailNumber": 65,
+          "endNailNumber": 135,
+          "stepOrder": 82
+        },
+        {
+          "startNailNumber": 135,
+          "endNailNumber": 77,
+          "stepOrder": 83
+        },
+        {
+          "startNailNumber": 77,
+          "endNailNumber": 190,
+          "stepOrder": 84
+        },
+        {
+          "startNailNumber": 190,
+          "endNailNumber": 171,
+          "stepOrder": 85
+        },
+        {
+          "startNailNumber": 171,
+          "endNailNumber": 234,
+          "stepOrder": 86
+        },
+        {
+          "startNailNumber": 234,
+          "endNailNumber": 199,
+          "stepOrder": 87
+        }
+      ]
+    },
+    {
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b",
+      "lineCount": 46,
+      "lines": [
+        {
+          "startNailNumber": 1,
+          "endNailNumber": 36,
+          "stepOrder": 1
+        },
+        {
+          "startNailNumber": 36,
+          "endNailNumber": 64,
+          "stepOrder": 2
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 6,
+          "stepOrder": 3
+        },
+        {
+          "startNailNumber": 6,
+          "endNailNumber": 264,
+          "stepOrder": 4
+        },
+        {
+          "startNailNumber": 264,
+          "endNailNumber": 233,
+          "stepOrder": 5
+        },
+        {
+          "startNailNumber": 233,
+          "endNailNumber": 291,
+          "stepOrder": 6
+        },
+        {
+          "startNailNumber": 291,
+          "endNailNumber": 265,
+          "stepOrder": 7
+        },
+        {
+          "startNailNumber": 265,
+          "endNailNumber": 5,
+          "stepOrder": 8
+        },
+        {
+          "startNailNumber": 5,
+          "endNailNumber": 35,
+          "stepOrder": 9
+        },
+        {
+          "startNailNumber": 35,
+          "endNailNumber": 19,
+          "stepOrder": 10
+        },
+        {
+          "startNailNumber": 19,
+          "endNailNumber": 64,
+          "stepOrder": 11
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 48,
+          "stepOrder": 12
+        },
+        {
+          "startNailNumber": 48,
+          "endNailNumber": 299,
+          "stepOrder": 13
+        },
+        {
+          "startNailNumber": 299,
+          "endNailNumber": 276,
+          "stepOrder": 26
+        },
+        {
+          "startNailNumber": 276,
+          "endNailNumber": 233,
+          "stepOrder": 27
+        },
+        {
+          "startNailNumber": 233,
+          "endNailNumber": 249,
+          "stepOrder": 28
+        },
+        {
+          "startNailNumber": 249,
+          "endNailNumber": 295,
+          "stepOrder": 36
+        },
+        {
+          "startNailNumber": 295,
+          "endNailNumber": 37,
+          "stepOrder": 37
+        },
+        {
+          "startNailNumber": 37,
+          "endNailNumber": 60,
+          "stepOrder": 38
+        },
+        {
+          "startNailNumber": 60,
+          "endNailNumber": 7,
+          "stepOrder": 39
+        },
+        {
+          "startNailNumber": 7,
+          "endNailNumber": 29,
+          "stepOrder": 40
+        },
+        {
+          "startNailNumber": 29,
+          "endNailNumber": 64,
+          "stepOrder": 41
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 13,
+          "stepOrder": 42
+        },
+        {
+          "startNailNumber": 13,
+          "endNailNumber": 273,
+          "stepOrder": 63
+        },
+        {
+          "startNailNumber": 273,
+          "endNailNumber": 250,
+          "stepOrder": 64
+        },
+        {
+          "startNailNumber": 250,
+          "endNailNumber": 292,
+          "stepOrder": 65
+        },
+        {
+          "startNailNumber": 292,
+          "endNailNumber": 232,
+          "stepOrder": 66
+        },
+        {
+          "startNailNumber": 232,
+          "endNailNumber": 277,
+          "stepOrder": 67
+        },
+        {
+          "startNailNumber": 277,
+          "endNailNumber": 298,
+          "stepOrder": 68
+        },
+        {
+          "startNailNumber": 298,
+          "endNailNumber": 248,
+          "stepOrder": 69
+        },
+        {
+          "startNailNumber": 248,
+          "endNailNumber": 275,
+          "stepOrder": 70
+        },
+        {
+          "startNailNumber": 275,
+          "endNailNumber": 234,
+          "stepOrder": 71
+        },
+        {
+          "startNailNumber": 234,
+          "endNailNumber": 263,
+          "stepOrder": 72
+        },
+        {
+          "startNailNumber": 263,
+          "endNailNumber": 242,
+          "stepOrder": 88
+        },
+        {
+          "startNailNumber": 242,
+          "endNailNumber": 295,
+          "stepOrder": 89
+        },
+        {
+          "startNailNumber": 295,
+          "endNailNumber": 278,
+          "stepOrder": 90
+        },
+        {
+          "startNailNumber": 278,
+          "endNailNumber": 231,
+          "stepOrder": 91
+        },
+        {
+          "startNailNumber": 231,
+          "endNailNumber": 281,
+          "stepOrder": 92
+        },
+        {
+          "startNailNumber": 281,
+          "endNailNumber": 226,
+          "stepOrder": 93
+        },
+        {
+          "startNailNumber": 226,
+          "endNailNumber": 285,
+          "stepOrder": 94
+        },
+        {
+          "startNailNumber": 285,
+          "endNailNumber": 24,
+          "stepOrder": 95
+        },
+        {
+          "startNailNumber": 24,
+          "endNailNumber": 64,
+          "stepOrder": 96
+        },
+        {
+          "startNailNumber": 64,
+          "endNailNumber": 16,
+          "stepOrder": 97
+        },
+        {
+          "startNailNumber": 16,
+          "endNailNumber": 46,
+          "stepOrder": 98
+        },
+        {
+          "startNailNumber": 46,
+          "endNailNumber": 300,
+          "stepOrder": 99
+        },
+        {
+          "startNailNumber": 300,
+          "endNailNumber": 37,
+          "stepOrder": 100
+        }
+      ]
+    }
+  ]
+}

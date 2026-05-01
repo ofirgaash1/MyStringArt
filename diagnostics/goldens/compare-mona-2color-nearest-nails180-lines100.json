@@ -1,0 +1,40 @@
+{
+  "mode": "compare",
+  "goldenPath": "C:\\Users\\owner\\Documents\\USER\\MyStringArt\\diagnostics\\goldens\\mona-2color-nearest-nails180-lines100.json",
+  "latestPath": "C:\\Users\\owner\\Documents\\USER\\MyStringArt\\diagnostics\\goldens\\latest-mona-2color-nearest-nails180-lines100.json",
+  "elapsedMs": 18205,
+  "errors": [],
+  "orderedLinesMatch": true,
+  "linesByColorMatch": true,
+  "expectedLineCount": 100,
+  "actualLineCount": 100,
+  "expectedByColor": [
+    {
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b",
+      "lineCount": 54
+    },
+    {
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b",
+      "lineCount": 46
+    }
+  ],
+  "actualByColor": [
+    {
+      "colorId": "found-color-1",
+      "label": "found 1",
+      "hex": "#41372b",
+      "lineCount": 54
+    },
+    {
+      "colorId": "found-color-2",
+      "label": "found 2",
+      "hex": "#b2946b",
+      "lineCount": 46
+    }
+  ],
+  "firstOrderedLineDifference": null
+}

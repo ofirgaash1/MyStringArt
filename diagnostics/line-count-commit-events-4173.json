@@ -1,0 +1,1480 @@
+{
+  "art": {
+    "mode": "art",
+    "events": [
+      {
+        "count": 1,
+        "timestamp": 1777647272454,
+        "performanceNow": 1355.5
+      },
+      {
+        "count": 2,
+        "timestamp": 1777647272566,
+        "performanceNow": 1467.8999998569489
+      },
+      {
+        "count": 3,
+        "timestamp": 1777647272717,
+        "performanceNow": 1619.0999999046326
+      },
+      {
+        "count": 4,
+        "timestamp": 1777647272910,
+        "performanceNow": 1812.0999999046326
+      },
+      {
+        "count": 5,
+        "timestamp": 1777647273119,
+        "performanceNow": 2021.2999999523163
+      },
+      {
+        "count": 6,
+        "timestamp": 1777647273361,
+        "performanceNow": 2262.7000000476837
+      },
+      {
+        "count": 7,
+        "timestamp": 1777647273630,
+        "performanceNow": 2532.399999856949
+      },
+      {
+        "count": 8,
+        "timestamp": 1777647273931,
+        "performanceNow": 2832.7999999523163
+      },
+      {
+        "count": 9,
+        "timestamp": 1777647274239,
+        "performanceNow": 3141
+      },
+      {
+        "count": 10,
+        "timestamp": 1777647274547,
+        "performanceNow": 3449.2000000476837
+      },
+      {
+        "count": 11,
+        "timestamp": 1777647274885,
+        "performanceNow": 3787
+      },
+      {
+        "count": 12,
+        "timestamp": 1777647275247,
+        "performanceNow": 4149.099999904633
+      },
+      {
+        "count": 13,
+        "timestamp": 1777647275648,
+        "performanceNow": 4549.599999904633
+      },
+      {
+        "count": 14,
+        "timestamp": 1777647276076,
+        "performanceNow": 4978.399999856949
+      },
+      {
+        "count": 15,
+        "timestamp": 1777647276540,
+        "performanceNow": 5442.399999856949
+      },
+      {
+        "count": 16,
+        "timestamp": 1777647277027,
+        "performanceNow": 5929.200000047684
+      },
+      {
+        "count": 17,
+        "timestamp": 1777647277535,
+        "performanceNow": 6436.899999856949
+      },
+      {
+        "count": 18,
+        "timestamp": 1777647278222,
+        "performanceNow": 7123.899999856949
+      },
+      {
+        "count": 19,
+        "timestamp": 1777647279058,
+        "performanceNow": 7960.200000047684
+      },
+      {
+        "count": 20,
+        "timestamp": 1777647279955,
+        "performanceNow": 8857.299999952316
+      },
+      {
+        "count": 21,
+        "timestamp": 1777647280770,
+        "performanceNow": 9672.299999952316
+      },
+      {
+        "count": 22,
+        "timestamp": 1777647281634,
+        "performanceNow": 10536.399999856949
+      },
+      {
+        "count": 23,
+        "timestamp": 1777647282535,
+        "performanceNow": 11437.200000047684
+      },
+      {
+        "count": 24,
+        "timestamp": 1777647283445,
+        "performanceNow": 12346.700000047684
+      },
+      {
+        "count": 25,
+        "timestamp": 1777647284402,
+        "performanceNow": 13303.899999856949
+      },
+      {
+        "count": 26,
+        "timestamp": 1777647285407,
+        "performanceNow": 14308.799999952316
+      },
+      {
+        "count": 27,
+        "timestamp": 1777647286462,
+        "performanceNow": 15363.599999904633
+      },
+      {
+        "count": 28,
+        "timestamp": 1777647287394,
+        "performanceNow": 16295.899999856949
+      },
+      {
+        "count": 29,
+        "timestamp": 1777647288264,
+        "performanceNow": 17166.200000047684
+      },
+      {
+        "count": 30,
+        "timestamp": 1777647289177,
+        "performanceNow": 18079.39999985695
+      },
+      {
+        "count": 31,
+        "timestamp": 1777647290109,
+        "performanceNow": 19010.599999904633
+      },
+      {
+        "count": 32,
+        "timestamp": 1777647291074,
+        "performanceNow": 19976
+      },
+      {
+        "count": 33,
+        "timestamp": 1777647292084,
+        "performanceNow": 20985.5
+      },
+      {
+        "count": 34,
+        "timestamp": 1777647293132,
+        "performanceNow": 22033.89999985695
+      },
+      {
+        "count": 35,
+        "timestamp": 1777647294231,
+        "performanceNow": 23132.700000047684
+      },
+      {
+        "count": 36,
+        "timestamp": 1777647295337,
+        "performanceNow": 24239.5
+      },
+      {
+        "count": 37,
+        "timestamp": 1777647296493,
+        "performanceNow": 25394.799999952316
+      },
+      {
+        "count": 38,
+        "timestamp": 1777647297667,
+        "performanceNow": 26568.599999904633
+      },
+      {
+        "count": 39,
+        "timestamp": 1777647298856,
+        "performanceNow": 27757.89999985695
+      },
+      {
+        "count": 40,
+        "timestamp": 1777647300085,
+        "performanceNow": 28986.89999985695
+      },
+      {
+        "count": 41,
+        "timestamp": 1777647301370,
+        "performanceNow": 30272.39999985695
+      },
+      {
+        "count": 42,
+        "timestamp": 1777647302667,
+        "performanceNow": 31568.599999904633
+      },
+      {
+        "count": 43,
+        "timestamp": 1777647303992,
+        "performanceNow": 32894.200000047684
+      },
+      {
+        "count": 44,
+        "timestamp": 1777647305455,
+        "performanceNow": 34356.799999952316
+      },
+      {
+        "count": 45,
+        "timestamp": 1777647306961,
+        "performanceNow": 35863.200000047684
+      },
+      {
+        "count": 46,
+        "timestamp": 1777647308528,
+        "performanceNow": 37429.59999990463
+      },
+      {
+        "count": 47,
+        "timestamp": 1777647310115,
+        "performanceNow": 39017.09999990463
+      },
+      {
+        "count": 48,
+        "timestamp": 1777647311765,
+        "performanceNow": 40666.89999985695
+      },
+      {
+        "count": 49,
+        "timestamp": 1777647313477,
+        "performanceNow": 42379.200000047684
+      },
+      {
+        "count": 50,
+        "timestamp": 1777647315218,
+        "performanceNow": 44120
+      },
+      {
+        "count": 51,
+        "timestamp": 1777647317003,
+        "performanceNow": 45904.89999985695
+      },
+      {
+        "count": 52,
+        "timestamp": 1777647318833,
+        "performanceNow": 47734.59999990463
+      },
+      {
+        "count": 53,
+        "timestamp": 1777647320712,
+        "performanceNow": 49613.799999952316
+      },
+      {
+        "count": 54,
+        "timestamp": 1777647322640,
+        "performanceNow": 51541.59999990463
+      },
+      {
+        "count": 55,
+        "timestamp": 1777647324629,
+        "performanceNow": 53531.5
+      },
+      {
+        "count": 56,
+        "timestamp": 1777647326651,
+        "performanceNow": 55552.700000047684
+      },
+      {
+        "count": 57,
+        "timestamp": 1777647328715,
+        "performanceNow": 57617.39999985695
+      },
+      {
+        "count": 58,
+        "timestamp": 1777647330811,
+        "performanceNow": 59713.5
+      },
+      {
+        "count": 59,
+        "timestamp": 1777647332998,
+        "performanceNow": 61900.200000047684
+      },
+      {
+        "count": 60,
+        "timestamp": 1777647335212,
+        "performanceNow": 64114.200000047684
+      },
+      {
+        "count": 61,
+        "timestamp": 1777647337411,
+        "performanceNow": 66313.09999990463
+      },
+      {
+        "count": 62,
+        "timestamp": 1777647339666,
+        "performanceNow": 68568.29999995232
+      },
+      {
+        "count": 63,
+        "timestamp": 1777647341961,
+        "performanceNow": 70863.20000004768
+      },
+      {
+        "count": 64,
+        "timestamp": 1777647344331,
+        "performanceNow": 73232.89999985695
+      },
+      {
+        "count": 65,
+        "timestamp": 1777647346781,
+        "performanceNow": 75683.5
+      },
+      {
+        "count": 66,
+        "timestamp": 1777647349272,
+        "performanceNow": 78174.5
+      },
+      {
+        "count": 67,
+        "timestamp": 1777647351739,
+        "performanceNow": 80640.59999990463
+      },
+      {
+        "count": 68,
+        "timestamp": 1777647354382,
+        "performanceNow": 83283.5
+      },
+      {
+        "count": 69,
+        "timestamp": 1777647357011,
+        "performanceNow": 85913.5
+      },
+      {
+        "count": 70,
+        "timestamp": 1777647359729,
+        "performanceNow": 88631.20000004768
+      },
+      {
+        "count": 71,
+        "timestamp": 1777647362426,
+        "performanceNow": 91328.29999995232
+      },
+      {
+        "count": 72,
+        "timestamp": 1777647365161,
+        "performanceNow": 94063.20000004768
+      },
+      {
+        "count": 73,
+        "timestamp": 1777647367940,
+        "performanceNow": 96841.89999985695
+      },
+      {
+        "count": 74,
+        "timestamp": 1777647370781,
+        "performanceNow": 99683
+      },
+      {
+        "count": 75,
+        "timestamp": 1777647373696,
+        "performanceNow": 102597.70000004768
+      },
+      {
+        "count": 76,
+        "timestamp": 1777647376643,
+        "performanceNow": 105544.79999995232
+      },
+      {
+        "count": 77,
+        "timestamp": 1777647380939,
+        "performanceNow": 109840.79999995232
+      },
+      {
+        "count": 78,
+        "timestamp": 1777647385088,
+        "performanceNow": 113990
+      },
+      {
+        "count": 79,
+        "timestamp": 1777647388569,
+        "performanceNow": 117471.5
+      },
+      {
+        "count": 80,
+        "timestamp": 1777647391758,
+        "performanceNow": 120659.59999990463
+      },
+      {
+        "count": 81,
+        "timestamp": 1777647395492,
+        "performanceNow": 124393.79999995232
+      }
+    ],
+    "deltas": [
+      {
+        "count": 2,
+        "deltaMs": 112.4
+      },
+      {
+        "count": 3,
+        "deltaMs": 151.2
+      },
+      {
+        "count": 4,
+        "deltaMs": 193
+      },
+      {
+        "count": 5,
+        "deltaMs": 209.2
+      },
+      {
+        "count": 6,
+        "deltaMs": 241.4
+      },
+      {
+        "count": 7,
+        "deltaMs": 269.7
+      },
+      {
+        "count": 8,
+        "deltaMs": 300.4
+      },
+      {
+        "count": 9,
+        "deltaMs": 308.2
+      },
+      {
+        "count": 10,
+        "deltaMs": 308.2
+      },
+      {
+        "count": 11,
+        "deltaMs": 337.8
+      },
+      {
+        "count": 12,
+        "deltaMs": 362.1
+      },
+      {
+        "count": 13,
+        "deltaMs": 400.5
+      },
+      {
+        "count": 14,
+        "deltaMs": 428.8
+      },
+      {
+        "count": 15,
+        "deltaMs": 464
+      },
+      {
+        "count": 16,
+        "deltaMs": 486.8
+      },
+      {
+        "count": 17,
+        "deltaMs": 507.7
+      },
+      {
+        "count": 18,
+        "deltaMs": 687
+      },
+      {
+        "count": 19,
+        "deltaMs": 836.3
+      },
+      {
+        "count": 20,
+        "deltaMs": 897.1
+      },
+      {
+        "count": 21,
+        "deltaMs": 815
+      },
+      {
+        "count": 22,
+        "deltaMs": 864.1
+      },
+      {
+        "count": 23,
+        "deltaMs": 900.8
+      },
+      {
+        "count": 24,
+        "deltaMs": 909.5
+      },
+      {
+        "count": 25,
+        "deltaMs": 957.2
+      },
+      {
+        "count": 26,
+        "deltaMs": 1004.9
+      },
+      {
+        "count": 27,
+        "deltaMs": 1054.8
+      },
+      {
+        "count": 28,
+        "deltaMs": 932.3
+      },
+      {
+        "count": 29,
+        "deltaMs": 870.3
+      },
+      {
+        "count": 30,
+        "deltaMs": 913.2
+      },
+      {
+        "count": 31,
+        "deltaMs": 931.2
+      },
+      {
+        "count": 32,
+        "deltaMs": 965.4
+      },
+      {
+        "count": 33,
+        "deltaMs": 1009.5
+      },
+      {
+        "count": 34,
+        "deltaMs": 1048.4
+      },
+      {
+        "count": 35,
+        "deltaMs": 1098.8
+      },
+      {
+        "count": 36,
+        "deltaMs": 1106.8
+      },
+      {
+        "count": 37,
+        "deltaMs": 1155.3
+      },
+      {
+        "count": 38,
+        "deltaMs": 1173.8
+      },
+      {
+        "count": 39,
+        "deltaMs": 1189.3
+      },
+      {
+        "count": 40,
+        "deltaMs": 1229
+      },
+      {
+        "count": 41,
+        "deltaMs": 1285.5
+      },
+      {
+        "count": 42,
+        "deltaMs": 1296.2
+      },
+      {
+        "count": 43,
+        "deltaMs": 1325.6
+      },
+      {
+        "count": 44,
+        "deltaMs": 1462.6
+      },
+      {
+        "count": 45,
+        "deltaMs": 1506.4
+      },
+      {
+        "count": 46,
+        "deltaMs": 1566.4
+      },
+      {
+        "count": 47,
+        "deltaMs": 1587.5
+      },
+      {
+        "count": 48,
+        "deltaMs": 1649.8
+      },
+      {
+        "count": 49,
+        "deltaMs": 1712.3
+      },
+      {
+        "count": 50,
+        "deltaMs": 1740.8
+      },
+      {
+        "count": 51,
+        "deltaMs": 1784.9
+      },
+      {
+        "count": 52,
+        "deltaMs": 1829.7
+      },
+      {
+        "count": 53,
+        "deltaMs": 1879.2
+      },
+      {
+        "count": 54,
+        "deltaMs": 1927.8
+      },
+      {
+        "count": 55,
+        "deltaMs": 1989.9
+      },
+      {
+        "count": 56,
+        "deltaMs": 2021.2
+      },
+      {
+        "count": 57,
+        "deltaMs": 2064.7
+      },
+      {
+        "count": 58,
+        "deltaMs": 2096.1
+      },
+      {
+        "count": 59,
+        "deltaMs": 2186.7
+      },
+      {
+        "count": 60,
+        "deltaMs": 2214
+      },
+      {
+        "count": 61,
+        "deltaMs": 2198.9
+      },
+      {
+        "count": 62,
+        "deltaMs": 2255.2
+      },
+      {
+        "count": 63,
+        "deltaMs": 2294.9
+      },
+      {
+        "count": 64,
+        "deltaMs": 2369.7
+      },
+      {
+        "count": 65,
+        "deltaMs": 2450.6
+      },
+      {
+        "count": 66,
+        "deltaMs": 2491
+      },
+      {
+        "count": 67,
+        "deltaMs": 2466.1
+      },
+      {
+        "count": 68,
+        "deltaMs": 2642.9
+      },
+      {
+        "count": 69,
+        "deltaMs": 2630
+      },
+      {
+        "count": 70,
+        "deltaMs": 2717.7
+      },
+      {
+        "count": 71,
+        "deltaMs": 2697.1
+      },
+      {
+        "count": 72,
+        "deltaMs": 2734.9
+      },
+      {
+        "count": 73,
+        "deltaMs": 2778.7
+      },
+      {
+        "count": 74,
+        "deltaMs": 2841.1
+      },
+      {
+        "count": 75,
+        "deltaMs": 2914.7
+      },
+      {
+        "count": 76,
+        "deltaMs": 2947.1
+      },
+      {
+        "count": 77,
+        "deltaMs": 4296
+      },
+      {
+        "count": 78,
+        "deltaMs": 4149.2
+      },
+      {
+        "count": 79,
+        "deltaMs": 3481.5
+      },
+      {
+        "count": 80,
+        "deltaMs": 3188.1
+      },
+      {
+        "count": 81,
+        "deltaMs": 3734.2
+      }
+    ],
+    "summary": {
+      "count": 81,
+      "avgDeltaMs": 1538,
+      "p50DeltaMs": 1285.5,
+      "p90DeltaMs": 2778.7,
+      "maxDeltaMs": 4296
+    }
+  },
+  "algorithm": {
+    "mode": "algorithm",
+    "events": [
+      {
+        "count": 1,
+        "timestamp": 1777647402097,
+        "performanceNow": 1494
+      },
+      {
+        "count": 2,
+        "timestamp": 1777647402211,
+        "performanceNow": 1608
+      },
+      {
+        "count": 3,
+        "timestamp": 1777647402376,
+        "performanceNow": 1772.7000000476837
+      },
+      {
+        "count": 4,
+        "timestamp": 1777647402558,
+        "performanceNow": 1955
+      },
+      {
+        "count": 5,
+        "timestamp": 1777647402763,
+        "performanceNow": 2160.100000143051
+      },
+      {
+        "count": 6,
+        "timestamp": 1777647403003,
+        "performanceNow": 2400.100000143051
+      },
+      {
+        "count": 7,
+        "timestamp": 1777647403228,
+        "performanceNow": 2624.600000143051
+      },
+      {
+        "count": 8,
+        "timestamp": 1777647403481,
+        "performanceNow": 2877.4000000953674
+      },
+      {
+        "count": 9,
+        "timestamp": 1777647403761,
+        "performanceNow": 3158.2999999523163
+      },
+      {
+        "count": 10,
+        "timestamp": 1777647404066,
+        "performanceNow": 3462.9000000953674
+      },
+      {
+        "count": 11,
+        "timestamp": 1777647404402,
+        "performanceNow": 3798.4000000953674
+      },
+      {
+        "count": 12,
+        "timestamp": 1777647404761,
+        "performanceNow": 4158.200000047684
+      },
+      {
+        "count": 13,
+        "timestamp": 1777647405155,
+        "performanceNow": 4551.400000095367
+      },
+      {
+        "count": 14,
+        "timestamp": 1777647405584,
+        "performanceNow": 4980.400000095367
+      },
+      {
+        "count": 15,
+        "timestamp": 1777647406043,
+        "performanceNow": 5440.400000095367
+      },
+      {
+        "count": 16,
+        "timestamp": 1777647406542,
+        "performanceNow": 5939.400000095367
+      },
+      {
+        "count": 17,
+        "timestamp": 1777647407058,
+        "performanceNow": 6455.400000095367
+      },
+      {
+        "count": 18,
+        "timestamp": 1777647407604,
+        "performanceNow": 7001
+      },
+      {
+        "count": 19,
+        "timestamp": 1777647408219,
+        "performanceNow": 7615.600000143051
+      },
+      {
+        "count": 20,
+        "timestamp": 1777647408917,
+        "performanceNow": 8313.400000095367
+      },
+      {
+        "count": 21,
+        "timestamp": 1777647409597,
+        "performanceNow": 8994.299999952316
+      },
+      {
+        "count": 22,
+        "timestamp": 1777647410284,
+        "performanceNow": 9681
+      },
+      {
+        "count": 23,
+        "timestamp": 1777647411083,
+        "performanceNow": 10480.299999952316
+      },
+      {
+        "count": 24,
+        "timestamp": 1777647412248,
+        "performanceNow": 11644.400000095367
+      },
+      {
+        "count": 25,
+        "timestamp": 1777647413173,
+        "performanceNow": 12570.299999952316
+      },
+      {
+        "count": 26,
+        "timestamp": 1777647413961,
+        "performanceNow": 13357.5
+      },
+      {
+        "count": 27,
+        "timestamp": 1777647414708,
+        "performanceNow": 14104.700000047684
+      },
+      {
+        "count": 28,
+        "timestamp": 1777647415529,
+        "performanceNow": 14926.100000143051
+      },
+      {
+        "count": 29,
+        "timestamp": 1777647416353,
+        "performanceNow": 15750
+      },
+      {
+        "count": 30,
+        "timestamp": 1777647417266,
+        "performanceNow": 16662.900000095367
+      },
+      {
+        "count": 31,
+        "timestamp": 1777647418155,
+        "performanceNow": 17552.299999952316
+      },
+      {
+        "count": 32,
+        "timestamp": 1777647419067,
+        "performanceNow": 18464.10000014305
+      },
+      {
+        "count": 33,
+        "timestamp": 1777647420016,
+        "performanceNow": 19412.799999952316
+      },
+      {
+        "count": 34,
+        "timestamp": 1777647420972,
+        "performanceNow": 20369.10000014305
+      },
+      {
+        "count": 35,
+        "timestamp": 1777647421946,
+        "performanceNow": 21342.900000095367
+      },
+      {
+        "count": 36,
+        "timestamp": 1777647422950,
+        "performanceNow": 22346.700000047684
+      },
+      {
+        "count": 37,
+        "timestamp": 1777647424014,
+        "performanceNow": 23411.299999952316
+      },
+      {
+        "count": 38,
+        "timestamp": 1777647425070,
+        "performanceNow": 24467
+      },
+      {
+        "count": 39,
+        "timestamp": 1777647426232,
+        "performanceNow": 25628.5
+      },
+      {
+        "count": 40,
+        "timestamp": 1777647427758,
+        "performanceNow": 27154.799999952316
+      },
+      {
+        "count": 41,
+        "timestamp": 1777647429620,
+        "performanceNow": 29016.60000014305
+      },
+      {
+        "count": 42,
+        "timestamp": 1777647431030,
+        "performanceNow": 30426.5
+      },
+      {
+        "count": 43,
+        "timestamp": 1777647432494,
+        "performanceNow": 31890.799999952316
+      },
+      {
+        "count": 44,
+        "timestamp": 1777647433971,
+        "performanceNow": 33368.10000014305
+      },
+      {
+        "count": 45,
+        "timestamp": 1777647435478,
+        "performanceNow": 34874.60000014305
+      },
+      {
+        "count": 46,
+        "timestamp": 1777647437026,
+        "performanceNow": 36422.799999952316
+      },
+      {
+        "count": 47,
+        "timestamp": 1777647438674,
+        "performanceNow": 38070.799999952316
+      },
+      {
+        "count": 48,
+        "timestamp": 1777647440404,
+        "performanceNow": 39801.200000047684
+      },
+      {
+        "count": 49,
+        "timestamp": 1777647442242,
+        "performanceNow": 41638.60000014305
+      },
+      {
+        "count": 50,
+        "timestamp": 1777647444185,
+        "performanceNow": 43582.299999952316
+      },
+      {
+        "count": 51,
+        "timestamp": 1777647446020,
+        "performanceNow": 45416.5
+      },
+      {
+        "count": 52,
+        "timestamp": 1777647447912,
+        "performanceNow": 47308.799999952316
+      },
+      {
+        "count": 53,
+        "timestamp": 1777647449873,
+        "performanceNow": 49270
+      },
+      {
+        "count": 54,
+        "timestamp": 1777647451934,
+        "performanceNow": 51330.799999952316
+      },
+      {
+        "count": 55,
+        "timestamp": 1777647453961,
+        "performanceNow": 53357.700000047684
+      },
+      {
+        "count": 56,
+        "timestamp": 1777647455988,
+        "performanceNow": 55385.40000009537
+      },
+      {
+        "count": 57,
+        "timestamp": 1777647458056,
+        "performanceNow": 57453.299999952316
+      },
+      {
+        "count": 58,
+        "timestamp": 1777647460233,
+        "performanceNow": 59629.60000014305
+      },
+      {
+        "count": 59,
+        "timestamp": 1777647462509,
+        "performanceNow": 61906.10000014305
+      },
+      {
+        "count": 60,
+        "timestamp": 1777647464700,
+        "performanceNow": 64097.200000047684
+      },
+      {
+        "count": 61,
+        "timestamp": 1777647466886,
+        "performanceNow": 66282.70000004768
+      },
+      {
+        "count": 62,
+        "timestamp": 1777647469132,
+        "performanceNow": 68529.40000009537
+      },
+      {
+        "count": 63,
+        "timestamp": 1777647471506,
+        "performanceNow": 70903
+      },
+      {
+        "count": 64,
+        "timestamp": 1777647473912,
+        "performanceNow": 73309.10000014305
+      },
+      {
+        "count": 65,
+        "timestamp": 1777647476300,
+        "performanceNow": 75696.90000009537
+      },
+      {
+        "count": 66,
+        "timestamp": 1777647478737,
+        "performanceNow": 78133.79999995232
+      },
+      {
+        "count": 67,
+        "timestamp": 1777647481334,
+        "performanceNow": 80730.60000014305
+      },
+      {
+        "count": 68,
+        "timestamp": 1777647483976,
+        "performanceNow": 83372.90000009537
+      },
+      {
+        "count": 69,
+        "timestamp": 1777647486579,
+        "performanceNow": 85975.5
+      },
+      {
+        "count": 70,
+        "timestamp": 1777647489279,
+        "performanceNow": 88676.20000004768
+      },
+      {
+        "count": 71,
+        "timestamp": 1777647492108,
+        "performanceNow": 91504.70000004768
+      },
+      {
+        "count": 72,
+        "timestamp": 1777647494905,
+        "performanceNow": 94302.10000014305
+      },
+      {
+        "count": 73,
+        "timestamp": 1777647497655,
+        "performanceNow": 97052.29999995232
+      },
+      {
+        "count": 74,
+        "timestamp": 1777647500506,
+        "performanceNow": 99902.90000009537
+      },
+      {
+        "count": 75,
+        "timestamp": 1777647503518,
+        "performanceNow": 102915.40000009537
+      },
+      {
+        "count": 76,
+        "timestamp": 1777647506477,
+        "performanceNow": 105874.20000004768
+      },
+      {
+        "count": 77,
+        "timestamp": 1777647509656,
+        "performanceNow": 109053.20000004768
+      },
+      {
+        "count": 78,
+        "timestamp": 1777647513363,
+        "performanceNow": 112760.10000014305
+      },
+      {
+        "count": 79,
+        "timestamp": 1777647516680,
+        "performanceNow": 116076.5
+      },
+      {
+        "count": 80,
+        "timestamp": 1777647519909,
+        "performanceNow": 119305.5
+      },
+      {
+        "count": 81,
+        "timestamp": 1777647523383,
+        "performanceNow": 122780.20000004768
+      }
+    ],
+    "deltas": [
+      {
+        "count": 2,
+        "deltaMs": 114
+      },
+      {
+        "count": 3,
+        "deltaMs": 164.7
+      },
+      {
+        "count": 4,
+        "deltaMs": 182.3
+      },
+      {
+        "count": 5,
+        "deltaMs": 205.1
+      },
+      {
+        "count": 6,
+        "deltaMs": 240
+      },
+      {
+        "count": 7,
+        "deltaMs": 224.5
+      },
+      {
+        "count": 8,
+        "deltaMs": 252.8
+      },
+      {
+        "count": 9,
+        "deltaMs": 280.9
+      },
+      {
+        "count": 10,
+        "deltaMs": 304.6
+      },
+      {
+        "count": 11,
+        "deltaMs": 335.5
+      },
+      {
+        "count": 12,
+        "deltaMs": 359.8
+      },
+      {
+        "count": 13,
+        "deltaMs": 393.2
+      },
+      {
+        "count": 14,
+        "deltaMs": 429
+      },
+      {
+        "count": 15,
+        "deltaMs": 460
+      },
+      {
+        "count": 16,
+        "deltaMs": 499
+      },
+      {
+        "count": 17,
+        "deltaMs": 516
+      },
+      {
+        "count": 18,
+        "deltaMs": 545.6
+      },
+      {
+        "count": 19,
+        "deltaMs": 614.6
+      },
+      {
+        "count": 20,
+        "deltaMs": 697.8
+      },
+      {
+        "count": 21,
+        "deltaMs": 680.9
+      },
+      {
+        "count": 22,
+        "deltaMs": 686.7
+      },
+      {
+        "count": 23,
+        "deltaMs": 799.3
+      },
+      {
+        "count": 24,
+        "deltaMs": 1164.1
+      },
+      {
+        "count": 25,
+        "deltaMs": 925.9
+      },
+      {
+        "count": 26,
+        "deltaMs": 787.2
+      },
+      {
+        "count": 27,
+        "deltaMs": 747.2
+      },
+      {
+        "count": 28,
+        "deltaMs": 821.4
+      },
+      {
+        "count": 29,
+        "deltaMs": 823.9
+      },
+      {
+        "count": 30,
+        "deltaMs": 912.9
+      },
+      {
+        "count": 31,
+        "deltaMs": 889.4
+      },
+      {
+        "count": 32,
+        "deltaMs": 911.8
+      },
+      {
+        "count": 33,
+        "deltaMs": 948.7
+      },
+      {
+        "count": 34,
+        "deltaMs": 956.3
+      },
+      {
+        "count": 35,
+        "deltaMs": 973.8
+      },
+      {
+        "count": 36,
+        "deltaMs": 1003.8
+      },
+      {
+        "count": 37,
+        "deltaMs": 1064.6
+      },
+      {
+        "count": 38,
+        "deltaMs": 1055.7
+      },
+      {
+        "count": 39,
+        "deltaMs": 1161.5
+      },
+      {
+        "count": 40,
+        "deltaMs": 1526.3
+      },
+      {
+        "count": 41,
+        "deltaMs": 1861.8
+      },
+      {
+        "count": 42,
+        "deltaMs": 1409.9
+      },
+      {
+        "count": 43,
+        "deltaMs": 1464.3
+      },
+      {
+        "count": 44,
+        "deltaMs": 1477.3
+      },
+      {
+        "count": 45,
+        "deltaMs": 1506.5
+      },
+      {
+        "count": 46,
+        "deltaMs": 1548.2
+      },
+      {
+        "count": 47,
+        "deltaMs": 1648
+      },
+      {
+        "count": 48,
+        "deltaMs": 1730.4
+      },
+      {
+        "count": 49,
+        "deltaMs": 1837.4
+      },
+      {
+        "count": 50,
+        "deltaMs": 1943.7
+      },
+      {
+        "count": 51,
+        "deltaMs": 1834.2
+      },
+      {
+        "count": 52,
+        "deltaMs": 1892.3
+      },
+      {
+        "count": 53,
+        "deltaMs": 1961.2
+      },
+      {
+        "count": 54,
+        "deltaMs": 2060.8
+      },
+      {
+        "count": 55,
+        "deltaMs": 2026.9
+      },
+      {
+        "count": 56,
+        "deltaMs": 2027.7
+      },
+      {
+        "count": 57,
+        "deltaMs": 2067.9
+      },
+      {
+        "count": 58,
+        "deltaMs": 2176.3
+      },
+      {
+        "count": 59,
+        "deltaMs": 2276.5
+      },
+      {
+        "count": 60,
+        "deltaMs": 2191.1
+      },
+      {
+        "count": 61,
+        "deltaMs": 2185.5
+      },
+      {
+        "count": 62,
+        "deltaMs": 2246.7
+      },
+      {
+        "count": 63,
+        "deltaMs": 2373.6
+      },
+      {
+        "count": 64,
+        "deltaMs": 2406.1
+      },
+      {
+        "count": 65,
+        "deltaMs": 2387.8
+      },
+      {
+        "count": 66,
+        "deltaMs": 2436.9
+      },
+      {
+        "count": 67,
+        "deltaMs": 2596.8
+      },
+      {
+        "count": 68,
+        "deltaMs": 2642.3
+      },
+      {
+        "count": 69,
+        "deltaMs": 2602.6
+      },
+      {
+        "count": 70,
+        "deltaMs": 2700.7
+      },
+      {
+        "count": 71,
+        "deltaMs": 2828.5
+      },
+      {
+        "count": 72,
+        "deltaMs": 2797.4
+      },
+      {
+        "count": 73,
+        "deltaMs": 2750.2
+      },
+      {
+        "count": 74,
+        "deltaMs": 2850.6
+      },
+      {
+        "count": 75,
+        "deltaMs": 3012.5
+      },
+      {
+        "count": 76,
+        "deltaMs": 2958.8
+      },
+      {
+        "count": 77,
+        "deltaMs": 3179
+      },
+      {
+        "count": 78,
+        "deltaMs": 3706.9
+      },
+      {
+        "count": 79,
+        "deltaMs": 3316.4
+      },
+      {
+        "count": 80,
+        "deltaMs": 3229
+      },
+      {
+        "count": 81,
+        "deltaMs": 3474.7
+      }
+    ],
+    "summary": {
+      "count": 81,
+      "avgDeltaMs": 1516.1,
+      "p50DeltaMs": 1464.3,
+      "p90DeltaMs": 2828.5,
+      "maxDeltaMs": 3706.9
+    }
+  }
+}
