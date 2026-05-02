@@ -107,6 +107,10 @@ function MulticolorLab({
   setMulticolorPalettePresetId,
   setMulticolorTargetTotalLines,
   setMulticolorUsedLineExclusionMode,
+  sharedLoopSolverMode,
+  sharedLoopBitsetGridSize,
+  setSharedLoopSolverMode,
+  setSharedLoopBitsetGridSize,
   shouldShowPaletteComparison,
   sharedStateNextColorLabel,
   totalExperimentalMulticolorLines,
@@ -847,6 +851,63 @@ function MulticolorLab({
                     shared best
                   </button>
                 </div>
+
+              <div className="multicolor-inline-controls">
+                <span className="multicolor-lab-label">Solver mode</span>
+                <div
+                  className="multicolor-debug-toggle-group"
+                  role="radiogroup"
+                  aria-label="Shared loop solver mode"
+                >
+                  <button
+                    className={[
+                      'multicolor-debug-toggle',
+                      sharedLoopSolverMode === 'exact-global-union' ? 'is-active' : '',
+                    ].filter(Boolean).join(' ')}
+                    type="button"
+                    role="radio"
+                    aria-checked={sharedLoopSolverMode === 'exact-global-union'}
+                    onClick={() => setSharedLoopSolverMode('exact-global-union')}
+                  >
+                    exact
+                  </button>
+                  <button
+                    className={[
+                      'multicolor-debug-toggle',
+                      sharedLoopSolverMode === 'bitset-prototype' ? 'is-active' : '',
+                    ].filter(Boolean).join(' ')}
+                    type="button"
+                    role="radio"
+                    aria-checked={sharedLoopSolverMode === 'bitset-prototype'}
+                    onClick={() => setSharedLoopSolverMode('bitset-prototype')}
+                  >
+                    bitset
+                  </button>
+                </div>
+                <label className="checkbox-row">
+                  <span>Grid size</span>
+                  <input
+                    type="number"
+                    min={64}
+                    step={1}
+                    value={sharedLoopBitsetGridSize}
+                    onChange={(event) => {
+                      const parsedValue = Number.parseInt(event.target.value, 10);
+                      if (Number.isFinite(parsedValue)) {
+                        setSharedLoopBitsetGridSize(Math.max(64, parsedValue));
+                      }
+                    }}
+                    disabled={sharedLoopSolverMode !== 'bitset-prototype'}
+                    style={{ width: '7rem' }}
+                  />
+                </label>
+                <span className="multicolor-inline-stat">
+                  {sharedLoopSolverMode === 'bitset-prototype'
+                    ? 'bitset prototype active'
+                    : 'exact solver active'}
+                </span>
+              </div>
+
                 <label className="checkbox-row">
                   <input
                     type="checkbox"

@@ -1,4 +1,5 @@
 import { Profiler, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import BrushPanel from './components/BrushPanel';
 import HoveredPixelOverlay from './components/HoveredPixelOverlay';
 import MulticolorLab from './components/MulticolorLab';
@@ -6,7 +7,6 @@ import PreviewWorkspace from './components/PreviewWorkspace';
 import {
   buildArtLineSegments,
   buildLinePolygonSegments,
-  buildManualArtLineSegments,
   buildNails,
   getDraggedImageCenter,
   getDraggedPreviewOffset,
@@ -594,6 +594,8 @@ function App() {
   );
   const [isExperimentalColorLinesOnlyPreviewEnabled, setIsExperimentalColorLinesOnlyPreviewEnabled] = useState(false);
   const [multicolorExperimentalSteppingMode, setMulticolorExperimentalSteppingMode] = useState('shared-best');
+  const [sharedLoopSolverMode, setSharedLoopSolverMode] = useState('exact-global-union');
+  const [sharedLoopBitsetGridSize, setSharedLoopBitsetGridSize] = useState(512);
   const [multicolorRoundRobinNextColorId, setMulticolorRoundRobinNextColorId] = useState(null);
   const [multicolorMaskImages, setMulticolorMaskImages] = useState([]);
   const [activeMulticolorTargetImage, setActiveMulticolorTargetImage] = useState(null);
@@ -608,6 +610,7 @@ function App() {
   const [isSharedStateLoopRunning, setIsSharedStateLoopRunning] = useState(false);
   const [sharedStateLoopStatus, setSharedStateLoopStatus] = useState('');
   const [sharedLoopVisibleLineCount, setSharedLoopVisibleLineCount] = useState(null);
+  const [sharedLoopBitsetPreview, setSharedLoopBitsetPreview] = useState(null);
   const SHOW_BRUSH_PANEL = false;
   const [isWhiteTestOverlayEnabled, setIsWhiteTestOverlayEnabled] = useState(false);
 
@@ -660,8 +663,13 @@ function App() {
   const sharedTargetRegionGeometryIndexesRef = useRef(new Map());
   const sharedCurrentRegionGeometryIndexesRef = useRef(new Map());
   const sharedLoopVisibleLineCountRef = useRef(null);
+  const sharedLoopVisibleLineCountUpdateTimeoutRef = useRef(null);
+  const sharedLoopVisibleLineCountPendingRef = useRef(null);
   const sharedLoopLastBucketFlushAtRef = useRef(0);
   const sharedLoopBucketStateFlushPendingRef = useRef(false);
+  const sharedLoopFinalFlushTimeoutRef = useRef(null);
+  const sharedLoopAcceptedLineQueueRef = useRef([]);
+  const sharedLoopAcceptedLineQueueProcessTimeoutRef = useRef(null);
   const sharedStateLoopStopRequestedRef = useRef(false);
   const sharedStateLoopRunningRef = useRef(false);
   const sharedLoopWorkerRef = useRef(null);
@@ -699,6 +707,22 @@ function App() {
   useEffect(() => {
     multicolorExperimentalSteppingModeRef.current = multicolorExperimentalSteppingMode;
   }, [multicolorExperimentalSteppingMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.__sharedLoopSolverMode = sharedLoopSolverMode;
+  }, [sharedLoopSolverMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.__sharedLoopBitsetGridSize = sharedLoopBitsetGridSize;
+  }, [sharedLoopBitsetGridSize]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1995,37 +2019,8 @@ function App() {
   };
 
   const getTopmostHoveredArtLine = (clientX, clientY) => {
-    const previewElement = previewRef.current;
-    const artLinesSvg = previewElement?.querySelector('.art-lines-layer');
-    if (!artLinesSvg) {
+    if (!previewRef.current || !nails.length || isArtMode) {
       return null;
-    }
-
-    const polygonElements = artLinesSvg.querySelectorAll('polygon');
-    if (!polygonElements || polygonElements.length === 0) {
-      return null;
-    }
-
-    const screenMatrix = artLinesSvg.getScreenCTM?.();
-    if (!screenMatrix) {
-      return null;
-    }
-
-    let localPoint = null;
-    try {
-      localPoint = new DOMPoint(clientX, clientY).matrixTransform(screenMatrix.inverse());
-    } catch {
-      return null;
-    }
-
-    for (let lineIndex = polygonElements.length - 1; lineIndex >= 0; lineIndex -= 1) {
-      const polygonElement = polygonElements[lineIndex];
-      if (
-        typeof polygonElement?.isPointInFill === 'function' &&
-        polygonElement.isPointInFill(localPoint)
-      ) {
-        return artHoverLines[lineIndex] ?? null;
-      }
     }
 
     return null;
@@ -3441,6 +3436,7 @@ function App() {
   const handleMakeLinePermanent = (startIndex = fromIndex, endIndex = toIndex, options = {}) => {
     const stepProfile = options.profile ?? null;
     const shouldSkipVisibleSync = Boolean(options.skipVisibleSync);
+    const skipCanvasApplication = Boolean(options.skipCanvasApplication);
     const skipGlobalUsedLineCheck = Boolean(options.skipGlobalUsedLineCheck);
     const skipGlobalUsedLineTracking = Boolean(options.skipGlobalUsedLineTracking);
     const lineColorRgb = options.lineColorRgb ?? null;
@@ -3449,6 +3445,19 @@ function App() {
     const usedLineKeys = options.usedLineKeys ?? usedLineKeysRef.current;
     const lineDarknessStep = options.lineDarknessStep ?? getLineDarknessStep();
     const lineKey = getNormalizedLineKey(startIndex, endIndex);
+    if (
+      !lineKey ||
+      (!skipGlobalUsedLineCheck && usedLineKeys.has(lineKey))
+    ) {
+      return false;
+    }
+    if (skipCanvasApplication) {
+      if (!skipGlobalUsedLineTracking) {
+        usedLineKeysRef.current.add(lineKey);
+      }
+      return true;
+    }
+
     const startNail = nails[startIndex - 1];
     const endNail = nails[endIndex - 1];
     const lineGeometry = buildLineGeometryForIndexes(
@@ -3473,8 +3482,6 @@ function App() {
           targetRegionGeometryIndex,
         ) > GEOMETRY_AREA_EPSILON);
     if (
-      !lineKey ||
-      (!skipGlobalUsedLineCheck && usedLineKeys.has(lineKey)) ||
       !imageCanvasRef.current ||
       !imageSize ||
       !lineHasDrawableGeometry
@@ -3604,6 +3611,135 @@ function App() {
     sharedLoopLastBucketFlushAtRef.current = performance.now();
     setMulticolorLineBuckets(nextBuckets);
     return true;
+  };
+
+  const flushSharedLoopVisibleLineCount = () => {
+    if (sharedLoopVisibleLineCountUpdateTimeoutRef.current !== null) {
+      window.clearTimeout(sharedLoopVisibleLineCountUpdateTimeoutRef.current);
+      sharedLoopVisibleLineCountUpdateTimeoutRef.current = null;
+    }
+    const nextVisibleLineCount = sharedLoopVisibleLineCountPendingRef.current;
+    sharedLoopVisibleLineCountPendingRef.current = null;
+    if (Number.isInteger(nextVisibleLineCount)) {
+      setSharedLoopVisibleLineCount(nextVisibleLineCount);
+    }
+  };
+
+  const clearSharedLoopAcceptedLineQueue = () => {
+    sharedLoopAcceptedLineQueueRef.current = [];
+    if (sharedLoopAcceptedLineQueueProcessTimeoutRef.current !== null) {
+      window.clearTimeout(sharedLoopAcceptedLineQueueProcessTimeoutRef.current);
+      window.cancelAnimationFrame(sharedLoopAcceptedLineQueueProcessTimeoutRef.current);
+      sharedLoopAcceptedLineQueueProcessTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleSharedLoopVisibleLineCountUpdate = (nextVisibleLineCount) => {
+    sharedLoopVisibleLineCountRef.current = nextVisibleLineCount;
+    sharedLoopVisibleLineCountPendingRef.current = nextVisibleLineCount;
+    if (sharedLoopVisibleLineCountUpdateTimeoutRef.current !== null) {
+      return;
+    }
+
+    sharedLoopVisibleLineCountUpdateTimeoutRef.current = window.setTimeout(() => {
+      sharedLoopVisibleLineCountUpdateTimeoutRef.current = null;
+      flushSharedLoopVisibleLineCount();
+    }, 100);
+  };
+
+  const scheduleSharedLoopFinalBucketFlush = () => {
+    if (sharedLoopFinalFlushTimeoutRef.current !== null) {
+      window.clearTimeout(sharedLoopFinalFlushTimeoutRef.current);
+    }
+    sharedLoopFinalFlushTimeoutRef.current = window.setTimeout(() => {
+      sharedLoopFinalFlushTimeoutRef.current = null;
+      if (!isMountedRef.current) {
+        return;
+      }
+      flushMulticolorLineBucketsToState({ force: true });
+    }, 0);
+  };
+
+  const flushSharedLoopAcceptedLineState = (latestResult) => {
+    if (!latestResult) {
+      return;
+    }
+    sharedLoopVisibleLineCountRef.current = latestResult.totalLineCount;
+    sharedLoopVisibleLineCountPendingRef.current = latestResult.totalLineCount;
+    const shouldPromoteInitialVisibleCount =
+      sharedLoopVisibleLineCount === null || sharedLoopVisibleLineCount === 0;
+    if (shouldPromoteInitialVisibleCount) {
+      if (sharedLoopVisibleLineCountUpdateTimeoutRef.current !== null) {
+        window.clearTimeout(sharedLoopVisibleLineCountUpdateTimeoutRef.current);
+        sharedLoopVisibleLineCountUpdateTimeoutRef.current = null;
+      }
+      setSharedLoopVisibleLineCount(latestResult.totalLineCount);
+    } else {
+      scheduleSharedLoopVisibleLineCountUpdate(latestResult.totalLineCount);
+    }
+    maybeFlushSharedLoopBucketsToState();
+    setSharedStateNextColorLabel(latestResult.colorLabel);
+  };
+
+  const processSharedLoopAcceptedLineQueue = () => {
+    sharedLoopAcceptedLineQueueProcessTimeoutRef.current = null;
+    if (
+      !isMountedRef.current ||
+      sharedStateLoopStopRequestedRef.current ||
+      multicolorExperimentalSteppingModeRef.current !== 'shared-best'
+    ) {
+      clearSharedLoopAcceptedLineQueue();
+      return;
+    }
+
+    const queue = sharedLoopAcceptedLineQueueRef.current;
+    if (queue.length === 0) {
+      return;
+    }
+
+    const nextItem = queue.shift();
+    const result = applyWorkerAcceptedSharedLine(
+      nextItem.line,
+      nextItem.message,
+      { deferSharedLoopStateUpdates: true },
+    );
+    if (!result.ok) {
+      clearSharedLoopAcceptedLineQueue();
+      finalizeSharedStateLoop(`Stopped: ${result.reason}`);
+      return;
+    }
+
+    flushSharedLoopAcceptedLineState(result);
+    sharedLoopWorkerRef.current?.postMessage({ type: 'continue' });
+    if (
+      queue.length > 0 &&
+      isMountedRef.current &&
+      !sharedStateLoopStopRequestedRef.current &&
+      multicolorExperimentalSteppingModeRef.current === 'shared-best'
+    ) {
+      sharedLoopAcceptedLineQueueProcessTimeoutRef.current = window.setTimeout(
+        processSharedLoopAcceptedLineQueue,
+        0,
+      );
+    }
+  };
+
+  const scheduleSharedLoopAcceptedLineProcessing = () => {
+    if (sharedLoopAcceptedLineQueueProcessTimeoutRef.current !== null) {
+      return;
+    }
+    if (document.hidden) {
+      sharedLoopAcceptedLineQueueProcessTimeoutRef.current = window.setTimeout(() => {
+        sharedLoopAcceptedLineQueueProcessTimeoutRef.current = null;
+        processSharedLoopAcceptedLineQueue();
+      }, 16);
+      return;
+    }
+
+    sharedLoopAcceptedLineQueueProcessTimeoutRef.current = window.requestAnimationFrame(() => {
+      sharedLoopAcceptedLineQueueProcessTimeoutRef.current = null;
+      processSharedLoopAcceptedLineQueue();
+    });
   };
 
   const maybeFlushSharedLoopBucketsToState = () => {
@@ -3755,6 +3891,7 @@ function App() {
       colorId: targetColorId,
       skipActiveMaskLineApplication: true,
       skipVisibleSync: shouldDeferMulticolorStepVisuals || sharedStateLoopRunningRef.current,
+      skipCanvasApplication: sharedStateLoopRunningRef.current,
       skipGlobalUsedLineCheck: multicolorUsedLineExclusionMode === 'per-color',
       skipGlobalUsedLineTracking: multicolorUsedLineExclusionMode === 'per-color',
       usedLineKeys: targetUsedLineKeys,
@@ -3771,10 +3908,12 @@ function App() {
         targetStartNailNumber,
         targetNextNailNumber,
       );
-    if (stepProfile) {
-      stepProfile.measure('shared geometry update', updateSharedGeometry);
-    } else {
-      updateSharedGeometry();
+    if (!sharedStateLoopRunningRef.current) {
+      if (stepProfile) {
+        stepProfile.measure('shared geometry update', updateSharedGeometry);
+      } else {
+        updateSharedGeometry();
+      }
     }
 
     const shouldRefreshTargetPreview =
@@ -3965,14 +4104,16 @@ function App() {
     window.__multicolorStepProfiles.push(profileSummary);
   };
 
-  const applyWorkerAcceptedSharedLine = (line, message = {}) => {
+  const applyWorkerAcceptedSharedLine = (line, message = {}, options = {}) => {
     const mainApplyStartedAt = performance.now();
+    const shouldDeferSharedLoopStateUpdates = Boolean(options.deferSharedLoopStateUpdates);
     const didApplyLine = handleMakeLinePermanent(line.startNailNumber, line.endNailNumber, {
       lineDarknessStep: line.lineDarknessStep,
       lineColorRgb: line.colorRgb,
       colorId: line.colorId,
       skipActiveMaskLineApplication: true,
       skipVisibleSync: true,
+      skipCanvasApplication: true,
       skipGlobalUsedLineCheck: true,
       skipGlobalUsedLineTracking: multicolorUsedLineExclusionMode === 'per-color',
     });
@@ -4006,10 +4147,11 @@ function App() {
       (line.stepOrder ?? 0) + 1,
     );
     const nextTotalLineCount = getMulticolorBucketTotalLineCount(nextBuckets);
-    sharedLoopVisibleLineCountRef.current = nextTotalLineCount;
-    setSharedLoopVisibleLineCount(nextTotalLineCount);
-    maybeFlushSharedLoopBucketsToState();
-    setSharedStateNextColorLabel(line.colorLabel);
+    if (!shouldDeferSharedLoopStateUpdates) {
+      scheduleSharedLoopVisibleLineCountUpdate(nextTotalLineCount);
+      maybeFlushSharedLoopBucketsToState();
+      setSharedStateNextColorLabel(line.colorLabel);
+    }
     pushWorkerSharedLineProfile(line, mainApplyEndedAt - mainApplyStartedAt, nextTotalLineCount, message);
 
     if (typeof window !== 'undefined') {
@@ -4039,33 +4181,40 @@ function App() {
   const finalizeSharedStateLoop = (stopReason = 'Stopped.') => {
     sharedStateLoopStopRequestedRef.current = true;
     sharedLoopWorkerRef.current?.postMessage({ type: 'stop' });
-    flushMulticolorLineBucketsToState({ force: true });
+    clearSharedLoopAcceptedLineQueue();
+    scheduleSharedLoopFinalBucketFlush();
     sharedStateLoopRunningRef.current = false;
     if (isMountedRef.current) {
-      setSharedStateLoopStatus(stopReason);
-      setIsSharedStateLoopRunning(false);
+      flushSharedLoopVisibleLineCount();
+      flushSync(() => {
+        setSharedStateLoopStatus(stopReason);
+        setIsSharedStateLoopRunning(false);
+      });
     }
   };
 
   sharedLoopWorkerMessageHandlerRef.current = (message) => {
     if (message?.type === 'accepted-lines') {
-      for (const line of message.lines ?? []) {
-        if (
-          !isMountedRef.current ||
-          sharedStateLoopStopRequestedRef.current ||
-          multicolorExperimentalSteppingModeRef.current !== 'shared-best'
-        ) {
-          break;
-        }
-        const result = applyWorkerAcceptedSharedLine(line, message);
-        if (!result.ok) {
-          finalizeSharedStateLoop(`Stopped: ${result.reason}`);
-          break;
-        }
+      if (message.bitsetPreview) {
+        setSharedLoopBitsetPreview(message.bitsetPreview);
       }
+      if (
+        !isMountedRef.current ||
+        sharedStateLoopStopRequestedRef.current ||
+        multicolorExperimentalSteppingModeRef.current !== 'shared-best'
+      ) {
+        return;
+      }
+      for (const line of message.lines ?? []) {
+        sharedLoopAcceptedLineQueueRef.current.push({ line, message });
+      }
+      scheduleSharedLoopAcceptedLineProcessing();
       return;
     }
     if (message?.type === 'initialized') {
+      if (message.bitsetPreview) {
+        setSharedLoopBitsetPreview(message.bitsetPreview);
+      }
       if (typeof window !== 'undefined') {
         window.__sharedLoopWorkerInitEvents = window.__sharedLoopWorkerInitEvents ?? [];
         window.__sharedLoopWorkerInitEvents.push({
@@ -4104,10 +4253,14 @@ function App() {
     if (sharedStateLoopRunningRef.current) {
       sharedStateLoopStopRequestedRef.current = true;
       sharedLoopWorkerRef.current?.postMessage({ type: 'stop' });
-      flushMulticolorLineBucketsToState({ force: true });
+      clearSharedLoopAcceptedLineQueue();
+      scheduleSharedLoopFinalBucketFlush();
       sharedStateLoopRunningRef.current = false;
-      setSharedStateLoopStatus('Stopped: user requested stop.');
-      setIsSharedStateLoopRunning(false);
+      flushSharedLoopVisibleLineCount();
+      flushSync(() => {
+        setSharedStateLoopStatus('Stopped: user requested stop.');
+        setIsSharedStateLoopRunning(false);
+      });
       return;
     }
 
@@ -4128,6 +4281,7 @@ function App() {
     sharedStateLoopStopRequestedRef.current = false;
     sharedStateLoopRunningRef.current = true;
     sharedLoopBucketStateFlushPendingRef.current = false;
+    setSharedLoopBitsetPreview(null);
     sharedLoopLastBucketFlushAtRef.current = performance.now();
     sharedLoopVisibleLineCountRef.current = getMulticolorBucketTotalLineCount(
       multicolorLineBucketsRef.current,
@@ -4323,6 +4477,20 @@ function App() {
       }
     }
   }, [multicolorLineBuckets]);
+
+  useEffect(() => {
+    return () => {
+      if (sharedLoopVisibleLineCountUpdateTimeoutRef.current !== null) {
+        window.clearTimeout(sharedLoopVisibleLineCountUpdateTimeoutRef.current);
+        sharedLoopVisibleLineCountUpdateTimeoutRef.current = null;
+      }
+      if (sharedLoopFinalFlushTimeoutRef.current !== null) {
+        window.clearTimeout(sharedLoopFinalFlushTimeoutRef.current);
+        sharedLoopFinalFlushTimeoutRef.current = null;
+      }
+      clearSharedLoopAcceptedLineQueue();
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -4530,6 +4698,7 @@ function App() {
 
     sharedStateLoopStopRequestedRef.current = true;
     sharedStateLoopRunningRef.current = false;
+    clearSharedLoopAcceptedLineQueue();
     setSharedStateLoopStatus('Stopped: stepping mode changed.');
     setIsSharedStateLoopRunning(false);
   }, [multicolorExperimentalSteppingMode]);
@@ -4552,175 +4721,24 @@ function App() {
     const threadWidthPixels = parseThreadWidthPxValue(threadWidth);
     return Math.max(0.05, (threadWidthPixels / previewSize) * 100);
   }, [previewSize, threadWidth]);
-  const shouldBuildArtGeometry = isArtMode || isWhiteTestOverlayEnabled;
-  const monochromeArtLineSegments = useMemo(
+  const artExactLineSegments = useMemo(
     () => {
-      if (!shouldBuildArtGeometry) {
+      if (!isWhiteTestOverlayEnabled) {
         return [];
       }
       return buildLinePolygonSegments(
-        buildArtLineSegments(savedNailSequence, nails),
+        [
+          ...buildArtLineSegments(savedNailSequence, nails),
+        ],
         artPolygonWidth,
       );
     },
-    [artPolygonWidth, nails, savedNailSequence, shouldBuildArtGeometry],
-  );
-  const renderedExperimentalLines = useMemo(() => {
-    if (!shouldBuildArtGeometry) {
-      return [];
-    }
-    const visibleBucketsByColorId = new Map(
-      multicolorLineBuckets
-        .filter(
-          (bucket) =>
-            bucket.visible &&
-            (bucket.lineCount ?? getPackedLineCount(bucket.linesPacked)) > 0,
-        )
-        .map((bucket) => [bucket.colorId, bucket]),
-    );
-    const activeInterleaveEntries = multicolorInterleaveOrder.filter((entry) =>
-      visibleBucketsByColorId.has(entry.colorId),
-    );
-
-    if (activeInterleaveEntries.length === 0) {
-      return [];
-    }
-
-    const occurrenceCountByColorId = new Map();
-    for (const entry of activeInterleaveEntries) {
-      occurrenceCountByColorId.set(
-        entry.colorId,
-        (occurrenceCountByColorId.get(entry.colorId) ?? 0) + 1,
-      );
-    }
-
-    const slicedLinesByEntryId = new Map();
-    for (const [colorId, bucket] of visibleBucketsByColorId) {
-      const occurrenceCount = occurrenceCountByColorId.get(colorId) ?? 0;
-      if (occurrenceCount <= 0) {
-        continue;
-      }
-
-      const bucketLineCount = bucket.lineCount ?? getPackedLineCount(bucket.linesPacked);
-      const lineSlices = splitWholeUnits(bucketLineCount, occurrenceCount);
-      let lineOffset = 0;
-      let occurrenceIndex = 1;
-
-      for (const lineSliceCount of lineSlices) {
-        const lineSlice = slicePackedLines(bucket.linesPacked, lineOffset, lineSliceCount);
-        const mappedLines = [];
-        forEachPackedLine(lineSlice, (line, index) => {
-          mappedLines.push({
-            startNailNumber: line.startNailNumber,
-            endNailNumber: line.endNailNumber,
-            stepOrder: line.stepOrder,
-            colorId: bucket.colorId,
-            label: bucket.label,
-            hex: bucket.hex,
-            visible: bucket.visible,
-            key:
-              `${bucket.colorId}-pass-${occurrenceIndex}-line-${index}` +
-              `-${line.startNailNumber}-${line.endNailNumber}`,
-          });
-        });
-        slicedLinesByEntryId.set(
-          `${colorId}-pass-${occurrenceIndex}`,
-          mappedLines,
-        );
-        lineOffset += lineSliceCount;
-        occurrenceIndex += 1;
-      }
-    }
-
-    const interleavedLines = activeInterleaveEntries.flatMap(
-      (entry) => slicedLinesByEntryId.get(entry.id) ?? [],
-    );
-
-    return interleavedLines
-      .map((line, renderOrderIndex) => ({
-        ...line,
-        renderOrderIndex,
-      }))
-      .sort((firstLine, secondLine) => {
-        const firstHasStepOrder = Number.isInteger(firstLine.stepOrder);
-        const secondHasStepOrder = Number.isInteger(secondLine.stepOrder);
-        if (firstHasStepOrder && secondHasStepOrder) {
-          return firstLine.stepOrder - secondLine.stepOrder;
-        }
-        if (firstHasStepOrder !== secondHasStepOrder) {
-          return firstHasStepOrder ? 1 : -1;
-        }
-        return firstLine.renderOrderIndex - secondLine.renderOrderIndex;
-      })
-      .map(({ renderOrderIndex, ...line }) => line);
-  }, [multicolorInterleaveOrder, multicolorLineBuckets, shouldBuildArtGeometry]);
-  const experimentalArtLineSegments = useMemo(
-    () => {
-      if (!shouldBuildArtGeometry) {
-        return [];
-      }
-      return buildLinePolygonSegments(
-        buildManualArtLineSegments(
-          renderedExperimentalLines
-            .map((line) => ({
-              startNailNumber: line.startNailNumber,
-              endNailNumber: line.endNailNumber,
-              stroke: line.hex,
-              colorId: line.colorId ?? null,
-            })),
-          nails,
-          'experimental-art-line',
-        ),
-        artPolygonWidth,
-      );
-    },
-    [artPolygonWidth, nails, renderedExperimentalLines, shouldBuildArtGeometry],
-  );
-  const artHoverLines = useMemo(() => {
-    if (!isArtMode) {
-      return [];
-    }
-    const monochromeLines = savedNailSequence
-      .map((endNailNumber, index) => ({
-        startNailNumber: index === 0 ? 1 : savedNailSequence[index - 1],
-        endNailNumber,
-        colorId: null,
-      }))
-      .filter(
-        (line) =>
-          Number.isInteger(line.startNailNumber) &&
-          Number.isInteger(line.endNailNumber) &&
-          line.startNailNumber > 0 &&
-          line.endNailNumber > 0,
-      );
-    const experimentalLines = renderedExperimentalLines.map((line) => ({
-      startNailNumber: line.startNailNumber,
-      endNailNumber: line.endNailNumber,
-      colorId: line.colorId ?? null,
-    }));
-
-    return isExperimentalColorLinesOnlyPreviewEnabled
-      ? experimentalLines
-      : [...monochromeLines, ...experimentalLines];
-  }, [
-    isExperimentalColorLinesOnlyPreviewEnabled,
-    renderedExperimentalLines,
-    savedNailSequence,
-  ]);
-  const allArtLineSegments = useMemo(
-    () =>
-      isExperimentalColorLinesOnlyPreviewEnabled
-        ? experimentalArtLineSegments
-        : [...monochromeArtLineSegments, ...experimentalArtLineSegments],
     [
-      experimentalArtLineSegments,
-      isExperimentalColorLinesOnlyPreviewEnabled,
-      monochromeArtLineSegments,
+      artPolygonWidth,
+      isWhiteTestOverlayEnabled,
+      nails,
+      savedNailSequence,
     ],
-  );
-  const artLineSegments = useMemo(
-    () => (isArtMode ? allArtLineSegments : []),
-    [allArtLineSegments, isArtMode],
   );
   const shouldComputeExactColorAreas = isWhiteTestOverlayEnabled;
   const exactColorAreaStats = useMemo(() => {
@@ -4728,7 +4746,7 @@ function App() {
       return EMPTY_EXACT_COLOR_AREA_STATS;
     }
     const { totalArea, areasById, geometriesById } = computeExactColorRegions({
-      artLineSegments: allArtLineSegments,
+      artLineSegments: artExactLineSegments,
       paletteColors: multicolorPaletteColors,
     });
     const stats = [
@@ -4760,7 +4778,7 @@ function App() {
       stats,
       geometriesById,
     };
-  }, [allArtLineSegments, multicolorPaletteColors, shouldComputeExactColorAreas]);
+  }, [artExactLineSegments, multicolorPaletteColors, shouldComputeExactColorAreas]);
   const whiteTestOverlayPathData = useMemo(() => {
     if (!isWhiteTestOverlayEnabled) {
       return '';
@@ -5725,6 +5743,10 @@ function App() {
             setMulticolorMinDistanceMode={setMulticolorMinDistanceMode}
             setMulticolorUsedLineExclusionMode={setMulticolorUsedLineExclusionMode}
             setLineCoverageBackendId={setLineCoverageBackendId}
+            sharedLoopSolverMode={sharedLoopSolverMode}
+            sharedLoopBitsetGridSize={sharedLoopBitsetGridSize}
+            setSharedLoopSolverMode={setSharedLoopSolverMode}
+            setSharedLoopBitsetGridSize={setSharedLoopBitsetGridSize}
             shouldShowPaletteComparison={shouldShowPaletteComparison}
             multicolorTargetTotalLines={multicolorTargetTotalLines}
             sharedStateNextColorLabel={sharedStateNextColorLabel}
@@ -5745,7 +5767,7 @@ function App() {
 
       <Profiler id="PreviewWorkspace" onRender={handleReactProfile}>
         <PreviewWorkspace
-        artLineSegments={artLineSegments}
+        artLineSegments={artExactLineSegments}
         cropToCircle={cropToCircle}
         handlePointerDown={handlePointerDown}
         handlePointerMove={handlePointerMove}
@@ -5755,9 +5777,14 @@ function App() {
         imageSize={imageSize}
         imageStyle={imageStyle}
         isArtMode={isArtMode}
+        multicolorLineBuckets={multicolorLineBuckets}
+        savedNailSequence={savedNailSequence}
+        isExperimentalColorLinesOnlyPreviewEnabled={isExperimentalColorLinesOnlyPreviewEnabled}
         lineEnd={lineEnd}
         linePixels={linePixels}
         lineStart={lineStart}
+        sharedLoopBitsetPreview={sharedLoopBitsetPreview}
+        sharedLoopSolverMode={sharedLoopSolverMode}
         isWhiteTestOverlayEnabled={isWhiteTestOverlayEnabled}
         whiteTestOverlayPathData={whiteTestOverlayPathData}
         nailFontSize={nailFontSize}
