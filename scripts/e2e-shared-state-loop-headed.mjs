@@ -7,6 +7,10 @@ const cwd = process.cwd();
 const port = 5186;
 const viteBin = path.join(cwd, 'node_modules', 'vite', 'bin', 'vite.js');
 const defaultImagePath = path.join(cwd, 'scripts', 'fixtures', 'e2e-shared-loop.svg');
+const timeoutMs = Number.parseInt(process.env.E2E_TIMEOUT_MS ?? '120000', 10);
+const serverTimeoutMs = Number.parseInt(process.env.E2E_SERVER_TIMEOUT_MS ?? '60000', 10);
+const enabledTimeoutMs = Number.parseInt(process.env.E2E_ENABLED_TIMEOUT_MS ?? '60000', 10);
+const heartbeatMs = Number.parseInt(process.env.E2E_HEARTBEAT_MS ?? '10000', 10);
 const imagePath = process.env.E2E_IMAGE_PATH
   ? path.resolve(cwd, process.env.E2E_IMAGE_PATH)
   : defaultImagePath;
@@ -28,9 +32,38 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isBenignConsoleError(text) {
+  return text === 'Failed to load resource: the server responded with a status of 404 (Not Found)';
+}
+
+function startHeartbeat(label) {
+  if (!Number.isFinite(heartbeatMs) || heartbeatMs <= 0) {
+    return () => {};
+  }
+
+  const startedAt = performance.now();
+  const timer = setInterval(() => {
+    const elapsedMs = Math.round(performance.now() - startedAt);
+    process.stdout.write(`[wait] ${label} still waiting after ${elapsedMs}ms\n`);
+  }, heartbeatMs);
+
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+async function waitWithHeartbeat(label, fn) {
+  const stopHeartbeat = startHeartbeat(label);
+  try {
+    return await fn();
+  } finally {
+    stopHeartbeat();
+  }
+}
+
 async function waitForServer() {
   const startedAt = performance.now();
-  while (performance.now() - startedAt < 60000) {
+  let nextHeartbeatAt = startedAt + heartbeatMs;
+  while (performance.now() - startedAt < serverTimeoutMs) {
     try {
       const response = await fetch(appUrl);
       if (response.ok) {
@@ -39,6 +72,14 @@ async function waitForServer() {
     } catch {
       // Wait for server startup.
     }
+    if (heartbeatMs > 0 && performance.now() >= nextHeartbeatAt) {
+      process.stdout.write(
+        `[wait] Vite dev server ready check still pending after ${Math.round(
+          performance.now() - startedAt,
+        )}ms\n`,
+      );
+      nextHeartbeatAt += heartbeatMs;
+    }
     await sleep(250);
   }
   throw new Error('Vite dev server did not become ready.');
@@ -46,12 +87,19 @@ async function waitForServer() {
 
 async function waitForEnabled(locator) {
   const startedAt = performance.now();
-  while (performance.now() - startedAt < 60000) {
+  let nextHeartbeatAt = startedAt + heartbeatMs;
+  while (performance.now() - startedAt < enabledTimeoutMs) {
     if (await locator.isVisible().catch(() => false)) {
       const isDisabled = await locator.isDisabled().catch(() => true);
       if (!isDisabled) {
         return;
       }
+    }
+    if (heartbeatMs > 0 && performance.now() >= nextHeartbeatAt) {
+      process.stdout.write(
+        `[wait] Control still disabled after ${Math.round(performance.now() - startedAt)}ms\n`,
+      );
+      nextHeartbeatAt += heartbeatMs;
     }
     await sleep(100);
   }
@@ -102,60 +150,126 @@ try {
     viewport: { width: 1440, height: 1024 },
   });
   const page = await context.newPage();
-  page.setDefaultTimeout(90000);
+  page.setDefaultTimeout(timeoutMs);
+  let abortReason = null;
+  const failFast = (reason) => {
+    if (abortReason) {
+      return;
+    }
+    abortReason = reason instanceof Error ? reason : new Error(String(reason));
+    process.stderr.write(`[page-error] ${abortReason.message}\n`);
+    void browser.close().catch(() => {});
+  };
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      const text = message.text();
+      if (!isBenignConsoleError(text)) {
+        failFast(new Error(`Console error: ${text}`));
+      }
+    }
+  });
+  page.on('pageerror', (error) => {
+    failFast(new Error(`Page error: ${error.message}`));
+  });
 
   await page.goto(appUrl, { waitUntil: 'domcontentloaded' });
+  if (abortReason) {
+    throw abortReason;
+  }
   await page.locator('label.upload-field input[type="file"]').setInputFiles(imagePath);
+  if (abortReason) {
+    throw abortReason;
+  }
   await page.locator('canvas.preview-image').waitFor({ state: 'visible' });
+  if (abortReason) {
+    throw abortReason;
+  }
   await page.getByRole('slider', { name: /^Nails:/i }).evaluate((element) => {
     element.value = '80';
     element.dispatchEvent(new Event('input', { bubbles: true }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
   });
+  if (abortReason) {
+    throw abortReason;
+  }
 
   await page.getByRole('button', { name: /switch to art/i }).click();
+  if (abortReason) {
+    throw abortReason;
+  }
   await page.locator('.art-lines-layer').waitFor({ state: 'visible' });
+  if (abortReason) {
+    throw abortReason;
+  }
 
   const logTimingsCheckbox = page.getByLabel('Log step timings');
   if (!(await logTimingsCheckbox.isChecked())) {
     await logTimingsCheckbox.check();
   }
+  if (abortReason) {
+    throw abortReason;
+  }
 
   await page.evaluate(() => {
     window.__multicolorStepProfiles = [];
   });
+  if (abortReason) {
+    throw abortReason;
+  }
 
   const initialPolygonCount = await page.locator('.art-lines-layer polygon').count();
   const loopButton = page.getByRole('button', { name: /Start shared-state loop/i });
   await waitForEnabled(loopButton);
+  if (abortReason) {
+    throw abortReason;
+  }
   await loopButton.click();
+  if (abortReason) {
+    throw abortReason;
+  }
 
-  await page.waitForFunction(
-    () => (window.__multicolorStepProfiles?.length ?? 0) >= 1,
-    undefined,
-    { timeout: 120000 },
+  await waitWithHeartbeat('waiting for first shared-state profile', () =>
+    page.waitForFunction(
+      () => (window.__multicolorStepProfiles?.length ?? 0) >= 1,
+      undefined,
+      { timeout: timeoutMs },
+    ),
   );
-  await page.waitForFunction(
-    () => document.querySelectorAll('.art-lines-layer polygon').length > 0,
-    undefined,
-    { timeout: 120000 },
+
+  await waitWithHeartbeat('waiting for art preview polygons', () =>
+    page.waitForFunction(
+      () => document.querySelectorAll('.art-lines-layer polygon').length > 0,
+      undefined,
+      { timeout: timeoutMs },
+    ),
   );
-  await page.waitForFunction(
-    () => (window.__multicolorStepProfiles?.length ?? 0) >= 3,
-    undefined,
-    { timeout: 120000 },
+
+  await waitWithHeartbeat('waiting for third shared-state profile', () =>
+    page.waitForFunction(
+      () => (window.__multicolorStepProfiles?.length ?? 0) >= 3,
+      undefined,
+      { timeout: timeoutMs },
+    ),
   );
 
   const stopButton = page.getByRole('button', { name: /Stop shared-state loop/i });
   await waitForEnabled(stopButton);
+  if (abortReason) {
+    throw abortReason;
+  }
   await stopButton.click();
-  await page.waitForFunction(
-    () => {
-      const statusText = document.body.innerText;
-      return statusText.includes('Stopped: user requested stop.');
-    },
-    undefined,
-    { timeout: 30000 },
+  if (abortReason) {
+    throw abortReason;
+  }
+  await waitWithHeartbeat('waiting for loop stop acknowledgement', () =>
+    page.waitForFunction(
+      () => {
+        const statusText = document.body.innerText;
+        return statusText.includes('Stopped: user requested stop.');
+      },
+      undefined,
+      { timeout: timeoutMs },
+    ),
   );
 
   const finalPolygonCount = await page.locator('.art-lines-layer polygon').count();

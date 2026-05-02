@@ -1017,6 +1017,25 @@ label {
   display: block;
   pointer-events: none;
 }
+.art-canvas-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+.art-bitset-preview-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: rgba(255, 255, 255, 0.1);
+}
 .art-white-test-layer {
   position: absolute;
   inset: 0;
@@ -1027,6 +1046,22 @@ label {
 }
 .art-white-test-path {
   fill: rgba(37, 99, 235, 0.45);
+}
+.art-bitset-preview-caption {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
 }
 
 .nails-labels-layer {
