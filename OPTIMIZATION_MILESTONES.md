@@ -39,6 +39,13 @@ Known bottleneck:
 
 ## Milestones
 
+### Milestone 5 kickoff status (2026-05-02)
+
+- Milestone 4 confirmed exact candidate-local polygon approaches are not viable in the hot path at scale.
+- A concrete implementation plan now exists in `docs/milestone-5-bitset-prototype-plan.md`.
+- Next implementation step is adding opt-in `solverMode` (`exact-global-union` default, `bitset-prototype` experimental) in the worker.
+
+
 ### 1. Exact Golden Harness
 
 Goal: make correctness regression checks easy and repeatable.

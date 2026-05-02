@@ -12,6 +12,7 @@ const FOREGROUND_BATCH_BUDGET_MS = 0;
 const HIDDEN_BATCH_BUDGET_MS = 250;
 const GEOMETRY_AREA_EPSILON = 1e-9;
 const ACCEPTED_STRIP_GRID_SIZE = 32;
+const BITSET_DEFAULT_GRID_SIZE = 1024;
 
 let isRunning = false;
 let isHidden = false;
@@ -218,6 +219,116 @@ function clipPolygonToConvexPolygon(subjectPolygon, clipPolygon) {
 function getConvexClippedArea(subjectPolygon, clipPolygon) {
   const clippedPolygon = clipPolygonToConvexPolygon(subjectPolygon, clipPolygon);
   return clippedPolygon.length >= 3 ? getPolygonArea(clippedPolygon) : 0;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function isPointInsidePolygon(pointX, pointY, polygon) {
+  if (!Array.isArray(polygon) || polygon.length < 3) {
+    return false;
+  }
+
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersects = ((yi > pointY) !== (yj > pointY))
+      && (pointX < ((xj - xi) * (pointY - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function rasterizePolygonToMask(polygon, bounds, bitsetState) {
+  if (!bitsetState || !Array.isArray(polygon) || polygon.length < 3 || !bounds) {
+    return null;
+  }
+  const mask = new Uint8Array(bitsetState.cellCount);
+  const minCellX = clamp(
+    Math.floor((bounds.minX - bitsetState.bounds.minX) / bitsetState.cellSizeX),
+    0,
+    bitsetState.gridSize - 1,
+  );
+  const maxCellX = clamp(
+    Math.ceil((bounds.maxX - bitsetState.bounds.minX) / bitsetState.cellSizeX),
+    0,
+    bitsetState.gridSize - 1,
+  );
+  const minCellY = clamp(
+    Math.floor((bounds.minY - bitsetState.bounds.minY) / bitsetState.cellSizeY),
+    0,
+    bitsetState.gridSize - 1,
+  );
+  const maxCellY = clamp(
+    Math.ceil((bounds.maxY - bitsetState.bounds.minY) / bitsetState.cellSizeY),
+    0,
+    bitsetState.gridSize - 1,
+  );
+
+  let coverage = 0;
+  for (let y = minCellY; y <= maxCellY; y += 1) {
+    const worldY = bitsetState.bounds.minY + ((y + 0.5) * bitsetState.cellSizeY);
+    for (let x = minCellX; x <= maxCellX; x += 1) {
+      const worldX = bitsetState.bounds.minX + ((x + 0.5) * bitsetState.cellSizeX);
+      if (!isPointInsidePolygon(worldX, worldY, polygon)) {
+        continue;
+      }
+      const bitIndex = y * bitsetState.gridSize + x;
+      if (mask[bitIndex] === 0) {
+        mask[bitIndex] = 1;
+        coverage += 1;
+      }
+    }
+  }
+  return coverage > 0 ? { mask, coverage } : null;
+}
+
+function getOrBuildLineBitsetMetric(lineKey, lineClipPolygon, lineBounds) {
+  if (!state.bitsetState || !lineKey || !Array.isArray(lineClipPolygon) || lineClipPolygon.length < 3) {
+    return null;
+  }
+  const cached = state.lineBitsetMetricByLineKey.get(lineKey);
+  if (cached) {
+    return cached;
+  }
+  const metric = rasterizePolygonToMask(lineClipPolygon, lineBounds, state.bitsetState);
+  if (!metric) {
+    return null;
+  }
+  state.lineBitsetMetricByLineKey.set(lineKey, metric);
+  return metric;
+}
+
+function getBitsetTargetGain(colorId, lineBitsetMetric) {
+  const bitsetState = state.bitsetState;
+  const target = bitsetState?.targetMaskByColorId.get(colorId);
+  const painted = bitsetState?.paintedMaskByColorId.get(colorId);
+  if (!target || !painted || !lineBitsetMetric) {
+    return 0;
+  }
+  let gain = 0;
+  for (let i = 0; i < lineBitsetMetric.mask.length; i += 1) {
+    if (lineBitsetMetric.mask[i] && target[i] && !painted[i]) {
+      gain += 1;
+    }
+  }
+  return gain;
+}
+
+function applyLineToBitsetPaint(colorId, lineBitsetMetric) {
+  const painted = state.bitsetState?.paintedMaskByColorId.get(colorId);
+  if (!painted || !lineBitsetMetric) {
+    return;
+  }
+  for (let i = 0; i < lineBitsetMetric.mask.length; i += 1) {
+    if (lineBitsetMetric.mask[i]) {
+      painted[i] = 1;
+    }
+  }
 }
 
 function buildGeometryAreaIndex(geometry) {
@@ -646,7 +757,9 @@ function getBestLineForColor(originIndex, colorId, usedLineKeys, minimumAllowedD
     profile.currentOverlapCandidateCount += 1;
     const currentOverlapStartedAt = performance.now();
     const alreadyPaintedCoverage =
-      state.currentOverlapMode === 'candidate-local'
+      state.solverMode === 'bitset-prototype'
+        ? 0
+        : state.currentOverlapMode === 'candidate-local'
         ? getLineOverlapAreaWithAcceptedPaintedStrips(
             lineGeometry,
             lineBounds,
@@ -666,7 +779,17 @@ function getBestLineForColor(originIndex, colorId, usedLineKeys, minimumAllowedD
             currentGeometryIndex,
           );
     addProfileMs(profile, 'currentOverlapMs', currentOverlapStartedAt);
-    const flippedCoverage = Math.max(0, targetOverlapCoverage - alreadyPaintedCoverage);
+    const bitsetMetric =
+      state.solverMode === 'bitset-prototype'
+        ? getOrBuildLineBitsetMetric(lineKey, lineClipPolygon, lineBounds)
+        : null;
+    const bitsetTargetGain =
+      state.solverMode === 'bitset-prototype'
+        ? getBitsetTargetGain(colorId, bitsetMetric)
+        : 0;
+    const flippedCoverage = state.solverMode === 'bitset-prototype'
+      ? bitsetTargetGain
+      : Math.max(0, targetOverlapCoverage - alreadyPaintedCoverage);
     if (flippedCoverage <= GEOMETRY_AREA_EPSILON) {
       profile.fullyPaintedSkipCount += 1;
       continue;
@@ -1018,8 +1141,36 @@ function initializeSolver(payload) {
     globalLineStrength: payload.globalLineStrength ?? 30,
     globalMinDistance: payload.globalMinDistance ?? 15,
     currentOverlapMode: payload.currentOverlapMode ?? 'global-union',
+    solverMode: payload.solverMode === 'bitset-prototype' ? 'bitset-prototype' : 'exact-global-union',
+    lineBitsetMetricByLineKey: new Map(),
+    bitsetState: null,
     nextStepOrder: payload.nextStepOrder ?? 1,
   };
+
+  if (state.solverMode === 'bitset-prototype' && targetWorldBounds) {
+    const gridSize = Number.isFinite(payload.bitsetGridSize) ? Math.max(64, Math.floor(payload.bitsetGridSize)) : BITSET_DEFAULT_GRID_SIZE;
+    const cellCount = gridSize * gridSize;
+    const cellSizeX = Math.max((targetWorldBounds.maxX - targetWorldBounds.minX) / gridSize, Number.EPSILON);
+    const cellSizeY = Math.max((targetWorldBounds.maxY - targetWorldBounds.minY) / gridSize, Number.EPSILON);
+    const targetMaskByColorId = new Map();
+    const paintedMaskByColorId = new Map();
+    const bitsetState = { gridSize, cellCount, cellSizeX, cellSizeY, bounds: targetWorldBounds, targetMaskByColorId, paintedMaskByColorId };
+    state.bitsetState = bitsetState;
+    for (const [colorId, geometry] of targetGeometriesByColorId.entries()) {
+      const targetMask = new Uint8Array(cellCount);
+      for (const polygon of geometry ?? []) {
+        const outer = getOpenRingPoints(polygon?.[0] ?? []);
+        const bounds = getBoundsForPoints(outer);
+        const metric = rasterizePolygonToMask(outer, bounds, bitsetState);
+        if (!metric) continue;
+        for (let i = 0; i < metric.mask.length; i += 1) {
+          if (metric.mask[i]) targetMask[i] = 1;
+        }
+      }
+      targetMaskByColorId.set(colorId, targetMask);
+      paintedMaskByColorId.set(colorId, new Uint8Array(cellCount));
+    }
+  }
 
   for (const bucket of state.buckets) {
     for (const line of bucket.lines) {
@@ -1058,3 +1209,10 @@ self.onmessage = (event) => {
     }
   }
 };
+  if (state.solverMode === 'bitset-prototype') {
+    const lineKey = getNormalizedLineKey(startNailNumber, endNailNumber);
+    const lineBounds = getBoundsForGeometry(lineGeometry);
+    const lineClipPolygon = getOpenRingPoints(lineGeometry?.[0]?.[0] ?? []);
+    const bitsetMetric = getOrBuildLineBitsetMetric(lineKey, lineClipPolygon, lineBounds);
+    applyLineToBitsetPaint(colorId, bitsetMetric);
+  }

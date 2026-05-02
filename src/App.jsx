@@ -3919,6 +3919,14 @@ function App() {
       ['candidate-local', 'fragment-index'].includes(window.__sharedLoopCurrentOverlapMode)
         ? window.__sharedLoopCurrentOverlapMode
         : 'global-union',
+    solverMode:
+      typeof window !== 'undefined' && window.__sharedLoopSolverMode === 'bitset-prototype'
+        ? 'bitset-prototype'
+        : 'exact-global-union',
+    bitsetGridSize:
+      typeof window !== 'undefined' && Number.isFinite(window.__sharedLoopBitsetGridSize)
+        ? window.__sharedLoopBitsetGridSize
+        : 1024,
     nextStepOrder: multicolorLineStepOrderRef.current,
   });
 
